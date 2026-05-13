@@ -1,0 +1,46 @@
+import { EditorService } from './editor.service';
+import { EditorResponsePresenter } from './presenters/editor-response.presenter';
+import { FastapiClient } from '../fastapi/fastapi.client';
+
+describe('EditorService', () => {
+  const baseLineResp = {
+    line: 'hello world',
+    normalized_line: 'hello world',
+    total_syllables: 3,
+    tokens: [],
+    last_word: { text: 'world', normalized: 'world', pronunciation_found: true },
+  };
+
+  function setup(opts: { pronunciationFound: boolean }) {
+    const analyzeLine = jest.fn().mockResolvedValue({
+      ...baseLineResp,
+      last_word: {
+        ...baseLineResp.last_word,
+        pronunciation_found: opts.pronunciationFound,
+      },
+    });
+    const getRhymes = jest.fn().mockResolvedValue({
+      word: 'world',
+      normalized_word: 'world',
+      pronunciations_found: true,
+      rhymes: [],
+      meta: { limit: 10, include_near: false },
+    });
+    const fastapi = { analyzeLine, getRhymes } as unknown as FastapiClient;
+    const service = new EditorService(fastapi, new EditorResponsePresenter());
+    return { service, analyzeLine, getRhymes };
+  }
+
+  it('calls getRhymes when pronunciation_found is true', async () => {
+    const { service, getRhymes } = setup({ pronunciationFound: true });
+    await service.analyze('hello world');
+    expect(getRhymes).toHaveBeenCalledWith({ word: 'world' });
+  });
+
+  it('skips getRhymes when pronunciation_found is false', async () => {
+    const { service, getRhymes } = setup({ pronunciationFound: false });
+    const out = await service.analyze('hello world');
+    expect(getRhymes).not.toHaveBeenCalled();
+    expect(out.rhymes.items).toEqual([]);
+  });
+});

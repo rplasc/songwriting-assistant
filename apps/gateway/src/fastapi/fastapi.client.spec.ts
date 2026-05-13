@@ -1,0 +1,73 @@
+import {
+  BadGatewayException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { of, throwError } from 'rxjs';
+import { AxiosError, AxiosResponse } from 'axios';
+import { FastapiClient } from './fastapi.client';
+
+function axiosErr(code: string, response?: Partial<AxiosResponse>): AxiosError {
+  const err = new Error('boom') as AxiosError;
+  err.code = code;
+  if (response) err.response = response as AxiosResponse;
+  return err;
+}
+
+describe('FastapiClient', () => {
+  let http: jest.Mocked<HttpService>;
+  let client: FastapiClient;
+
+  beforeEach(() => {
+    http = {
+      get: jest.fn(),
+      post: jest.fn(),
+    } as unknown as jest.Mocked<HttpService>;
+    client = new FastapiClient(http);
+  });
+
+  it('ping returns true on 200', async () => {
+    (http.get as jest.Mock).mockReturnValue(of({ status: 200 }));
+    await expect(client.ping()).resolves.toBe(true);
+  });
+
+  it('ping returns false on any error', async () => {
+    (http.get as jest.Mock).mockReturnValue(throwError(() => new Error()));
+    await expect(client.ping()).resolves.toBe(false);
+  });
+
+  it('maps timeout to ServiceUnavailable', async () => {
+    (http.post as jest.Mock).mockReturnValue(
+      throwError(() => axiosErr('ECONNABORTED')),
+    );
+    await expect(client.analyzeLine({ line: 'hi' })).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('maps ECONNREFUSED to ServiceUnavailable', async () => {
+    (http.post as jest.Mock).mockReturnValue(
+      throwError(() => axiosErr('ECONNREFUSED')),
+    );
+    await expect(client.getRhymes({ word: 'a' })).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('maps non-2xx response to BadGateway', async () => {
+    (http.post as jest.Mock).mockReturnValue(
+      throwError(() => axiosErr('ERR', { status: 500, data: {} })),
+    );
+    await expect(client.analyzeLine({ line: 'hi' })).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
+  });
+
+  it('returns data on success', async () => {
+    (http.post as jest.Mock).mockReturnValue(
+      of({ data: { line: 'hi', total_syllables: 1, tokens: [], last_word: null, normalized_line: 'hi' } }),
+    );
+    const out = await client.analyzeLine({ line: 'hi' });
+    expect(out.line).toBe('hi');
+  });
+});

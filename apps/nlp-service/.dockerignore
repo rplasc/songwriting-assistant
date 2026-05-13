@@ -1,0 +1,9 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+tests
+.git
+.gitignore
+*.md
+songwriting-nlp-service.code-workspace

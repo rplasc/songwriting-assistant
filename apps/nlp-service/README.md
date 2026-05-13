@@ -4,9 +4,6 @@ Phase 1 language engine that returns English rhyme suggestions and syllable
 analysis for the songwriting assistant. Backed by the CMU Pronouncing
 Dictionary loaded once at startup.
 
-See [fastapi_rhyme_engine_implementation_plan.md](fastapi_rhyme_engine_implementation_plan.md)
-for the full product spec.
-
 ## Run locally
 
 ```powershell

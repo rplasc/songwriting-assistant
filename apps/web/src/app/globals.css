@@ -1,13 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafaf7;
-  --foreground: #1a1a1a;
-  --surface: #ffffff;
-  --surface-muted: #f4f3ee;
-  --border: #e6e4dc;
-  --accent: #1d4ed8;
-  --muted-foreground: #6b7280;
+  /* Warm parchment base */
+  --background: #f8f6f0;
+  --foreground: #1c1a17;
+  --surface: #fefcf8;
+  --surface-muted: #f2efe6;
+  --border: #dedad0;
+
+  /* Accent: warm amber-ochre — ink, not corporate */
+  --accent: #a16207;
+  --accent-muted: #fef3c7;
+
+  --muted-foreground: #78736a;
+  --success: #166534;
 }
 
 @theme inline {
@@ -17,19 +23,21 @@
   --color-surface-muted: var(--surface-muted);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent-muted: var(--accent-muted);
   --color-muted-foreground: var(--muted-foreground);
   --font-sans: var(--font-plex-sans);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0d0d0c;
-    --foreground: #ededed;
-    --surface: #161614;
-    --surface-muted: #1f1f1c;
-    --border: #2a2a26;
-    --accent: #93c5fd;
-    --muted-foreground: #a1a1aa;
+    --background: #12110e;
+    --foreground: #ece8e1;
+    --surface: #1a1915;
+    --surface-muted: #232118;
+    --border: #302e28;
+    --accent: #f59e0b;
+    --accent-muted: #292013;
+    --muted-foreground: #9c9589;
   }
 }
 
@@ -41,16 +49,20 @@ body {
     "Segoe UI", Roboto, sans-serif;
 }
 
+/* ── TipTap editor surface ────────────────────────── */
+
 .tiptap {
   outline: none;
-  min-height: 18rem;
+  min-height: 22rem;
   font-size: 1.0625rem;
-  line-height: 1.65;
+  line-height: 1.8;
+  letter-spacing: 0.01em;
   white-space: pre-wrap;
 }
 
 .tiptap p {
   margin: 0;
+  padding-bottom: 0.15em; /* slight inter-line breathing */
 }
 
 .tiptap p.is-editor-empty:first-child::before {
@@ -59,4 +71,32 @@ body {
   pointer-events: none;
   float: left;
   height: 0;
+  font-style: italic;
+}
+
+/* ── Scrollbar styling (subtle, warm) ─────────────── */
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* ── Reduced motion ───────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

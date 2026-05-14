@@ -2,6 +2,7 @@
 
 import { useEditorAnalysis } from "@/features/analysis/use-editor-analysis";
 import { useLyricEditor } from "@/features/editor/tiptap/use-lyric-editor";
+import { cn } from "@/lib/utils";
 import { EditorLayout } from "./editor-layout";
 import { LyricEditor } from "./lyric-editor";
 import { RhymePanel } from "./rhyme-panel";
@@ -12,7 +13,7 @@ export function LyricEditorShell() {
   const { result, status, error } = useEditorAnalysis(activeLine);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2">
       <EditorLayout
         editor={<LyricEditor editor={editor} />}
         panels={
@@ -24,10 +25,10 @@ export function LyricEditorShell() {
       />
       {status === "error" && error ? (
         <div
-          role="status"
-          className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs text-muted-foreground"
+          role="alert"
+          className="mt-1 rounded border border-border bg-surface-muted px-3 py-2 text-[11px] text-muted-foreground"
         >
-          {error} Keep writing — we&apos;ll retry as you type.
+          {error} Keep writing — analysis will retry automatically.
         </div>
       ) : null}
     </div>

@@ -7,9 +7,9 @@ interface EditorLayoutProps {
 
 export function EditorLayout({ editor, panels }: EditorLayoutProps) {
   return (
-    <div className="grid w-full gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+    <div className="grid w-full gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="min-w-0">{editor}</div>
-      <aside className="flex min-w-0 flex-col gap-4">{panels}</aside>
+      <aside className="flex min-w-0 flex-col gap-3">{panels}</aside>
     </div>
   );
 }

@@ -15,50 +15,56 @@ export function SyllablePanel({ status, result }: SyllablePanelProps) {
 
   return (
     <section
-      className="rounded-lg border border-border bg-surface p-4"
+      className="rounded-md border border-border bg-surface px-4 py-3.5"
       aria-labelledby="syllable-panel-heading"
     >
-      <header className="mb-3 flex items-baseline justify-between">
+      <header className="mb-3 flex items-center justify-between">
         <h2
           id="syllable-panel-heading"
-          className="text-sm font-semibold tracking-wide text-foreground"
+          className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
         >
           Syllables
         </h2>
-        <span
-          aria-live="polite"
-          className={cn(
-            "text-xs text-muted-foreground transition-opacity",
-            isLoading ? "opacity-100" : "opacity-0",
-          )}
-        >
-          analyzing...
-        </span>
+        {isLoading && (
+          <span aria-live="polite" className="text-[10px] text-muted-foreground/70 italic">
+            counting…
+          </span>
+        )}
       </header>
 
       {!hasResult ? (
         <p className="text-sm text-muted-foreground">
-          Start typing to see line feedback.
+          {status === "error"
+            ? "Couldn’t reach the analysis service."
+            : "Start writing to see syllable counts."}
         </p>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div
+          className={cn(
+            "flex flex-col gap-3 transition-opacity duration-200",
+            isLoading ? "opacity-40" : "opacity-100",
+          )}
+        >
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-semibold tabular-nums">
+            <span className="text-4xl font-bold tabular-nums leading-none tracking-tight text-foreground">
               {result.totalSyllables}
             </span>
-            <span className="text-sm text-muted-foreground">
-              total in active line
+            <span className="text-xs text-muted-foreground">
+              {result.totalSyllables === 1 ? "syllable" : "syllables"}
             </span>
           </div>
           {result.tokens.length > 0 && (
-            <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+            <ul
+              aria-label="Syllable breakdown by word"
+              className="flex flex-wrap gap-x-2.5 gap-y-1.5"
+            >
               {result.tokens.map((t, i) => (
                 <li
                   key={`${t.text}-${i}`}
                   className="flex items-baseline gap-1"
                 >
-                  <span>{t.text}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">
+                  <span className="text-sm text-foreground">{t.text}</span>
+                  <span className="text-[10px] tabular-nums text-muted-foreground">
                     {t.syllables}
                   </span>
                 </li>

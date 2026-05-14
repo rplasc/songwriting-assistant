@@ -1,10 +1,10 @@
 # Songwriting Assistant
 
-A focused lyric-writing workspace that counts syllables and finds rhymes as you type — no buttons, no forms, just write.
+A lyric-writing workspace that counts syllables and finds rhymes as you type.
 
 ## The idea
 
-Most rhyme and syllable tools ask you to submit a word or line explicitly. This one watches the line you're currently writing and surfaces feedback automatically, so the analysis sits quietly in the margin while the writing stays front and center.
+Most rhyme and syllable tools ask you to submit a word or line explicitly. This one watches the line you're currently writing and surfaces feedback automatically, so the analysis sits quietly in the margin while the writing stays front and center. The core functionality will revolve around supporting both English and Spanish (with Spanish coming after the "rhyme engine" is stable).
 
 ## How it works
 
@@ -28,12 +28,13 @@ Browser (Next.js)  →  Gateway (NestJS)  →  NLP Service (FastAPI / CMU Dict)
 
 ## Planned (future phases)
 
-- **Multi-document project management** — save and organize drafts by song and section
-- **Collaborative presence** — real-time co-writing with another person in the same document
-- **Persistent drafts** — auto-save with version history
-- **Rhyme scheme tracking** — highlight end-words by rhyme family across the full lyric sheet
-- **Meter and stress patterns** — visualize where stresses fall against a chosen meter
-- **Account and auth** — personal workspace with login
+- **Spanish Support** - detect and suggest rhymes for Spanish words
+- **Multi-document project management** - save and organize drafts by song and section
+- **Collaborative presence** - real-time co-writing with another person in the same document
+- **Persistent drafts** - auto-save with version history
+- **Rhyme scheme tracking** - highlight end-words by rhyme family across the full lyric sheet
+- **Meter and stress patterns** - visualize where stresses fall against a chosen meter
+- **Account and auth** - personal workspace with login
 
 ## Running locally
 

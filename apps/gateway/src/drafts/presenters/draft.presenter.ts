@@ -1,0 +1,23 @@
+import { Injectable } from '@nestjs/common';
+import { Draft } from '../draft.types';
+
+export interface DraftPayload {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+@Injectable()
+export class DraftPresenter {
+  toClient(d: Draft): DraftPayload {
+    return {
+      id: d.id,
+      title: d.title,
+      content: d.content,
+      created_at: d.createdAt,
+      updated_at: d.updatedAt,
+    };
+  }
+}

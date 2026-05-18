@@ -8,7 +8,11 @@ describe('EditorService', () => {
     normalized_line: 'hello world',
     total_syllables: 3,
     tokens: [],
-    last_word: { text: 'world', normalized: 'world', pronunciation_found: true },
+    last_word: {
+      text: 'world',
+      normalized: 'world',
+      pronunciation_found: true,
+    },
   };
 
   function setup(opts: { pronunciationFound: boolean }) {
@@ -31,10 +35,24 @@ describe('EditorService', () => {
     return { service, analyzeLine, getRhymes };
   }
 
-  it('calls getRhymes when pronunciation_found is true', async () => {
+  it('calls getRhymes when pronunciation_found is true (default perfect mode)', async () => {
     const { service, getRhymes } = setup({ pronunciationFound: true });
-    await service.analyze('hello world');
-    expect(getRhymes).toHaveBeenCalledWith({ word: 'world' });
+    const out = await service.analyze('hello world');
+    expect(getRhymes).toHaveBeenCalledWith({
+      word: 'world',
+      rhyme_mode: 'perfect',
+    });
+    expect(out.rhymes.mode).toBe('perfect');
+  });
+
+  it('forwards rhyme_mode=near to getRhymes and echoes it on the response', async () => {
+    const { service, getRhymes } = setup({ pronunciationFound: true });
+    const out = await service.analyze('hello world', 'req-x', 'near');
+    expect(getRhymes).toHaveBeenCalledWith({
+      word: 'world',
+      rhyme_mode: 'near',
+    });
+    expect(out.rhymes.mode).toBe('near');
   });
 
   it('skips getRhymes when pronunciation_found is false', async () => {
@@ -42,5 +60,6 @@ describe('EditorService', () => {
     const out = await service.analyze('hello world');
     expect(getRhymes).not.toHaveBeenCalled();
     expect(out.rhymes.items).toEqual([]);
+    expect(out.rhymes.mode).toBe('perfect');
   });
 });

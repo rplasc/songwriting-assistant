@@ -44,13 +44,19 @@ describe('Editor WS (e2e)', () => {
       normalized_line: 'broken dreams in neon light',
       total_syllables: 7,
       tokens: [],
-      last_word: { text: 'light', normalized: 'light', pronunciation_found: true },
+      last_word: {
+        text: 'light',
+        normalized: 'light',
+        pronunciation_found: true,
+      },
     });
     fastapiMock.getRhymes.mockResolvedValue({
       word: 'light',
       normalized_word: 'light',
       pronunciations_found: true,
-      rhymes: [{ word: 'night', syllables: 1, rhyme_type: 'perfect', score: 0.9 }],
+      rhymes: [
+        { word: 'night', syllables: 1, rhyme_type: 'perfect', score: 0.9 },
+      ],
       meta: { limit: 10, include_near: false },
     });
 

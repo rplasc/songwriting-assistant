@@ -52,15 +52,26 @@ describe('Editor (e2e)', () => {
       normalized_line: 'i see the fire in your eyes',
       total_syllables: 8,
       tokens: [
-        { text: 'fire', normalized: 'fire', syllables: 2, pronunciation_found: true },
+        {
+          text: 'fire',
+          normalized: 'fire',
+          syllables: 2,
+          pronunciation_found: true,
+        },
       ],
-      last_word: { text: 'eyes', normalized: 'eyes', pronunciation_found: true },
+      last_word: {
+        text: 'eyes',
+        normalized: 'eyes',
+        pronunciation_found: true,
+      },
     });
     fastapiMock.getRhymes.mockResolvedValue({
       word: 'eyes',
       normalized_word: 'eyes',
       pronunciations_found: true,
-      rhymes: [{ word: 'skies', syllables: 1, rhyme_type: 'perfect', score: 0.9 }],
+      rhymes: [
+        { word: 'skies', syllables: 1, rhyme_type: 'perfect', score: 0.9 },
+      ],
       meta: { limit: 10, include_near: false },
     });
 
@@ -78,13 +89,57 @@ describe('Editor (e2e)', () => {
     expect(res.body.meta.latency_ms).toBeGreaterThanOrEqual(0);
   });
 
+  it('forwards rhyme_mode=near to FastAPI and echoes it on the response', async () => {
+    fastapiMock.analyzeLine.mockResolvedValue({
+      line: 'I see the fire in your eyes',
+      normalized_line: 'i see the fire in your eyes',
+      total_syllables: 8,
+      tokens: [],
+      last_word: {
+        text: 'eyes',
+        normalized: 'eyes',
+        pronunciation_found: true,
+      },
+    });
+    fastapiMock.getRhymes.mockResolvedValue({
+      word: 'eyes',
+      normalized_word: 'eyes',
+      pronunciations_found: true,
+      rhymes: [{ word: 'lies', syllables: 1, rhyme_type: 'near', score: 0.7 }],
+      meta: { limit: 10, include_near: true },
+    });
+
+    const res = await request(app.getHttpServer())
+      .post('/v1/editor/analyze')
+      .send({ line: 'I see the fire in your eyes', rhyme_mode: 'near' });
+
+    expect(res.status).toBe(201);
+    expect(fastapiMock.getRhymes).toHaveBeenCalledWith({
+      word: 'eyes',
+      rhyme_mode: 'near',
+    });
+    expect(res.body.rhymes.mode).toBe('near');
+  });
+
+  it('rejects unknown rhyme_mode with VALIDATION_FAILED', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/v1/editor/analyze')
+      .send({ line: 'hello world', rhyme_mode: 'slant' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_FAILED');
+  });
+
   it('returns empty items when last_word has no pronunciation', async () => {
     fastapiMock.analyzeLine.mockResolvedValue({
       line: 'asdfqwer',
       normalized_line: 'asdfqwer',
       total_syllables: 0,
       tokens: [],
-      last_word: { text: 'asdfqwer', normalized: 'asdfqwer', pronunciation_found: false },
+      last_word: {
+        text: 'asdfqwer',
+        normalized: 'asdfqwer',
+        pronunciation_found: false,
+      },
     });
 
     const res = await request(app.getHttpServer())

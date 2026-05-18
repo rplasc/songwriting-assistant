@@ -18,7 +18,9 @@ describe('Health (e2e)', () => {
       .compile();
 
     app = mod.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
   });

@@ -10,6 +10,6 @@ export class EditorController {
   @Post('analyze')
   async analyze(@Body() dto: AnalyzeLineDto, @Req() req: Request) {
     const requestId = (req as Request & { requestId?: string }).requestId;
-    return this.editor.analyze(dto.line, requestId);
+    return this.editor.analyze(dto.line, requestId, dto.rhyme_mode);
   }
 }

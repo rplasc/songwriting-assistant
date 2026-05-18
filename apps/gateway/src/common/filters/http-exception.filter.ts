@@ -33,7 +33,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
           : ((resp as { message?: string | string[] }).message ??
             exception.message);
       message = Array.isArray(respMessage) ? respMessage[0] : respMessage;
-      code = this.codeFor(status, exception);
+      const respCode =
+        typeof resp === 'object' && resp !== null
+          ? (resp as { code?: string }).code
+          : undefined;
+      code = respCode ?? this.codeFor(status, exception);
     } else {
       this.logger.error(
         `Unhandled error on ${req.method} ${req.url}`,

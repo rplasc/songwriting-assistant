@@ -3,6 +3,7 @@ import {
   LineAnalysisResponse,
   RhymeResponse,
 } from '../../fastapi/dto/fastapi-responses';
+import { RhymeMode } from '../dto/analyze-line.dto';
 
 export interface EditorAnalysisPayload {
   line: string;
@@ -12,6 +13,7 @@ export interface EditorAnalysisPayload {
   };
   rhymes: {
     target_word: string | null;
+    mode: RhymeMode;
     items: { word: string; syllables: number; type: string }[];
   };
   meta: {
@@ -26,6 +28,7 @@ export class EditorResponsePresenter {
     line: LineAnalysisResponse,
     rhymes: RhymeResponse | null,
     latencyMs: number,
+    mode: RhymeMode,
     requestId?: string,
   ): EditorAnalysisPayload {
     return {
@@ -39,6 +42,7 @@ export class EditorResponsePresenter {
       },
       rhymes: {
         target_word: line.last_word?.normalized ?? null,
+        mode,
         items:
           rhymes?.rhymes.map((r) => ({
             word: r.word,

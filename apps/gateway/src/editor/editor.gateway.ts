@@ -38,7 +38,11 @@ export class EditorGateway {
 
     const requestId = randomUUID();
     try {
-      const result = await this.editor.analyze(dto.line, requestId);
+      const result = await this.editor.analyze(
+        dto.line,
+        requestId,
+        dto.rhyme_mode,
+      );
       client.emit('editor.analysis', result);
     } catch (err) {
       this.logger.error(

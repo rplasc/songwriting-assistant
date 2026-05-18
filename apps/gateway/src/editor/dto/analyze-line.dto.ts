@@ -1,5 +1,13 @@
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+
+export type RhymeMode = 'perfect' | 'near';
 
 export class AnalyzeLineDto {
   @IsString()
@@ -7,4 +15,8 @@ export class AnalyzeLineDto {
   @IsNotEmpty()
   @MaxLength(500)
   line!: string;
+
+  @IsOptional()
+  @IsIn(['perfect', 'near'])
+  rhyme_mode?: RhymeMode;
 }

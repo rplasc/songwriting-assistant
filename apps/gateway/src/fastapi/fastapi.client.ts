@@ -8,10 +8,7 @@ import {
 import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { AnalyzeLineRequest, RhymesRequest } from './dto/fastapi-requests';
-import {
-  LineAnalysisResponse,
-  RhymeResponse,
-} from './dto/fastapi-responses';
+import { LineAnalysisResponse, RhymeResponse } from './dto/fastapi-responses';
 
 @Injectable()
 export class FastapiClient {
@@ -28,9 +25,7 @@ export class FastapiClient {
     }
   }
 
-  async analyzeLine(
-    req: AnalyzeLineRequest,
-  ): Promise<LineAnalysisResponse> {
+  async analyzeLine(req: AnalyzeLineRequest): Promise<LineAnalysisResponse> {
     return this.post<LineAnalysisResponse>('/v1/analyze-line', req);
   }
 
@@ -62,9 +57,7 @@ export class FastapiClient {
       return new ServiceUnavailableException('FastAPI unreachable');
     }
     if (ax?.response) {
-      this.logger.warn(
-        `FastAPI ${ax.response.status} calling ${path}`,
-      );
+      this.logger.warn(`FastAPI ${ax.response.status} calling ${path}`);
       return new BadGatewayException('Upstream analysis failed');
     }
     this.logger.error(`Unexpected FastAPI error calling ${path}`, err as Error);

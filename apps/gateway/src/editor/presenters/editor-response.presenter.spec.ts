@@ -12,7 +12,12 @@ describe('EditorResponsePresenter', () => {
     normalized_line: 'i see the fire in your eyes',
     total_syllables: 8,
     tokens: [
-      { text: 'fire', normalized: 'fire', syllables: 2, pronunciation_found: true },
+      {
+        text: 'fire',
+        normalized: 'fire',
+        syllables: 2,
+        pronunciation_found: true,
+      },
     ],
     last_word: { text: 'eyes', normalized: 'eyes', pronunciation_found: true },
   };
@@ -28,23 +33,25 @@ describe('EditorResponsePresenter', () => {
       meta: { limit: 10, include_near: false },
     };
 
-    const out = presenter.toClient(lineResp, rhymes, 12.7, 'req-1');
+    const out = presenter.toClient(lineResp, rhymes, 12.7, 'perfect', 'req-1');
 
     expect(out).toEqual({
       line: 'I see the fire in your eyes',
       syllables: { total: 8, tokens: [{ text: 'fire', syllables: 2 }] },
       rhymes: {
         target_word: 'eyes',
+        mode: 'perfect',
         items: [{ word: 'skies', syllables: 1, type: 'perfect' }],
       },
       meta: { request_id: 'req-1', latency_ms: 13 },
     });
   });
 
-  it('returns empty items array when rhymes are null', () => {
-    const out = presenter.toClient(lineResp, null, 5);
+  it('returns empty items array when rhymes are null and echoes the mode', () => {
+    const out = presenter.toClient(lineResp, null, 5, 'near');
     expect(out.rhymes.items).toEqual([]);
     expect(out.rhymes.target_word).toBe('eyes');
+    expect(out.rhymes.mode).toBe('near');
   });
 
   it('null target_word when last_word is missing', () => {
@@ -52,6 +59,7 @@ describe('EditorResponsePresenter', () => {
       { ...lineResp, last_word: null },
       null,
       0,
+      'perfect',
     );
     expect(out.rhymes.target_word).toBeNull();
     expect(out.rhymes.items).toEqual([]);

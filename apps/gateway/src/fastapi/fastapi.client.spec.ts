@@ -65,7 +65,15 @@ describe('FastapiClient', () => {
 
   it('returns data on success', async () => {
     (http.post as jest.Mock).mockReturnValue(
-      of({ data: { line: 'hi', total_syllables: 1, tokens: [], last_word: null, normalized_line: 'hi' } }),
+      of({
+        data: {
+          line: 'hi',
+          total_syllables: 1,
+          tokens: [],
+          last_word: null,
+          normalized_line: 'hi',
+        },
+      }),
     );
     const out = await client.analyzeLine({ line: 'hi' });
     expect(out.line).toBe('hi');

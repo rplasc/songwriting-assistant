@@ -1,3 +1,5 @@
+import type { RhymeMode } from "./rhyme-modes";
+
 export interface SyllableToken {
   text: string;
   syllables: number;
@@ -17,6 +19,7 @@ export interface ServerAnalysisPayload {
   };
   rhymes: {
     target_word: string | null;
+    mode?: RhymeMode;
     items: RhymeItem[];
   };
   meta: {
@@ -31,6 +34,7 @@ export interface AnalysisResult {
   tokens: SyllableToken[];
   targetWord: string | null;
   rhymes: RhymeItem[];
+  rhymeMode: RhymeMode;
   latencyMs: number;
   requestId?: string;
 }

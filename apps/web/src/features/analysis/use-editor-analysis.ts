@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { getSocketAdapter } from "./analysis-socket";
 import { toAnalysisResult } from "./analysis-mappers";
 import type { AnalysisResult, AnalysisStatus } from "./analysis-types";
+import { DEFAULT_RHYME_MODE, type RhymeMode } from "./rhyme-modes";
 
 const DEBOUNCE_MS = 150;
 const MAX_LINE_LENGTH = 500;
@@ -14,21 +15,23 @@ export interface UseEditorAnalysisReturn {
   error: string | null;
 }
 
-export function useEditorAnalysis(activeLine: string): UseEditorAnalysisReturn {
+export function useEditorAnalysis(
+  activeLine: string,
+  rhymeMode: RhymeMode = DEFAULT_RHYME_MODE,
+): UseEditorAnalysisReturn {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [status, setStatus] = useState<AnalysisStatus>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  // Track the most recently emitted line so we can discard stale responses.
-  const latestSentRef = useRef<string | null>(null);
+  // Track the most recently emitted (line, mode) so we can discard stale responses.
+  const latestSentRef = useRef<{ line: string; mode: RhymeMode } | null>(null);
 
-  // Subscribe to socket events once on mount.
   useEffect(() => {
     const adapter = getSocketAdapter();
 
     const removeAnalysis = adapter.onAnalysis((payload) => {
-      // Discard responses that don't match the line we last sent.
-      if (payload.line !== latestSentRef.current) return;
+      const sent = latestSentRef.current;
+      if (!sent || payload.line !== sent.line) return;
       setResult(toAnalysisResult(payload));
       setStatus("ready");
       setError(null);
@@ -51,7 +54,6 @@ export function useEditorAnalysis(activeLine: string): UseEditorAnalysisReturn {
     };
   }, []);
 
-  // Debounce and emit on activeLine changes.
   useEffect(() => {
     const trimmed = activeLine.trim();
 
@@ -69,21 +71,26 @@ export function useEditorAnalysis(activeLine: string): UseEditorAnalysisReturn {
       return;
     }
 
-    // Skip if this line is already reflected in the ready result.
-    if (trimmed === latestSentRef.current && status === "ready") return;
+    const sent = latestSentRef.current;
+    const alreadyReady =
+      sent &&
+      sent.line === trimmed &&
+      sent.mode === rhymeMode &&
+      status === "ready";
+    if (alreadyReady) return;
 
     const timer = setTimeout(() => {
-      latestSentRef.current = trimmed;
+      latestSentRef.current = { line: trimmed, mode: rhymeMode };
       setStatus("loading");
       setError(null);
-      getSocketAdapter().emit(trimmed);
+      getSocketAdapter().emit({ line: trimmed, rhymeMode });
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
     // status intentionally excluded from deps — re-running on every status
     // transition would restart the debounce mid-flight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLine]);
+  }, [activeLine, rhymeMode]);
 
   return { result, status, error };
 }

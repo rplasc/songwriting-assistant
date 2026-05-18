@@ -3,10 +3,16 @@ import type {
   AnalysisResult,
   AnalysisStatus,
 } from "@/features/analysis/analysis-types";
+import {
+  DEFAULT_RHYME_MODE,
+  type RhymeMode,
+} from "@/features/analysis/rhyme-modes";
 
 interface RhymePanelProps {
   status: AnalysisStatus;
   result: AnalysisResult | null;
+  rhymeMode?: RhymeMode;
+  onRequestModeChange?: (mode: RhymeMode) => void;
 }
 
 // Degree indicator — subtle, not wordy
@@ -16,11 +22,22 @@ const RHYME_DEGREE: Record<string, string> = {
   family: "○",
 };
 
-export function RhymePanel({ status, result }: RhymePanelProps) {
+const MODE_LABEL: Record<RhymeMode, string> = {
+  perfect: "perfect",
+  near: "near",
+};
+
+export function RhymePanel({
+  status,
+  result,
+  rhymeMode = DEFAULT_RHYME_MODE,
+  onRequestModeChange,
+}: RhymePanelProps) {
   const isLoading = status === "loading";
   const target = result?.targetWord ?? null;
   const items = result?.rhymes ?? [];
   const hasRhymes = target !== null;
+  const activeMode = result?.rhymeMode ?? rhymeMode;
 
   return (
     <section
@@ -59,11 +76,13 @@ export function RhymePanel({ status, result }: RhymePanelProps) {
             <span className="font-semibold text-accent tracking-wide">
               {target}
             </span>
+            <span className="text-muted-foreground/70"> · {MODE_LABEL[activeMode]}</span>
           </p>
           {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No rhymes found for this word.
-            </p>
+            <EmptyRhymes
+              mode={activeMode}
+              onRequestModeChange={onRequestModeChange}
+            />
           ) : (
             <ul
               aria-label={`Rhyme suggestions for ${target}`}
@@ -99,5 +118,37 @@ export function RhymePanel({ status, result }: RhymePanelProps) {
         </div>
       )}
     </section>
+  );
+}
+
+interface EmptyRhymesProps {
+  mode: RhymeMode;
+  onRequestModeChange?: (mode: RhymeMode) => void;
+}
+
+function EmptyRhymes({ mode, onRequestModeChange }: EmptyRhymesProps) {
+  if (mode === "perfect") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No perfect rhymes for this word.
+        {onRequestModeChange ? (
+          <>
+            {" "}
+            <button
+              type="button"
+              onClick={() => onRequestModeChange("near")}
+              className="rounded-sm text-accent underline decoration-accent/30 decoration-dotted underline-offset-[3px] transition-colors duration-150 ease-out hover:decoration-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            >
+              Try Near?
+            </button>
+          </>
+        ) : null}
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      No near rhymes found for this word.
+    </p>
   );
 }

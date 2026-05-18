@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RhymePanel } from "@/components/editor/rhyme-panel";
 import type { AnalysisResult } from "@/features/analysis/analysis-types";
 
@@ -12,6 +12,7 @@ const RESULT_WITH_RHYMES: AnalysisResult = {
     { word: "skies", syllables: 1, type: "perfect" },
     { word: "rise", syllables: 1, type: "near" },
   ],
+  rhymeMode: "perfect",
   latencyMs: 20,
 };
 
@@ -59,10 +60,10 @@ describe("RhymePanel", () => {
     expect(screen.getByText("rise")).toBeInTheDocument();
   });
 
-  it("shows 'no rhymes found' when items list is empty but target exists", () => {
+  it("shows a no-rhymes message when items list is empty but target exists", () => {
     render(<RhymePanel status="ready" result={RESULT_NO_RHYMES} />);
     expect(
-      screen.getByText(/no rhymes found for this word/i),
+      screen.getByText(/no perfect rhymes for this word/i),
     ).toBeInTheDocument();
   });
 
@@ -81,5 +82,34 @@ describe("RhymePanel", () => {
     // The degree symbols are rendered with title/aria-label for the type
     expect(screen.getByLabelText("perfect")).toBeInTheDocument();
     expect(screen.getByLabelText("near")).toBeInTheDocument();
+  });
+
+  it("offers a Near-mode prompt in the perfect-mode empty state", () => {
+    const result: AnalysisResult = { ...RESULT_NO_RHYMES, rhymeMode: "perfect" };
+    const onRequestModeChange = vi.fn();
+    render(
+      <RhymePanel
+        status="ready"
+        result={result}
+        rhymeMode="perfect"
+        onRequestModeChange={onRequestModeChange}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /try near/i });
+    button.click();
+    expect(onRequestModeChange).toHaveBeenCalledWith("near");
+  });
+
+  it("does not offer a mode switch when already in near mode", () => {
+    const result: AnalysisResult = { ...RESULT_NO_RHYMES, rhymeMode: "near" };
+    render(
+      <RhymePanel status="ready" result={result} rhymeMode="near" />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /try near/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/no near rhymes found/i),
+    ).toBeInTheDocument();
   });
 });

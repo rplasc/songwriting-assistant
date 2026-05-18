@@ -3,18 +3,22 @@
 import { wsUrl } from "@/lib/config";
 import { io, type Socket } from "socket.io-client";
 import type { ServerAnalysisPayload } from "./analysis-types";
+import type { RhymeMode } from "./rhyme-modes";
 
 export interface SocketErrorPayload {
   message: string;
   code: string;
 }
 
+export interface EmitAnalyzeOptions {
+  line: string;
+  rhymeMode?: RhymeMode;
+}
+
 type AnalysisHandler = (payload: ServerAnalysisPayload) => void;
 type ErrorHandler = (payload: SocketErrorPayload) => void;
 type VoidHandler = () => void;
 
-// Module-level singleton — socket.io's manager deduplicates connections to the
-// same URL automatically, and Next.js client modules persist for the page lifetime.
 let socket: Socket | null = null;
 
 function getSocket(): Socket {
@@ -40,7 +44,7 @@ function getSocket(): Socket {
 }
 
 export interface SocketAnalysisAdapter {
-  emit: (line: string) => void;
+  emit: (options: EmitAnalyzeOptions) => void;
   onAnalysis: (handler: AnalysisHandler) => VoidHandler;
   onError: (handler: ErrorHandler) => VoidHandler;
   onConnectError: (handler: VoidHandler) => VoidHandler;
@@ -50,8 +54,10 @@ export interface SocketAnalysisAdapter {
 export function getSocketAdapter(): SocketAnalysisAdapter {
   const s = getSocket();
   return {
-    emit(line) {
-      s.emit("editor.analyze", { line });
+    emit({ line, rhymeMode }) {
+      const payload: { line: string; rhyme_mode?: RhymeMode } = { line };
+      if (rhymeMode) payload.rhyme_mode = rhymeMode;
+      s.emit("editor.analyze", payload);
     },
     onAnalysis(handler) {
       s.on("editor.analysis", handler);

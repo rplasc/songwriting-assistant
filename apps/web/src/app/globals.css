@@ -13,7 +13,11 @@
   --accent-muted: #fef3c7;
 
   --muted-foreground: #78736a;
-  --success: #166534;
+
+  /* Signal palette — tinted to the warm-paper world. Never neon. */
+  --success: #5f7a3a;   /* sage-olive ink */
+  --warn:    #b07a1f;   /* slightly cooler than accent, for "needs saving" */
+  --danger:  #9a3b2a;   /* warm rust */
 }
 
 @theme inline {
@@ -25,6 +29,9 @@
   --color-accent: var(--accent);
   --color-accent-muted: var(--accent-muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
   --font-sans: var(--font-plex-sans);
 }
 
@@ -38,6 +45,9 @@
     --accent: #f59e0b;
     --accent-muted: #292013;
     --muted-foreground: #9c9589;
+    --success: #8aa863;
+    --warn: #d49a3e;
+    --danger: #c25f4b;
   }
 }
 
@@ -88,6 +98,19 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
+}
+
+/* ── Dropdown entrance ────────────────────────────── */
+
+@keyframes draft-picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ── Reduced motion ───────────────────────────────── */

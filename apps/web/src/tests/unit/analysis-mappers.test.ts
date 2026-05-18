@@ -79,4 +79,13 @@ describe("toAnalysisResult", () => {
     expect(result.requestId).toBeUndefined();
     expect(result.latencyMs).toBe(10);
   });
+
+  it("maps the rhyme mode through, defaulting to perfect when absent", () => {
+    expect(toAnalysisResult(BASE_PAYLOAD).rhymeMode).toBe("perfect");
+    const withMode: ServerAnalysisPayload = {
+      ...BASE_PAYLOAD,
+      rhymes: { ...BASE_PAYLOAD.rhymes, mode: "near" },
+    };
+    expect(toAnalysisResult(withMode).rhymeMode).toBe("near");
+  });
 });

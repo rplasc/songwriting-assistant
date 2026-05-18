@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel
+
+TokenSource = Literal["dictionary", "heuristic"]
 
 
 class HealthResponse(BaseModel):
@@ -10,10 +14,14 @@ class RhymeCandidate(BaseModel):
     syllables: int
     rhyme_type: str
     score: float
+    match_reason: str | None = None
 
 
 class RhymeMeta(BaseModel):
     limit: int
+    mode: str
+    # Deprecated alongside the request flag; mirrored so Phase 1 clients see the
+    # same shape they expect.
     include_near: bool
 
 
@@ -30,12 +38,15 @@ class TokenAnalysis(BaseModel):
     normalized: str
     syllables: int
     pronunciation_found: bool
+    source: TokenSource = "dictionary"
 
 
 class LastWord(BaseModel):
     text: str
     normalized: str
     pronunciation_found: bool
+    syllables: int | None = None
+    source: TokenSource | None = None
 
 
 class LineAnalysisResponse(BaseModel):

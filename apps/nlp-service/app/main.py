@@ -20,10 +20,12 @@ async def lifespan(app: FastAPI):
     logger = get_logger("nlp.startup")
     with timed(logger, "startup.load_dictionary"):
         repository = CmuDictRepository()
-    with timed(logger, "startup.build_rhyme_index"):
-        index = RhymeIndex(repository)
+    # Frequencies are read during index build, so warm wordfreq's lazy loader
+    # first to keep the build_rhyme_index timing comparable across runs.
     with timed(logger, "startup.warm_frequency_cache"):
         warm_frequency_cache()
+    with timed(logger, "startup.build_rhyme_index"):
+        index = RhymeIndex(repository)
 
     pronunciation = PronunciationService(repository)
     syllables = SyllableService(repository)

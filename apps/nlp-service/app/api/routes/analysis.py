@@ -14,6 +14,10 @@ def _syllable_service(request: Request) -> SyllableService:
     return request.app.state.syllable_service
 
 
+def _source(found: bool) -> str:
+    return "dictionary" if found else "heuristic"
+
+
 @router.post("/analyze-line", response_model=LineAnalysisResponse)
 def post_analyze_line(
     payload: LineAnalysisRequest,
@@ -29,17 +33,20 @@ def post_analyze_line(
             normalized=tok.normalized,
             syllables=count,
             pronunciation_found=found,
+            source=_source(found),
         )
         for tok, count, found in per_token
     ]
 
     last_word: LastWord | None = None
     if per_token:
-        tok, _count, found = per_token[-1]
+        tok, count, found = per_token[-1]
         last_word = LastWord(
             text=tok.text,
             normalized=tok.normalized,
             pronunciation_found=found,
+            syllables=count,
+            source=_source(found),
         )
 
     normalized_line = " ".join(t.normalized for t in tokens)

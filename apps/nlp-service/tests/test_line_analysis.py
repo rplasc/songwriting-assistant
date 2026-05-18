@@ -12,7 +12,10 @@ def test_analyze_line_basic(client: TestClient) -> None:
     assert 7 <= body["total_syllables"] <= 9
     assert body["last_word"]["normalized"] == "eyes"
     assert body["last_word"]["pronunciation_found"] is True
+    assert body["last_word"]["source"] == "dictionary"
+    assert body["last_word"]["syllables"] == 1
     assert len(body["tokens"]) == 7
+    assert all(t["source"] in ("dictionary", "heuristic") for t in body["tokens"])
 
 
 def test_analyze_line_strips_punctuation_tokens(client: TestClient) -> None:
@@ -37,3 +40,4 @@ def test_analyze_line_unknown_word_has_count(client: TestClient) -> None:
     body = resp.json()
     assert body["total_syllables"] >= 1
     assert body["tokens"][0]["pronunciation_found"] is False
+    assert body["tokens"][0]["source"] == "heuristic"

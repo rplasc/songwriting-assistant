@@ -18,12 +18,27 @@ def post_rhymes(
     payload: RhymeRequest,
     service: RhymeService = Depends(_rhyme_service),
 ) -> RhymeResponse:
-    with timed(logger, "rhymes.request", word=payload.word, limit=payload.limit):
-        normalized, found, rhymes = service.find_rhymes(payload.word, payload.limit)
+    with timed(
+        logger,
+        "rhymes.request",
+        word=payload.word,
+        limit=payload.limit,
+        mode=payload.mode,
+    ):
+        normalized, found, rhymes = service.find_rhymes(
+            payload.word,
+            payload.limit,
+            mode=payload.mode,
+            include_metadata=payload.include_metadata,
+        )
     return RhymeResponse(
         word=payload.word,
         normalized_word=normalized,
         pronunciations_found=found,
         rhymes=rhymes,
-        meta=RhymeMeta(limit=payload.limit, include_near=payload.include_near),
+        meta=RhymeMeta(
+            limit=payload.limit,
+            mode=payload.mode,
+            include_near=payload.mode == "near",
+        ),
     )

@@ -49,6 +49,13 @@ def test_near_score_lower_than_perfect_at_equal_inputs() -> None:
     assert perfect[0].score > near[0].score
 
 
+def test_family_score_between_perfect_and_near() -> None:
+    perfect = score_entries([_entry("higher")], query="fire", rhyme_type="perfect")
+    family = score_entries([_entry("higher")], query="fire", rhyme_type="family")
+    near = score_entries([_entry("higher")], query="fire", rhyme_type="near")
+    assert perfect[0].score > family[0].score > near[0].score
+
+
 def test_syllable_match_bonus_applied() -> None:
     matched = score_entries(
         [_entry("higher", syllables=1)],

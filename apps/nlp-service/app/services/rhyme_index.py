@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from wordfreq import word_frequency
 
 from app.domain.near_rhyme_rules import near_rhyme_key
-from app.domain.rhyme_rules import rhyme_key
+from app.domain.rhyme_rules import family_rhyme_key, rhyme_key
 from app.repositories.pronunciation_repository import PronunciationRepository
 
 _ALPHA_APOSTROPHE = re.compile(r"^[a-z][a-z']*[a-z]$")
@@ -49,6 +49,7 @@ class RhymeIndex:
 
         entries: dict[str, RhymeEntry] = {}
         by_perfect: dict[str, set[str]] = {}
+        by_family: dict[str, set[str]] = {}
         by_near: dict[str, set[str]] = {}
 
         for word, prons in prons_by_word.items():
@@ -66,12 +67,16 @@ class RhymeIndex:
                 pkey = rhyme_key(phonemes)
                 if pkey is not None:
                     by_perfect.setdefault(pkey, set()).add(word)
+                fkey = family_rhyme_key(phonemes)
+                if fkey is not None:
+                    by_family.setdefault(fkey, set()).add(word)
                 nkey = near_rhyme_key(phonemes)
                 if nkey is not None:
                     by_near.setdefault(nkey, set()).add(word)
 
         self._entries = entries
         self._by_perfect = by_perfect
+        self._by_family = by_family
         self._by_near = by_near
 
     def entry(self, word: str) -> RhymeEntry | None:
@@ -93,6 +98,14 @@ class RhymeIndex:
                 keys.add(key)
         return keys
 
+    def family_keys_for_phonemes(self, phonemes_list: list[tuple[str, ...]]) -> set[str]:
+        keys: set[str] = set()
+        for phonemes in phonemes_list:
+            key = family_rhyme_key(phonemes)
+            if key is not None:
+                keys.add(key)
+        return keys
+
     def near_keys_for_phonemes(self, phonemes_list: list[tuple[str, ...]]) -> set[str]:
         keys: set[str] = set()
         for phonemes in phonemes_list:
@@ -105,6 +118,14 @@ class RhymeIndex:
         out: set[str] = set()
         for key in keys:
             out.update(self._by_perfect.get(key, ()))
+        if exclude is not None:
+            out.discard(exclude)
+        return out
+
+    def words_for_family_keys(self, keys: set[str], exclude: str | None = None) -> set[str]:
+        out: set[str] = set()
+        for key in keys:
+            out.update(self._by_family.get(key, ()))
         if exclude is not None:
             out.discard(exclude)
         return out

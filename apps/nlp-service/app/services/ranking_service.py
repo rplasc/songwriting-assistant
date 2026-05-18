@@ -13,9 +13,16 @@ _FREQ_LOG_CEIL: float = -2.0
 
 # Score weights — kept transparent and tunable. Final score is clamped to [0, 1].
 _BASE_PERFECT: float = 0.80
+_BASE_FAMILY: float = 0.68
 _BASE_NEAR: float = 0.55
 _FREQ_WEIGHT: float = 0.20
 _SYLLABLE_BONUS: float = 0.05
+
+_BASE_BY_TYPE: dict[str, float] = {
+    "perfect": _BASE_PERFECT,
+    "family": _BASE_FAMILY,
+    "near": _BASE_NEAR,
+}
 
 # Editorial penalties for low-value rhymes.
 _INFLECTION_PENALTY: float = 0.20
@@ -110,7 +117,7 @@ def score_entries(
       3. syllable proximity bonus
       4. editorial penalties for inflection and same-stem rhymes
     """
-    base = _BASE_PERFECT if rhyme_type == "perfect" else _BASE_NEAR
+    base = _BASE_BY_TYPE.get(rhyme_type, _BASE_NEAR)
     out: list[ScoredCandidate] = []
     for e in entries:
         score = base + _FREQ_WEIGHT * _frequency_component(e.frequency)

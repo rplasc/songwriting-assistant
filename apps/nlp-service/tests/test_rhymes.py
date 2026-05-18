@@ -85,6 +85,40 @@ def test_rhymes_include_metadata_adds_match_reason(client: TestClient) -> None:
     assert all(r["match_reason"] for r in body["rhymes"])
 
 
+def test_rhymes_wonderful_falls_back_to_family_tier(client: TestClient) -> None:
+    """Dactylic words have no true perfect rhymes; family tier should fill in."""
+    resp = client.post("/v1/rhymes", json={"word": "wonderful", "limit": 20})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["pronunciations_found"] is True
+    assert len(body["rhymes"]) > 0
+    types = {r["rhyme_type"] for r in body["rhymes"]}
+    assert "family" in types
+    # Each candidate's tag is one of the known tiers.
+    assert types.issubset({"perfect", "family", "near"})
+
+
+def test_rhymes_perfect_mode_keeps_perfect_tier_first(client: TestClient) -> None:
+    """When the word has plenty of true perfect rhymes, perfect should fill top slots."""
+    resp = client.post("/v1/rhymes", json={"word": "cat", "limit": 5})
+    body = resp.json()
+    assert len(body["rhymes"]) > 0
+    # The highest-ranked candidate should be a perfect rhyme — perfect tier runs first
+    # and carries the highest base score.
+    assert body["rhymes"][0]["rhyme_type"] == "perfect"
+
+
+def test_rhymes_family_match_reason_when_metadata_requested(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/rhymes",
+        json={"word": "wonderful", "limit": 20, "include_metadata": True},
+    )
+    body = resp.json()
+    family = [r for r in body["rhymes"] if r["rhyme_type"] == "family"]
+    assert family, "expected at least one family-tier candidate for 'wonderful'"
+    assert all(r["match_reason"] == "shared trailing syllable" for r in family)
+
+
 def test_rhymes_inflection_does_not_top_results(client: TestClient) -> None:
     """An inflected form of the query (`runs` for `run`) should not lead the list."""
     resp = client.post("/v1/rhymes", json={"word": "run", "limit": 10})

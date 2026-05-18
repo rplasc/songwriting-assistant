@@ -29,3 +29,21 @@ def rhyme_key(phonemes: Sequence[str]) -> str | None:
     if start < 0:
         return None
     return "_".join(phonemes[start:])
+
+
+def family_rhyme_key(phonemes: Sequence[str]) -> str | None:
+    """Return the phoneme tail anchored on the LAST vowel, stressed or not.
+
+    For dactylic words like "wonderful" (W AH1 N D ER0 F AH0 L) the perfect-rhyme
+    tail is rare-to-unique. Anchoring on the final vowel (here AH0) yields a short
+    shared suffix that links it with "beautiful", "powerful", "colorful", etc.
+    """
+    if not phonemes:
+        return None
+    last_vowel = -1
+    for i, p in enumerate(phonemes):
+        if _is_vowel(p):
+            last_vowel = i
+    if last_vowel < 0:
+        return None
+    return "_".join(phonemes[last_vowel:])

@@ -18,7 +18,7 @@ def _source(found: bool) -> str:
     return "dictionary" if found else "heuristic"
 
 
-@router.post("/analyze-line", response_model=LineAnalysisResponse)
+@router.post("/analyze-line")
 def post_analyze_line(
     payload: LineAnalysisRequest,
     service: SyllableService = Depends(_syllable_service),

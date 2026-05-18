@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import ORJSONResponse
 
 from app.api.routes import analysis, health, rhymes
 from app.core.config import settings
@@ -45,7 +46,11 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app = FastAPI(
+        title=settings.app_name,
+        lifespan=lifespan,
+        default_response_class=ORJSONResponse,
+    )
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(rhymes.router)

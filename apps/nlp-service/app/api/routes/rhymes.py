@@ -13,7 +13,7 @@ def _rhyme_service(request: Request) -> RhymeService:
     return request.app.state.rhyme_service
 
 
-@router.post("/rhymes", response_model=RhymeResponse)
+@router.post("/rhymes")
 def post_rhymes(
     payload: RhymeRequest,
     service: RhymeService = Depends(_rhyme_service),

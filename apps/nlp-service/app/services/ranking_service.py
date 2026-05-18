@@ -1,3 +1,4 @@
+import heapq
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -99,23 +100,32 @@ class ScoredCandidate:
     syllables: int
 
 
+def _sort_key(c: ScoredCandidate) -> tuple[float, float, str]:
+    return (-c.score, -c.frequency, c.word)
+
+
 def score_entries(
     entries: Iterable[RhymeEntry],
     *,
     query: str,
     rhyme_type: str,
+    limit: int,
     query_syllables: int | None = None,
 ) -> list[ScoredCandidate]:
-    """Score and order pre-filtered rhyme entries.
+    """Score pre-filtered rhyme entries and return the top `limit` ordered.
 
     Inputs are already filtered for word shape and minimum frequency by the
     index, so this function does no I/O and no string filtering — only math
     and short string comparisons. Signals:
 
-      1. base score by rhyme strength (perfect > near)
+      1. base score by rhyme strength (perfect > family > near)
       2. frequency component (commonness as a proxy for naturalness)
       3. syllable proximity bonus
       4. editorial penalties for inflection and same-stem rhymes
+
+    Top-K is extracted with `heapq.nsmallest`, which is O(n log k) vs the
+    O(n log n) of a full sort. For high-candidate words ("time" has 1000+
+    near candidates) with limit=25 this is the dominant hot-path win.
     """
     base = _BASE_BY_TYPE.get(rhyme_type, _BASE_NEAR)
     out: list[ScoredCandidate] = []
@@ -139,8 +149,10 @@ def score_entries(
                 syllables=e.syllables,
             )
         )
-    out.sort(key=lambda c: (-c.score, -c.frequency, c.word))
-    return out
+    if limit >= len(out):
+        out.sort(key=_sort_key)
+        return out
+    return heapq.nsmallest(limit, out, key=_sort_key)
 
 
 def warm_frequency_cache() -> None:

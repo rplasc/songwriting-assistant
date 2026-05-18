@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from app.repositories.pronunciation_repository import PronunciationRepository
 from app.schemas.responses import RhymeCandidate
 from app.services.pronunciation_service import PronunciationService
@@ -15,6 +17,8 @@ _REASON_BY_TYPE: dict[str, str] = {
     "near": _NEAR_REASON,
 }
 
+_CACHE_SIZE = 1024
+
 
 class RhymeService:
     def __init__(
@@ -28,6 +32,12 @@ class RhymeService:
         self._index = index
         self._pronunciation = pronunciation_service
         self._syllables = syllable_service
+        # lru_cache on a closure binds to this instance; one cache per service
+        # singleton, garbage-collected with it. The corpus is read-only after
+        # startup, so no invalidation is needed.
+        self._cached_candidates = lru_cache(maxsize=_CACHE_SIZE)(
+            self._compute_candidates
+        )
 
     def find_rhymes(
         self,
@@ -39,15 +49,27 @@ class RhymeService:
     ) -> tuple[str | None, bool, list[RhymeCandidate]]:
         """Return (normalized_word, pronunciations_found, ranked rhyme candidates).
 
-        When mode == "perfect", cascades through tiers (perfect -> family -> near)
-        until `limit` is reached, so dactylic words like "wonderful" — which have
-        no true perfect rhymes — still surface useful suggestions. Each candidate
-        is tagged with the tier it was actually matched from.
+        Cached on (normalized, limit, mode, include_metadata). Songwriting
+        editing re-queries the same line-end word on every keystroke, so this
+        is the dominant hot-path win.
         """
         normalized, prons = self._pronunciation.lookup(word)
         if not normalized or not prons:
             return normalized, False, []
+        cached = self._cached_candidates(normalized, limit, mode, include_metadata)
+        return normalized, True, list(cached)
 
+    def _compute_candidates(
+        self,
+        normalized: str,
+        limit: int,
+        mode: str,
+        include_metadata: bool,
+    ) -> tuple[RhymeCandidate, ...]:
+        # Pronunciations are re-looked-up here (vs threaded through from
+        # find_rhymes) so this method's signature is fully hashable for the
+        # LRU cache. The lookup is a dict access — negligible.
+        prons = self._pronunciation.lookup(normalized)[1]
         phonemes_list = [p.phonemes for p in prons]
         query_syllables = prons[0].syllables
 
@@ -63,11 +85,12 @@ class RhymeService:
                 self._index.entries_for(candidate_words),
                 query=normalized,
                 rhyme_type="near",
+                limit=limit,
                 query_syllables=query_syllables,
-            )[:limit]
-            return normalized, True, [
+            )
+            return tuple(
                 self._candidate(c, "near", include_metadata) for c in scored
-            ]
+            )
 
         # mode == "perfect" — tiered cascade.
         perfect_keys = self._index.perfect_keys_for_phonemes(phonemes_list)
@@ -101,11 +124,12 @@ class RhymeService:
                 self._index.entries_for(words),
                 query=normalized,
                 rhyme_type=tier,
+                limit=remaining,
                 query_syllables=query_syllables,
-            )[:remaining]
+            )
             results.extend(self._candidate(c, tier, include_metadata) for c in scored)
 
-        return normalized, True, results
+        return tuple(results)
 
     @staticmethod
     def _candidate(

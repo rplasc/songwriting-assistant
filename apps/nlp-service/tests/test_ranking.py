@@ -36,6 +36,7 @@ def test_score_entries_orders_by_score_then_frequency() -> None:
         ],
         query="fire",
         rhyme_type="perfect",
+        limit=10,
         query_syllables=1,
     )
     words = [c.word for c in ranked]
@@ -44,15 +45,25 @@ def test_score_entries_orders_by_score_then_frequency() -> None:
 
 
 def test_near_score_lower_than_perfect_at_equal_inputs() -> None:
-    perfect = score_entries([_entry("higher")], query="fire", rhyme_type="perfect")
-    near = score_entries([_entry("higher")], query="fire", rhyme_type="near")
+    perfect = score_entries(
+        [_entry("higher")], query="fire", rhyme_type="perfect", limit=10
+    )
+    near = score_entries(
+        [_entry("higher")], query="fire", rhyme_type="near", limit=10
+    )
     assert perfect[0].score > near[0].score
 
 
 def test_family_score_between_perfect_and_near() -> None:
-    perfect = score_entries([_entry("higher")], query="fire", rhyme_type="perfect")
-    family = score_entries([_entry("higher")], query="fire", rhyme_type="family")
-    near = score_entries([_entry("higher")], query="fire", rhyme_type="near")
+    perfect = score_entries(
+        [_entry("higher")], query="fire", rhyme_type="perfect", limit=10
+    )
+    family = score_entries(
+        [_entry("higher")], query="fire", rhyme_type="family", limit=10
+    )
+    near = score_entries(
+        [_entry("higher")], query="fire", rhyme_type="near", limit=10
+    )
     assert perfect[0].score > family[0].score > near[0].score
 
 
@@ -61,12 +72,14 @@ def test_syllable_match_bonus_applied() -> None:
         [_entry("higher", syllables=1)],
         query="fire",
         rhyme_type="perfect",
+        limit=10,
         query_syllables=1,
     )
     unmatched = score_entries(
         [_entry("higher", syllables=2)],
         query="fire",
         rhyme_type="perfect",
+        limit=10,
         query_syllables=1,
     )
     assert matched[0].score > unmatched[0].score

@@ -24,13 +24,12 @@ export class EditorService {
     const lineResp = await this.fastapi.analyzeLine({ line });
 
     const last = lineResp.last_word;
-    const rhymes =
-      last && last.pronunciation_found
-        ? await this.fastapi.getRhymes({
-            word: last.normalized,
-            rhyme_mode: mode,
-          })
-        : null;
+    const rhymes = last
+      ? await this.fastapi.getRhymes({
+          word: last.normalized,
+          rhyme_mode: mode,
+        })
+      : null;
 
     return this.presenter.toClient(
       lineResp,

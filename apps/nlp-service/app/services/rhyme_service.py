@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from app.domain.heuristic_g2p import heuristic_phoneme_tails
 from app.repositories.pronunciation_repository import PronunciationRepository
 from app.schemas.responses import RhymeCandidate
 from app.services.pronunciation_service import PronunciationService
@@ -54,10 +55,13 @@ class RhymeService:
         is the dominant hot-path win.
         """
         normalized, prons = self._pronunciation.lookup(word)
-        if not normalized or not prons:
-            return normalized, False, []
+        if not normalized:
+            return None, False, []
         cached = self._cached_candidates(normalized, limit, mode, include_metadata)
-        return normalized, True, list(cached)
+        # Pronunciation is "found" if CMU had the word OR the heuristic produced
+        # usable candidates from spelling — both cases are honest pronunciations.
+        found = bool(prons) or bool(cached)
+        return normalized, found, list(cached)
 
     def _compute_candidates(
         self,
@@ -70,6 +74,8 @@ class RhymeService:
         # find_rhymes) so this method's signature is fully hashable for the
         # LRU cache. The lookup is a dict access — negligible.
         prons = self._pronunciation.lookup(normalized)[1]
+        if not prons:
+            return self._heuristic_candidates(normalized, limit, include_metadata)
         phonemes_list = [p.phonemes for p in prons]
         query_syllables = prons[0].syllables
 
@@ -130,6 +136,44 @@ class RhymeService:
             results.extend(self._candidate(c, tier, include_metadata) for c in scored)
 
         return tuple(results)
+
+    def _heuristic_candidates(
+        self, normalized: str, limit: int, include_metadata: bool
+    ) -> tuple[RhymeCandidate, ...]:
+        """Fallback path for words missing from CMU dict.
+
+        Derives candidate ARPABET tails from English spelling, queries the
+        perfect and family phoneme indexes for any match, and tags every
+        result as ``family`` to signal the approximate match. Mode is ignored.
+
+        The near index is intentionally *not* consulted here — its manner-class
+        keys are too coarse for spelling-derived tails and pollute results
+        with words that share only a fricative or liquid in the same position.
+        """
+        tails = heuristic_phoneme_tails(normalized)
+        if not tails:
+            return ()
+        perfect_keys = self._index.perfect_keys_for_phonemes(tails)
+        family_keys = self._index.family_keys_for_phonemes(tails)
+        words = self._index.words_for_perfect_keys(
+            perfect_keys, exclude=normalized
+        ) | self._index.words_for_family_keys(family_keys, exclude=normalized)
+        if not words:
+            return ()
+        # Use the heuristic syllable count as the query length signal — pulls
+        # multi-syllable matches like "beautiful" above 1-syllable matches
+        # like "will" for inputs like "wundurful".
+        heuristic_syllables, _ = self._syllables.count_word(normalized)
+        scored = score_entries(
+            self._index.entries_for(words),
+            query=normalized,
+            rhyme_type="family",
+            limit=limit,
+            query_syllables=heuristic_syllables,
+        )
+        return tuple(
+            self._candidate(c, "family", include_metadata) for c in scored
+        )
 
     @staticmethod
     def _candidate(

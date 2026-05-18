@@ -16,12 +16,33 @@ def test_rhymes_known_word(client: TestClient) -> None:
     assert all(r["match_reason"] is None for r in body["rhymes"])
 
 
-def test_rhymes_unknown_word(client: TestClient) -> None:
+def test_rhymes_unknown_word_with_no_vowel_returns_empty(client: TestClient) -> None:
+    """The heuristic fallback needs a vowel as anchor; without one, nothing to do."""
     resp = client.post("/v1/rhymes", json={"word": "qzqzqz"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["pronunciations_found"] is False
     assert body["rhymes"] == []
+
+
+def test_rhymes_misspelled_word_returns_heuristic_family(client: TestClient) -> None:
+    """Misspellings should still produce suggestions via spelling-derived tail."""
+    resp = client.post("/v1/rhymes", json={"word": "wundurful", "limit": 20})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["pronunciations_found"] is True
+    assert len(body["rhymes"]) > 0
+    assert all(r["rhyme_type"] == "family" for r in body["rhymes"])
+
+
+def test_rhymes_made_up_word_returns_heuristic_family(client: TestClient) -> None:
+    """Made-up but pronounceable words get fallback suggestions."""
+    resp = client.post("/v1/rhymes", json={"word": "glimble", "limit": 20})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["pronunciations_found"] is True
+    assert len(body["rhymes"]) > 0
+    assert all(r["rhyme_type"] == "family" for r in body["rhymes"])
 
 
 def test_rhymes_blank_word_is_validation_error(client: TestClient) -> None:

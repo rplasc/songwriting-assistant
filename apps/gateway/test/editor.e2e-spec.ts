@@ -129,22 +129,54 @@ describe('Editor (e2e)', () => {
     expect(res.body.error.code).toBe('VALIDATION_FAILED');
   });
 
-  it('returns empty items when last_word has no pronunciation', async () => {
+  it('still calls NLP for unknown last_word so the heuristic fallback can run', async () => {
     fastapiMock.analyzeLine.mockResolvedValue({
-      line: 'asdfqwer',
-      normalized_line: 'asdfqwer',
-      total_syllables: 0,
+      line: 'wundurful',
+      normalized_line: 'wundurful',
+      total_syllables: 3,
       tokens: [],
       last_word: {
-        text: 'asdfqwer',
-        normalized: 'asdfqwer',
+        text: 'wundurful',
+        normalized: 'wundurful',
         pronunciation_found: false,
       },
+    });
+    fastapiMock.getRhymes.mockResolvedValue({
+      word: 'wundurful',
+      normalized_word: 'wundurful',
+      pronunciations_found: true,
+      rhymes: [
+        { word: 'beautiful', syllables: 3, rhyme_type: 'family', score: 0.7 },
+      ],
+      meta: { limit: 10, include_near: false },
     });
 
     const res = await request(app.getHttpServer())
       .post('/v1/editor/analyze')
-      .send({ line: 'asdfqwer' });
+      .send({ line: 'wundurful' });
+
+    expect(res.status).toBe(201);
+    expect(fastapiMock.getRhymes).toHaveBeenCalledWith({
+      word: 'wundurful',
+      rhyme_mode: 'perfect',
+    });
+    expect(res.body.rhymes.items).toEqual([
+      { word: 'beautiful', syllables: 3, type: 'family' },
+    ]);
+  });
+
+  it('returns empty items when there is no last_word at all', async () => {
+    fastapiMock.analyzeLine.mockResolvedValue({
+      line: '...',
+      normalized_line: '',
+      total_syllables: 0,
+      tokens: [],
+      last_word: null,
+    });
+
+    const res = await request(app.getHttpServer())
+      .post('/v1/editor/analyze')
+      .send({ line: '...' });
 
     expect(res.status).toBe(201);
     expect(res.body.rhymes.items).toEqual([]);

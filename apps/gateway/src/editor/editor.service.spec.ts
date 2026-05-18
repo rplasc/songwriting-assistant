@@ -55,11 +55,13 @@ describe('EditorService', () => {
     expect(out.rhymes.mode).toBe('near');
   });
 
-  it('skips getRhymes when pronunciation_found is false', async () => {
+  it('still calls getRhymes when pronunciation_found is false so the NLP fallback can run', async () => {
     const { service, getRhymes } = setup({ pronunciationFound: false });
     const out = await service.analyze('hello world');
-    expect(getRhymes).not.toHaveBeenCalled();
-    expect(out.rhymes.items).toEqual([]);
+    expect(getRhymes).toHaveBeenCalledWith({
+      word: 'world',
+      rhyme_mode: 'perfect',
+    });
     expect(out.rhymes.mode).toBe('perfect');
   });
 });

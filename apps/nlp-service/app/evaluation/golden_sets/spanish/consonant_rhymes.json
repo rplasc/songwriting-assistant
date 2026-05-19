@@ -1,0 +1,32 @@
+[
+  {
+    "word": "corazón",
+    "min_top_hits": 3,
+    "expected_top_rhymes": ["situación", "atención", "población", "relación", "dirección", "producción", "opinión", "construcción", "comisión", "decisión", "formación"],
+    "must_not_contain": ["corazón"]
+  },
+  {
+    "word": "amor",
+    "min_top_hits": 3,
+    "expected_top_rhymes": ["mejor", "mayor", "favor", "señor", "peor", "valor", "autor", "color", "menor", "dolor", "calor", "sabor"],
+    "must_not_contain": ["amor"]
+  },
+  {
+    "word": "vida",
+    "min_top_hits": 2,
+    "expected_top_rhymes": ["comida", "medida", "salida", "querida", "perdida", "herida", "cuida", "ida", "huida"],
+    "must_not_contain": ["vida"]
+  },
+  {
+    "word": "mañana",
+    "min_top_hits": 3,
+    "expected_top_rhymes": ["semana", "hermana", "humana", "ventana", "cercana", "habana", "urbana", "cristiana", "cubana", "peruana"],
+    "must_not_contain": ["mañana"]
+  },
+  {
+    "word": "cielo",
+    "min_top_hits": 3,
+    "expected_top_rhymes": ["suelo", "pelo", "vuelo", "hielo", "duelo", "velo", "modelo"],
+    "must_not_contain": ["cielo"]
+  }
+]

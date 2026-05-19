@@ -1,17 +1,16 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 
 from app.core.logging import get_logger, timed
-from app.domain.tokenization import tokenize_line
 from app.schemas.requests import LineAnalysisRequest
 from app.schemas.responses import LastWord, LineAnalysisResponse, TokenAnalysis
-from app.services.syllable_service import SyllableService
+from app.services.language_router import LanguageRouter
 
 router = APIRouter(prefix="/v1")
 logger = get_logger("nlp.analysis")
 
 
-def _syllable_service(request: Request) -> SyllableService:
-    return request.app.state.syllable_service
+def _language_router(request: Request) -> LanguageRouter:
+    return request.app.state.language_router
 
 
 def _source(found: bool) -> str:
@@ -20,12 +19,18 @@ def _source(found: bool) -> str:
 
 @router.post("/analyze-line")
 def post_analyze_line(
-    payload: LineAnalysisRequest,
-    service: SyllableService = Depends(_syllable_service),
+    payload: LineAnalysisRequest, request: Request
 ) -> LineAnalysisResponse:
-    with timed(logger, "analyze_line.request", length=len(payload.line)):
-        tokens = tokenize_line(payload.line)
-        total, per_token = service.count_tokens(tokens)
+    router_ = _language_router(request)
+    ctx = router_.get(payload.language)
+    with timed(
+        logger,
+        "analyze_line.request",
+        length=len(payload.line),
+        language=payload.language,
+    ):
+        tokens = ctx.engine.tokenize_line(payload.line)
+        total, per_token = ctx.syllable_service.count_tokens(tokens)
 
     token_payloads = [
         TokenAnalysis(
@@ -34,6 +39,7 @@ def post_analyze_line(
             syllables=count,
             pronunciation_found=found,
             source=_source(found),
+            low_confidence=not found,
         )
         for tok, count, found in per_token
     ]
@@ -47,12 +53,14 @@ def post_analyze_line(
             pronunciation_found=found,
             syllables=count,
             source=_source(found),
+            low_confidence=not found,
         )
 
     normalized_line = " ".join(t.normalized for t in tokens)
     return LineAnalysisResponse(
         line=payload.line,
         normalized_line=normalized_line,
+        language=payload.language,
         total_syllables=total,
         tokens=token_payloads,
         last_word=last_word,

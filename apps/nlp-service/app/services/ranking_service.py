@@ -20,10 +20,18 @@ _BASE_NEAR: float = 0.55
 _FREQ_WEIGHT: float = 0.20
 _SYLLABLE_BONUS: float = 0.05
 
+# Spanish consonant rhyme is the analog of the English perfect tier (full
+# phonetic match from the stressed vowel onward). Assonant is a legitimate
+# Spanish rhyme type — not slant — so it scores above English's "near".
+_BASE_CONSONANT: float = 0.80
+_BASE_ASSONANT: float = 0.62
+
 _BASE_BY_TYPE: dict[str, float] = {
     "perfect": _BASE_PERFECT,
     "family": _BASE_FAMILY,
     "near": _BASE_NEAR,
+    "consonant": _BASE_CONSONANT,
+    "assonant": _BASE_ASSONANT,
 }
 
 # Editorial penalties for low-value rhymes.

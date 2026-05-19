@@ -1,0 +1,135 @@
+"""English engine: thin wrapper that exposes the existing English logic
+(normalization, tokenization, rhyme keys, heuristic G2P/syllables) through
+the LanguageEngine interface. No new behavior; the rhyme cascade and
+fallback below replicate the pre-refactor RhymeService exactly so cached
+English results do not drift."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from wordfreq import word_frequency
+
+from app.domain.heuristic_g2p import heuristic_phoneme_tails
+from app.domain.languages.base import CandidateTier, KeySpec, LanguageEngine
+from app.domain.near_rhyme_rules import near_rhyme_key
+from app.domain.normalization import normalize_word
+from app.domain.rhyme_rules import family_rhyme_key, rhyme_key
+from app.domain.tokenization import tokenize_line
+from app.models.token import Token
+
+if TYPE_CHECKING:
+    from app.services.rhyme_index import RhymeIndex
+
+
+_VOWEL_LETTERS: frozenset[str] = frozenset("aeiouy")
+
+
+def _english_heuristic_syllable_count(word: str) -> int:
+    # Local re-implementation of the existing English heuristic so the
+    # SyllableService can call it via the engine without circular-importing
+    # SyllableService. Mirrors app.services.syllable_service._heuristic_count.
+    import re
+
+    if not word:
+        return 1
+    w = word.lower().replace("'", "")
+    if not w:
+        return 1
+    groups = re.findall(r"[aeiouy]+", w)
+    count = len(groups)
+    for pair in ("ia", "io", "ua", "ue", "uo", "eo", "ea"):
+        if pair in w and pair in groups:
+            count += 1
+    if w.endswith("e") and not w.endswith("le") and not w.endswith("ee") and count > 1:
+        count -= 1
+    if w.endswith("le") and len(w) > 2 and w[-3] not in "aeiouy":
+        count = max(count, 2 if len(groups) >= 1 else 1)
+    if w.endswith("ed") and len(w) > 2 and w[-3] not in "td" and count > 1:
+        if "ed" in groups:
+            count -= 1
+    return max(count, 1)
+
+
+class EnglishEngine(LanguageEngine):
+    code = "en"
+    supported_modes = ("perfect", "near")
+    default_mode = "perfect"
+    key_specs = (
+        KeySpec(name="perfect", fn=rhyme_key),
+        KeySpec(name="family", fn=family_rhyme_key),
+        KeySpec(name="near", fn=near_rhyme_key),
+    )
+    match_reasons = {
+        "perfect": "shared stressed ending",
+        "family": "shared trailing syllable",
+        "near": "shared vowel with similar consonants",
+    }
+
+    def normalize_word(self, text: str | None) -> str | None:
+        return normalize_word(text)
+
+    def tokenize_line(self, line: str) -> list[Token]:
+        return tokenize_line(line)
+
+    def heuristic_syllable_count(self, word: str) -> int:
+        return _english_heuristic_syllable_count(word)
+
+    def frequency(self, word: str) -> float:
+        return word_frequency(word, "en")
+
+    def is_corpus_eligible_word(self, word: str) -> bool:
+        import re
+
+        if len(word) < 2:
+            return False
+        return bool(re.match(r"^[a-z][a-z']*[a-z]$", word))
+
+    def candidate_tiers(
+        self,
+        index: "RhymeIndex",
+        normalized: str,
+        phonemes_list: list[tuple[str, ...]],
+        mode: str,
+        query_syllables: int,
+    ) -> list[CandidateTier]:
+        perfect_keys = index.keys_for("perfect", phonemes_list)
+        family_keys = index.keys_for("family", phonemes_list)
+        near_keys = index.keys_for("near", phonemes_list)
+
+        perfect_words = index.words_for("perfect", perfect_keys, exclude=normalized)
+        family_words = (
+            index.words_for("family", family_keys, exclude=normalized) - perfect_words
+        )
+        near_words = (
+            index.words_for("near", near_keys, exclude=normalized)
+            - perfect_words
+            - family_words
+        )
+
+        if mode == "near":
+            return [CandidateTier(name="near", words=near_words)]
+        # mode == "perfect" — tiered cascade.
+        return [
+            CandidateTier(name="perfect", words=perfect_words),
+            CandidateTier(name="family", words=family_words),
+            CandidateTier(name="near", words=near_words),
+        ]
+
+    def heuristic_candidates(
+        self,
+        index: "RhymeIndex",
+        normalized: str,
+    ) -> list[CandidateTier]:
+        """English-only fallback: spelling-derived phoneme tails → family-tier matches."""
+        tails = heuristic_phoneme_tails(normalized)
+        if not tails:
+            return []
+        perfect_keys = index.keys_for("perfect", list(tails))
+        family_keys = index.keys_for("family", list(tails))
+        words = index.words_for(
+            "perfect", perfect_keys, exclude=normalized
+        ) | index.words_for("family", family_keys, exclude=normalized)
+        if not words:
+            return []
+        return [CandidateTier(name="family", words=words)]

@@ -11,5 +11,11 @@ class Settings(BaseSettings):
     max_rhyme_limit: int = 25
     max_line_length: int = 500
 
+    # Phase 3 — Spanish track.
+    # Top-N most-frequent words from wordfreq's "es" data feed the rhyme index.
+    # ~80k matches the order of magnitude of the English CMU corpus after the
+    # frequency-floor filter; tune lower for faster startup.
+    spanish_corpus_size: int = 80_000
+
 
 settings = Settings()

@@ -1,0 +1,22 @@
+[
+  {"word": "corazón", "syllables": ["co", "ra", "zón"], "stress_index": 2},
+  {"word": "canción", "syllables": ["can", "ción"], "stress_index": 1},
+  {"word": "agua", "syllables": ["a", "gua"], "stress_index": 0},
+  {"word": "país", "syllables": ["pa", "ís"], "stress_index": 1},
+  {"word": "caballo", "syllables": ["ca", "ba", "llo"], "stress_index": 1},
+  {"word": "construcción", "syllables": ["cons", "truc", "ción"], "stress_index": 2},
+  {"word": "desarrollo", "syllables": ["de", "sa", "rro", "llo"], "stress_index": 2},
+  {"word": "año", "syllables": ["a", "ño"], "stress_index": 0},
+  {"word": "huérfano", "syllables": ["huér", "fa", "no"], "stress_index": 0},
+  {"word": "ciudad", "syllables": ["ciu", "dad"], "stress_index": 1},
+  {"word": "amor", "syllables": ["a", "mor"], "stress_index": 1},
+  {"word": "vida", "syllables": ["vi", "da"], "stress_index": 0},
+  {"word": "mañana", "syllables": ["ma", "ña", "na"], "stress_index": 1},
+  {"word": "cielo", "syllables": ["cie", "lo"], "stress_index": 0},
+  {"word": "ventana", "syllables": ["ven", "ta", "na"], "stress_index": 1},
+  {"word": "querer", "syllables": ["que", "rer"], "stress_index": 1},
+  {"word": "ángel", "syllables": ["án", "gel"], "stress_index": 0},
+  {"word": "café", "syllables": ["ca", "fé"], "stress_index": 1},
+  {"word": "razón", "syllables": ["ra", "zón"], "stress_index": 1},
+  {"word": "música", "syllables": ["mú", "si", "ca"], "stress_index": 0}
+]

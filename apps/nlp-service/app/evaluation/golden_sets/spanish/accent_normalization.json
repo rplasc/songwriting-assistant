@@ -1,0 +1,16 @@
+[
+  {"input": "corazón", "normalized": "corazón"},
+  {"input": "Corazón", "normalized": "corazón"},
+  {"input": "CORAZÓN", "normalized": "corazón"},
+  {"input": "corazón.", "normalized": "corazón"},
+  {"input": "¿corazón?", "normalized": "corazón"},
+  {"input": "¡amor!", "normalized": "amor"},
+  {"input": "“mañana”", "normalized": "mañana"},
+  {"input": "café,", "normalized": "café"},
+  {"input": "niño", "normalized": "niño"},
+  {"input": "país", "normalized": "país"},
+  {"input": "pingüino", "normalized": "pingüino"},
+  {"input": "  vida  ", "normalized": "vida"},
+  {"input": "...", "normalized": null},
+  {"input": "", "normalized": null}
+]

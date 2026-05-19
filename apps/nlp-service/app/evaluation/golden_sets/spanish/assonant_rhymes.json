@@ -1,0 +1,20 @@
+[
+  {
+    "word": "corazón",
+    "min_top_hits": 2,
+    "expected_top_rhymes": ["razón", "canción", "amor", "dolor", "sol", "voz"],
+    "note": "assonant on O — broader than consonant; should also surface non-N endings sharing the O vowel"
+  },
+  {
+    "word": "vida",
+    "min_top_hits": 2,
+    "expected_top_rhymes": ["mira", "isla", "brisa", "pista", "fila", "silba"],
+    "note": "assonant on I-A — vowels match, consonant context can vary"
+  },
+  {
+    "word": "luna",
+    "min_top_hits": 2,
+    "expected_top_rhymes": ["nunca", "cura", "duda", "bruma", "puma", "fruta"],
+    "note": "assonant on U-A"
+  }
+]

@@ -1,31 +1,31 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 
 from app.core.logging import get_logger, timed
 from app.schemas.requests import RhymeRequest
 from app.schemas.responses import RhymeMeta, RhymeResponse
-from app.services.rhyme_service import RhymeService
+from app.services.language_router import LanguageRouter
 
 router = APIRouter(prefix="/v1")
 logger = get_logger("nlp.rhymes")
 
 
-def _rhyme_service(request: Request) -> RhymeService:
-    return request.app.state.rhyme_service
+def _language_router(request: Request) -> LanguageRouter:
+    return request.app.state.language_router
 
 
 @router.post("/rhymes")
-def post_rhymes(
-    payload: RhymeRequest,
-    service: RhymeService = Depends(_rhyme_service),
-) -> RhymeResponse:
+def post_rhymes(payload: RhymeRequest, request: Request) -> RhymeResponse:
+    router_ = _language_router(request)
+    ctx = router_.get(payload.language)
     with timed(
         logger,
         "rhymes.request",
         word=payload.word,
         limit=payload.limit,
         mode=payload.mode,
+        language=payload.language,
     ):
-        normalized, found, rhymes = service.find_rhymes(
+        normalized, found, resolved_mode, rhymes = ctx.rhyme_service.find_rhymes(
             payload.word,
             payload.limit,
             mode=payload.mode,
@@ -34,11 +34,12 @@ def post_rhymes(
     return RhymeResponse(
         word=payload.word,
         normalized_word=normalized,
+        language=payload.language,
         pronunciations_found=found,
         rhymes=rhymes,
         meta=RhymeMeta(
             limit=payload.limit,
-            mode=payload.mode,
-            include_near=payload.mode == "near",
+            mode=resolved_mode,
+            include_near=resolved_mode == "near",
         ),
     )

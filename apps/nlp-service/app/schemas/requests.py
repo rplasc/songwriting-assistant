@@ -4,15 +4,19 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.config import settings
 
-RhymeMode = Literal["perfect", "near"]
+Language = Literal["en", "es"]
+RhymeMode = Literal["perfect", "near", "consonant", "assonant"]
 
 
 class RhymeRequest(BaseModel):
     word: str = Field(min_length=1, max_length=64)
     limit: int = Field(default=settings.default_rhyme_limit, ge=1)
-    mode: RhymeMode = "perfect"
+    language: Language = "en"
+    # ``mode`` defaults to None so the service can resolve the language's own
+    # default. English defaults to ``perfect``, Spanish to ``consonant``.
+    mode: RhymeMode | None = None
     include_metadata: bool = False
-    # Deprecated: kept so Phase 1 clients keep working. If set true and `mode`
+    # Deprecated: kept so Phase 1 clients keep working. If set true and ``mode``
     # was not explicitly chosen, the request is treated as mode="near".
     include_near: bool = False
 
@@ -32,13 +36,15 @@ class RhymeRequest(BaseModel):
 
     @model_validator(mode="after")
     def _apply_legacy_near_flag(self) -> "RhymeRequest":
-        if self.include_near and self.mode == "perfect":
+        # Only fires when the caller did not supply an explicit ``mode``.
+        if self.include_near and self.mode is None:
             self.mode = "near"
         return self
 
 
 class LineAnalysisRequest(BaseModel):
     line: str = Field(min_length=1, max_length=settings.max_line_length)
+    language: Language = "en"
     include_metadata: bool = False
 
     @field_validator("line")

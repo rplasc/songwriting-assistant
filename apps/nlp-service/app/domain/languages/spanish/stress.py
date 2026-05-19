@@ -7,10 +7,13 @@ Rules (Real Academia Española):
      the penultimate syllable (palabras llanas).
   3. Otherwise, stress falls on the last syllable (palabras agudas).
 
-This module exposes a single function used by syllabification.
+This module exposes ``stressed_syllable_index`` (used by syllabification)
+and ``stress_signature`` (used by ranking for prosody-aware bonuses).
 """
 
 from __future__ import annotations
+
+from functools import lru_cache
 
 _ACCENTED_VOWELS: frozenset[str] = frozenset("áéíóú")
 _PLAIN_VOWELS: frozenset[str] = frozenset("aeiouü")
@@ -33,3 +36,25 @@ def stressed_syllable_index(syllables: list[str], word: str) -> int:
     if last in _PENULT_END_LETTERS:
         return len(syllables) - 2
     return len(syllables) - 1
+
+
+@lru_cache(maxsize=8192)
+def stress_signature(word: str) -> str:
+    """Return the prosodic stress class of a normalized Spanish word.
+
+    Returns one of:
+      "aguda"     — stress on final syllable
+      "llana"     — stress on penultimate syllable
+      "esdrujula" — stress on antepenultimate or earlier syllable
+    """
+    from app.domain.languages.spanish.syllabification import syllabify
+
+    syllables, stress_idx = syllabify(word)
+    n = len(syllables)
+    if n == 0:
+        return "llana"
+    if stress_idx == n - 1:
+        return "aguda"
+    if stress_idx == n - 2:
+        return "llana"
+    return "esdrujula"

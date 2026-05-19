@@ -1,9 +1,12 @@
-from app.services.ranking_service import (
-    _is_same_stem_inflection,
-    _shares_stem,
-    score_entries,
+from app.domain.languages.english.engine import (
+    EnglishEngine,
+    _en_is_same_stem_inflection,
 )
+from app.domain.languages.base import LanguageEngine
+from app.services.ranking_service import score_entries
 from app.services.rhyme_index import RhymeEntry
+
+_engine = EnglishEngine()
 
 
 def _entry(word: str, syllables: int = 1, frequency: float = 1e-4) -> RhymeEntry:
@@ -11,18 +14,23 @@ def _entry(word: str, syllables: int = 1, frequency: float = 1e-4) -> RhymeEntry
 
 
 def test_inflection_detected() -> None:
-    assert _is_same_stem_inflection("run", "runs")
-    assert _is_same_stem_inflection("run", "running")
-    assert _is_same_stem_inflection("walk", "walked")
-    assert _is_same_stem_inflection("make", "making")
-    assert _is_same_stem_inflection("try", "tries")
-    assert not _is_same_stem_inflection("run", "rain")
-    assert not _is_same_stem_inflection("run", "run")
+    assert _en_is_same_stem_inflection("run", "runs")
+    assert _en_is_same_stem_inflection("run", "running")
+    assert _en_is_same_stem_inflection("walk", "walked")
+    assert _en_is_same_stem_inflection("make", "making")
+    assert _en_is_same_stem_inflection("try", "tries")
+    assert not _en_is_same_stem_inflection("run", "rain")
+    assert not _en_is_same_stem_inflection("run", "run")
+
+
+def test_engine_inflection_detection_matches_helper() -> None:
+    assert _engine.is_same_stem_inflection("run", "runs")
+    assert not _engine.is_same_stem_inflection("run", "rain")
 
 
 def test_shares_stem_for_related_words() -> None:
-    assert _shares_stem("fire", "fires")
-    assert not _shares_stem("fire", "higher")
+    assert _engine.shares_stem("fire", "fires")
+    assert not _engine.shares_stem("fire", "higher")
 
 
 def test_score_entries_orders_by_score_then_frequency() -> None:
@@ -38,6 +46,7 @@ def test_score_entries_orders_by_score_then_frequency() -> None:
         rhyme_type="perfect",
         limit=10,
         query_syllables=1,
+        engine=_engine,
     )
     words = [c.word for c in ranked]
     assert "fires" in words
@@ -46,23 +55,23 @@ def test_score_entries_orders_by_score_then_frequency() -> None:
 
 def test_near_score_lower_than_perfect_at_equal_inputs() -> None:
     perfect = score_entries(
-        [_entry("higher")], query="fire", rhyme_type="perfect", limit=10
+        [_entry("higher")], query="fire", rhyme_type="perfect", limit=10, engine=_engine
     )
     near = score_entries(
-        [_entry("higher")], query="fire", rhyme_type="near", limit=10
+        [_entry("higher")], query="fire", rhyme_type="near", limit=10, engine=_engine
     )
     assert perfect[0].score > near[0].score
 
 
 def test_family_score_between_perfect_and_near() -> None:
     perfect = score_entries(
-        [_entry("higher")], query="fire", rhyme_type="perfect", limit=10
+        [_entry("higher")], query="fire", rhyme_type="perfect", limit=10, engine=_engine
     )
     family = score_entries(
-        [_entry("higher")], query="fire", rhyme_type="family", limit=10
+        [_entry("higher")], query="fire", rhyme_type="family", limit=10, engine=_engine
     )
     near = score_entries(
-        [_entry("higher")], query="fire", rhyme_type="near", limit=10
+        [_entry("higher")], query="fire", rhyme_type="near", limit=10, engine=_engine
     )
     assert perfect[0].score > family[0].score > near[0].score
 
@@ -74,6 +83,7 @@ def test_syllable_match_bonus_applied() -> None:
         rhyme_type="perfect",
         limit=10,
         query_syllables=1,
+        engine=_engine,
     )
     unmatched = score_entries(
         [_entry("higher", syllables=2)],
@@ -81,5 +91,6 @@ def test_syllable_match_bonus_applied() -> None:
         rhyme_type="perfect",
         limit=10,
         query_syllables=1,
+        engine=_engine,
     )
     assert matched[0].score > unmatched[0].score

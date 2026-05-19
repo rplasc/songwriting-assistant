@@ -23,6 +23,20 @@ _CONTRACTIONS: dict[str, str] = {
     "na'": "nada",
     "to'": "todo",
     "tó": "todo",
+    # Common lyric elisions
+    "ta'": "está",
+    "'tá": "está",
+    "'toy": "estoy",
+    "vamo'": "vamos",
+    "vo'": "vamos",
+    "pa'l": "para el",
+    "pa'lante": "para adelante",
+    "to's": "todos",
+    "to'a": "toda",
+    "to'as": "todas",
+    "e'": "es",
+    "m'ijo": "mi hijo",
+    "m'ija": "mi hija",
 }
 
 # Accepts a leading letter, then optional letters, apostrophes, or hyphens,

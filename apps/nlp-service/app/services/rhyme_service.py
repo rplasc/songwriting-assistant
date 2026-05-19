@@ -138,6 +138,7 @@ class RhymeService:
                 rhyme_type=tier.name,
                 limit=remaining,
                 query_syllables=query_syllables,
+                engine=self._engine,
             )
             results.extend(
                 _RankedEntry(

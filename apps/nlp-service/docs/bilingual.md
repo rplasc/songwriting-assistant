@@ -36,11 +36,31 @@ class LanguageEngine(ABC):
     def candidate_tiers(...)
     def heuristic_candidates(...)  # default: empty
     def validate_mode(...)
+
+    # Ranking hooks — concrete methods with safe defaults so subclasses opt in:
+    def is_same_stem_inflection(query, candidate) -> bool  # default: False
+    def shares_stem(query, candidate, min_stem=4) -> bool  # default: prefix-overlap
+    def stress_signature(word) -> str | None               # default: None (disabled)
 ```
+
+`is_same_stem_inflection` and `shares_stem` are called per candidate inside `score_entries`. Returning True applies the inflection (−0.20) or same-stem (−0.10) penalty. English overrides `is_same_stem_inflection` with the original English suffix logic. Spanish overrides both with Spanish morphology (verb paradigms, gender/number pairs) and `stress_signature` (aguda / llana / esdrújula), adding a +0.03 bonus when query and candidate share stress class.
 
 If you find yourself adding `if engine.code == "es":` somewhere in shared code, the engine interface has gaped. Add a method to the interface instead.
 
 ---
+
+## Spanish corpus composition
+
+The Spanish corpus is built from two sources merged at startup:
+
+1. **wordfreq top-150k** — the 150,000 most frequent Spanish tokens from the wordfreq "es" dataset (raised from the original 80k for wider poetic/regional coverage).
+2. **PR/Reggaetón slang** — a curated hand-tuned list (`app/domain/languages/spanish/data/pr_slang.py`) with ~80 entries. Words already covered by wordfreq are skipped; the slang list only fills gaps. Synthetic frequencies are assigned in the `1e-7..3e-5` band — above `CORPUS_FREQ_FLOOR` so entries survive filtering, below common Spanish nouns so they don't crowd ranking.
+
+`SpanishEngine.frequency()` returns `max(wordfreq, slang_floor)` so the corpus build and the ranker see the same frequency floor.
+
+## Assonant-tier policy
+
+In **consonant mode** (cascade), the assonant secondary tier subtracts the consonant set so each word appears only once. In **assonant mode** (standalone), the full assonant set is returned without subtraction — this gives a richer candidate pool when the user explicitly asks for vowel-pattern matches.
 
 ## The startup lifespan
 

@@ -8,11 +8,17 @@ from typing import TYPE_CHECKING
 from wordfreq import word_frequency
 
 from app.domain.languages.base import CandidateTier, KeySpec, LanguageEngine
+from app.domain.languages.spanish.data.pr_slang import PR_SLANG
+from app.domain.languages.spanish.inflection import (
+    inflection_forms as _es_inflection_forms,
+    is_same_stem_inflection as _es_is_same_stem_inflection,
+)
 from app.domain.languages.spanish.normalization import normalize_word
 from app.domain.languages.spanish.rhyme_rules import (
     assonant_rhyme_key,
     consonant_rhyme_key,
 )
+from app.domain.languages.spanish.stress import stress_signature as _es_stress_signature
 from app.domain.languages.spanish.syllabification import syllabify
 from app.models.token import Token
 
@@ -67,12 +73,21 @@ class SpanishEngine(LanguageEngine):
         return max(len(syllables), 1)
 
     def frequency(self, word: str) -> float:
-        return word_frequency(word, "es")
+        return max(word_frequency(word, "es"), PR_SLANG.get(word, 0.0))
 
     def is_corpus_eligible_word(self, word: str) -> bool:
         if len(word) < 2:
             return False
         return bool(_SPANISH_WORD_RE.match(word))
+
+    def is_same_stem_inflection(self, query: str, candidate: str) -> bool:
+        return _es_is_same_stem_inflection(query, candidate)
+
+    def inflection_forms(self, query: str) -> frozenset[str]:
+        return _es_inflection_forms(query)
+
+    def stress_signature(self, word: str) -> str | None:
+        return _es_stress_signature(word)
 
     def candidate_tiers(
         self,
@@ -88,17 +103,25 @@ class SpanishEngine(LanguageEngine):
         consonant_words = index.words_for(
             "consonant", consonant_keys, exclude=normalized
         )
-        # Assonant rhymes are defined as vowel-only matches that are NOT
-        # full consonant matches. Subtracting keeps the two tiers disjoint
-        # and matches how Spanish poetry treats the distinction.
+
+        if mode == "assonant":
+            # Pure assonant mode: return all vowel-pattern matches.
+            # exclude=normalized already removes the query word itself.
+            # We do NOT subtract the consonant set here — doing so would
+            # hide words that are also perfect rhymes, and in assonant mode
+            # the caller explicitly wants the broadest vowel-pattern pool.
+            assonant_words = index.words_for(
+                "assonant", assonant_keys, exclude=normalized
+            )
+            return [CandidateTier(name="assonant", words=assonant_words)]
+
+        # mode == "consonant" — tiered cascade consonant → assonant.
+        # Assonant tier is disjoint from consonant tier so the user doesn't
+        # see the same word twice, which matches Spanish poetic convention.
         assonant_words = (
             index.words_for("assonant", assonant_keys, exclude=normalized)
             - consonant_words
         )
-
-        if mode == "assonant":
-            return [CandidateTier(name="assonant", words=assonant_words)]
-        # mode == "consonant" — cascade consonant → assonant.
         return [
             CandidateTier(name="consonant", words=consonant_words),
             CandidateTier(name="assonant", words=assonant_words),

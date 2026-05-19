@@ -39,3 +39,11 @@ def test_contraction_expansion_del_al() -> None:
 def test_contraction_lyric_elisions() -> None:
     assert expand_basic_contractions("pa' siempre") == "para siempre"
     assert expand_basic_contractions("tó el día") == "todo el día"
+
+
+def test_new_lyric_contractions() -> None:
+    assert expand_basic_contractions("ta' bien") == "está bien"
+    assert expand_basic_contractions("vamo' pa'l barrio") == "vamos para el barrio"
+    assert expand_basic_contractions("to'a la noche") == "toda la noche"
+    assert expand_basic_contractions("to's los días") == "todos los días"
+    assert expand_basic_contractions("m'ijo escucha") == "mi hijo escucha"

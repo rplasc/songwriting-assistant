@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from wordfreq import word_frequency
 
+from app.domain.languages.base import LanguageEngine
 from app.services.rhyme_index import CORPUS_FREQ_FLOOR, RhymeEntry
 
 # Floor used to compute the frequency component of the score.
@@ -19,6 +20,7 @@ _BASE_FAMILY: float = 0.68
 _BASE_NEAR: float = 0.55
 _FREQ_WEIGHT: float = 0.20
 _SYLLABLE_BONUS: float = 0.05
+_STRESS_BONUS: float = 0.03
 
 # Spanish consonant rhyme is the analog of the English perfect tier (full
 # phonetic match from the stressed vowel onward). Assonant is a legitimate
@@ -38,10 +40,6 @@ _BASE_BY_TYPE: dict[str, float] = {
 _INFLECTION_PENALTY: float = 0.20
 _SAME_STEM_PENALTY: float = 0.10
 
-_INFLECTION_SUFFIXES: frozenset[str] = frozenset(
-    ("s", "es", "ed", "ing", "er", "est")
-)
-
 
 def _frequency_component(freq: float) -> float:
     if freq <= 0:
@@ -54,77 +52,12 @@ def _frequency_component(freq: float) -> float:
     return (log_freq - _FREQ_LOG_FLOOR) / (_FREQ_LOG_CEIL - _FREQ_LOG_FLOOR)
 
 
-def _is_same_stem_inflection(query: str, candidate: str) -> bool:
-    """True if candidate looks like query + a common English inflection.
-
-    Covers four patterns:
-      - plain suffix:           walk  -> walked, walks, walking
-      - doubled consonant:      run   -> running, runs (run+ning, run+s)
-      - silent-e drop:          make  -> making, dance -> danced
-      - y -> i swap:            try   -> tries, cry -> cried
-    Same-stem rhymes feel weak in lyrics and should rank lower.
-    """
-    if not query or candidate == query or not candidate.startswith(query[:1]):
-        return False
-
-    if candidate.startswith(query) and candidate[len(query) :] in _INFLECTION_SUFFIXES:
-        return True
-
-    if (
-        len(query) >= 2
-        and query[-1] not in "aeiouy"
-        and candidate.startswith(query + query[-1])
-        and candidate[len(query) + 1 :] in _INFLECTION_SUFFIXES
-    ):
-        return True
-
-    if query.endswith("e") and candidate.startswith(query[:-1]):
-        if candidate[len(query) - 1 :] in _INFLECTION_SUFFIXES:
-            return True
-
-    if query.endswith("y") and len(query) >= 2 and query[-2] not in "aeiou":
-        if candidate.startswith(query[:-1] + "i"):
-            if candidate[len(query) :] in _INFLECTION_SUFFIXES:
-                return True
-
-    return False
-
-
-def _shares_stem(query: str, candidate: str, min_stem: int = 4) -> bool:
-    """True if query and candidate share a long enough common prefix to suggest
-    they are derived from the same root word (e.g. "fire"/"fireplace").
-
-    Two conditions must both hold:
-      - ``shared >= min_stem``: absolute floor — at least 4 matching chars.
-      - ``shared >= len(query) - 1``: relative floor — for longer queries a 4-char
-        coincidental prefix match should not trigger the penalty; this scales the
-        required overlap with query length so "content"/"contemplate" (5 shared)
-        does not penalise, while "fire"/"fireplace" (4 shared == len("fire")) does.
-
-    True inflections of the query (runs, running, walked…) are caught by
-    ``_is_same_stem_inflection`` before this function is reached (``elif`` in the
-    caller), so this function handles derived non-inflected forms only.
-    """
-    if len(query) < min_stem or len(candidate) < min_stem:
-        return False
-    shared = 0
-    for a, b in zip(query, candidate):
-        if a != b:
-            break
-        shared += 1
-    return shared >= min_stem and shared >= len(query) - 1
-
-
 @dataclass(frozen=True, slots=True)
 class ScoredCandidate:
     word: str
     score: float
     frequency: float
     syllables: int
-
-
-def _sort_key(c: ScoredCandidate) -> tuple[float, float, str]:
-    return (-c.score, -c.frequency, c.word)
 
 
 def score_entries(
@@ -134,6 +67,7 @@ def score_entries(
     rhyme_type: str,
     limit: int,
     query_syllables: int | None = None,
+    engine: LanguageEngine,
 ) -> list[ScoredCandidate]:
     """Score pre-filtered rhyme entries and return the top `limit` ordered.
 
@@ -144,37 +78,50 @@ def score_entries(
       1. base score by rhyme strength (perfect > family > near)
       2. frequency component (commonness as a proxy for naturalness)
       3. syllable proximity bonus
-      4. editorial penalties for inflection and same-stem rhymes
+      4. stress-position match bonus (engine-provided; None disables it)
+      5. editorial penalties for inflection and same-stem rhymes (engine-delegated)
 
     Top-K is extracted with `heapq.nsmallest`, which is O(n log k) vs the
     O(n log n) of a full sort. For high-candidate words ("time" has 1000+
     near candidates) with limit=25 this is the dominant hot-path win.
+
+    Per-candidate work is kept tight: the inflection-penalty set is built
+    once via :meth:`LanguageEngine.inflection_forms` and queried with O(1)
+    set membership, and the heap stores natively-ordered tuples so
+    ``ScoredCandidate`` instances are only materialised for the survivors.
     """
     base = _BASE_BY_TYPE.get(rhyme_type, _BASE_NEAR)
-    out: list[ScoredCandidate] = []
+    query_stress = engine.stress_signature(query)
+    inflection_set = engine.inflection_forms(query)
+    # Tuples sort lexicographically: (-score, -freq, word, ...). The trailing
+    # score/syllables fields are payload — they don't affect ordering because
+    # the leading triple uniquely orders any pair of entries.
+    items: list[tuple[float, float, str, float, int]] = []
     for e in entries:
+        word = e.word
         score = base + _FREQ_WEIGHT * _frequency_component(e.frequency)
         if query_syllables is not None and e.syllables == query_syllables:
             score += _SYLLABLE_BONUS
-        if _is_same_stem_inflection(query, e.word):
+        if query_stress is not None and engine.stress_signature(word) == query_stress:
+            score += _STRESS_BONUS
+        if word in inflection_set:
             score -= _INFLECTION_PENALTY
-        elif _shares_stem(query, e.word):
+        elif engine.shares_stem(query, word):
             score -= _SAME_STEM_PENALTY
         if score < 0.0:
             score = 0.0
         elif score > 1.0:
             score = 1.0
-        out.append(
-            ScoredCandidate(
-                word=e.word,
-                score=score,
-                frequency=e.frequency,
-                syllables=e.syllables,
-            )
-        )
-    if limit >= len(out):
-        out.sort(key=_sort_key)
-        return out
-    return heapq.nsmallest(limit, out, key=_sort_key)
+        items.append((-score, -e.frequency, word, score, e.syllables))
+
+    if limit >= len(items):
+        items.sort()
+        top = items
+    else:
+        top = heapq.nsmallest(limit, items)
+    return [
+        ScoredCandidate(word=w, score=s, frequency=-neg_freq, syllables=syl)
+        for (_neg_score, neg_freq, w, s, syl) in top
+    ]
 
 

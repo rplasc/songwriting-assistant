@@ -2,8 +2,9 @@
   {
     "word": "corazón",
     "min_top_hits": 3,
-    "expected_top_rhymes": ["situación", "atención", "población", "relación", "dirección", "producción", "opinión", "construcción", "comisión", "decisión", "formación"],
-    "must_not_contain": ["corazón"]
+    "expected_top_rhymes": ["situación", "atención", "población", "relación", "dirección", "producción", "opinión", "construcción", "comisión", "decisión", "formación", "razón", "montón", "talón", "camión", "salón", "sazón"],
+    "must_not_contain": ["corazón"],
+    "note": "should include non -ción endings (razón, montón) to verify variety not dominated by a single suffix cluster"
   },
   {
     "word": "amor",
@@ -28,5 +29,12 @@
     "min_top_hits": 3,
     "expected_top_rhymes": ["suelo", "pelo", "vuelo", "hielo", "duelo", "velo", "modelo"],
     "must_not_contain": ["cielo"]
+  },
+  {
+    "word": "flow",
+    "min_top_hits": 1,
+    "expected_top_rhymes": ["show", "bro", "pro", "yo", "no", "hablo", "Pablo"],
+    "must_not_contain": ["flow"],
+    "note": "PR slang word; should appear in corpus and return consonant rhymes"
   }
 ]

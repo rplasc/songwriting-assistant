@@ -24,6 +24,38 @@ if TYPE_CHECKING:
 
 _VOWEL_LETTERS: frozenset[str] = frozenset("aeiouy")
 
+_INFLECTION_SUFFIXES: frozenset[str] = frozenset(("s", "es", "ed", "ing", "er", "est"))
+
+
+def _en_is_same_stem_inflection(query: str, candidate: str) -> bool:
+    """True if candidate looks like query + a common English inflection.
+
+    Covers four patterns:
+      - plain suffix:           walk  -> walked, walks, walking
+      - doubled consonant:      run   -> running (run+ning)
+      - silent-e drop:          make  -> making, dance -> danced
+      - y -> i swap:            try   -> tries, cry -> cried
+    """
+    if not query or candidate == query or not candidate.startswith(query[:1]):
+        return False
+    if candidate.startswith(query) and candidate[len(query):] in _INFLECTION_SUFFIXES:
+        return True
+    if (
+        len(query) >= 2
+        and query[-1] not in "aeiouy"
+        and candidate.startswith(query + query[-1])
+        and candidate[len(query) + 1:] in _INFLECTION_SUFFIXES
+    ):
+        return True
+    if query.endswith("e") and candidate.startswith(query[:-1]):
+        if candidate[len(query) - 1:] in _INFLECTION_SUFFIXES:
+            return True
+    if query.endswith("y") and len(query) >= 2 and query[-2] not in "aeiou":
+        if candidate.startswith(query[:-1] + "i"):
+            if candidate[len(query):] in _INFLECTION_SUFFIXES:
+                return True
+    return False
+
 
 def _english_heuristic_syllable_count(word: str) -> int:
     # Local re-implementation of the existing English heuristic so the
@@ -115,6 +147,9 @@ class EnglishEngine(LanguageEngine):
             CandidateTier(name="family", words=family_words),
             CandidateTier(name="near", words=near_words),
         ]
+
+    def is_same_stem_inflection(self, query: str, candidate: str) -> bool:
+        return _en_is_same_stem_inflection(query, candidate)
 
     def heuristic_candidates(
         self,

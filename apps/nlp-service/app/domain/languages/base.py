@@ -96,6 +96,51 @@ class LanguageEngine(ABC):
         """
         return []
 
+    def is_same_stem_inflection(self, query: str, candidate: str) -> bool:
+        """True if candidate is an inflected form of query (same stem, different ending).
+
+        Default returns False — engines opt in by overriding with language-specific
+        morphology. Returning True causes the inflection penalty to apply in ranking.
+        """
+        return False
+
+    def inflection_forms(self, query: str) -> frozenset[str]:
+        """All candidate words that should be penalised as same-stem inflections
+        of ``query``. Built once per query so the ranking loop can do O(1)
+        membership tests instead of calling :meth:`is_same_stem_inflection`
+        per candidate. Default: empty set (no penalty).
+        """
+        return frozenset()
+
+    def shares_stem(self, query: str, candidate: str, min_stem: int = 4) -> bool:
+        """True if query and candidate share a long enough common prefix to suggest
+        they derive from the same root (e.g. "fire"/"fireplace").
+
+        Two conditions must both hold:
+          - shared >= min_stem: absolute floor.
+          - shared >= len(query) - 1: scales required overlap with query length so
+            coincidental short-prefix matches don't penalise unrelated longer words.
+
+        Inflected forms caught by is_same_stem_inflection are not re-checked here.
+        """
+        if len(query) < min_stem or len(candidate) < min_stem:
+            return False
+        shared = 0
+        for a, b in zip(query, candidate):
+            if a != b:
+                break
+            shared += 1
+        return shared >= min_stem and shared >= len(query) - 1
+
+    def stress_signature(self, word: str) -> str | None:
+        """Return prosodic stress class of the word, or None if not applicable.
+
+        Possible values: "aguda" (final stress), "llana" (penultimate), "esdrujula"
+        (antepenultimate or earlier). Engines that don't use stress-position ranking
+        return None (the default), which disables the bonus in score_entries.
+        """
+        return None
+
     def validate_mode(self, mode: str) -> str:
         if mode not in self.supported_modes:
             raise UnsupportedModeError(

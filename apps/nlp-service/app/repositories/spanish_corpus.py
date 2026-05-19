@@ -12,6 +12,7 @@ from collections.abc import Iterable
 
 from wordfreq import top_n_list
 
+from app.domain.languages.spanish.data.pr_slang import PR_SLANG
 from app.domain.languages.spanish.g2p import g2p
 from app.domain.languages.spanish.normalization import normalize_word
 from app.models.pronunciation import Pronunciation
@@ -24,6 +25,18 @@ class SpanishCorpus(PronunciationRepository):
         seen: set[str] = set()
         for raw in top_n_list("es", top_n):
             norm = normalize_word(raw)
+            if norm is None or norm in seen:
+                continue
+            seen.add(norm)
+            pron = g2p(norm)
+            if not pron.phonemes:
+                continue
+            index[norm] = [pron]
+        # Merge PR/Reggaetón slang not already covered by the wordfreq top-N.
+        # Words already indexed are skipped — wordfreq is the authoritative
+        # source for their frequency; the slang map only fills gaps.
+        for raw_slang in PR_SLANG:
+            norm = normalize_word(raw_slang)
             if norm is None or norm in seen:
                 continue
             seen.add(norm)

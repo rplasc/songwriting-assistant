@@ -13,9 +13,9 @@ class Settings(BaseSettings):
 
     # Phase 3 — Spanish track.
     # Top-N most-frequent words from wordfreq's "es" data feed the rhyme index.
-    # ~80k matches the order of magnitude of the English CMU corpus after the
-    # frequency-floor filter; tune lower for faster startup.
-    spanish_corpus_size: int = 80_000
+    # Raised from 80k to 150k to surface more rare/poetic/regional vocabulary.
+    # Trade-off: ~2-5% longer startup time.
+    spanish_corpus_size: int = 150_000
 
 
 settings = Settings()

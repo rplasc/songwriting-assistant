@@ -21,6 +21,7 @@ interface EditorHeaderProps {
   currentDraftId: string | null;
   onSelectDraft: (id: string) => void;
   onNewDraft: () => void;
+  onDeleteDraft: (id: string) => void;
 }
 
 export function EditorHeader({
@@ -35,6 +36,7 @@ export function EditorHeader({
   currentDraftId,
   onSelectDraft,
   onNewDraft,
+  onDeleteDraft,
 }: EditorHeaderProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-1 py-1">
@@ -50,6 +52,7 @@ export function EditorHeader({
           currentDraftId={currentDraftId}
           onSelect={onSelectDraft}
           onNew={onNewDraft}
+          onDelete={onDeleteDraft}
         />
       </div>
     </div>

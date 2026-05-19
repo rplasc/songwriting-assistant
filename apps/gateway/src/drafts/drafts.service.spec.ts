@@ -73,4 +73,16 @@ describe('DraftsService', () => {
       service.update('00000000-0000-0000-0000-000000000000', { title: 'x' }),
     ).toThrow(NotFoundException);
   });
+
+  it('remove deletes the draft so subsequent reads fail', () => {
+    const created = service.create({ content: 'gone soon' });
+    service.remove(created.id);
+    expect(() => service.findById(created.id)).toThrow(NotFoundException);
+  });
+
+  it('remove throws NotFoundException for unknown id', () => {
+    expect(() =>
+      service.remove('00000000-0000-0000-0000-000000000000'),
+    ).toThrow(NotFoundException);
+  });
 });

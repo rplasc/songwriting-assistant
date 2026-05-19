@@ -59,4 +59,13 @@ export class DraftsService {
     this.drafts.set(id, updated);
     return updated;
   }
+
+  remove(id: string): void {
+    if (!this.drafts.delete(id)) {
+      throw new NotFoundException({
+        code: 'DRAFT_NOT_FOUND',
+        message: `Draft ${id} not found`,
+      });
+    }
+  }
 }

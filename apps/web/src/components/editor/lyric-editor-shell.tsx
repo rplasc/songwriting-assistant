@@ -49,6 +49,7 @@ export function LyricEditorShell() {
     saveNow,
     loadDraft,
     newDraft,
+    deleteDraft,
   } = useDraftSaving(editor, {
     language,
     onDraftLoaded: (draft) => setLanguage(draft.language),
@@ -86,6 +87,7 @@ export function LyricEditorShell() {
         currentDraftId={currentDraftId}
         onSelectDraft={(id) => void loadDraft(id)}
         onNewDraft={newDraft}
+        onDeleteDraft={(id) => void deleteDraft(id)}
       />
       <EditorLayout
         editor={<LyricEditor editor={editor} />}

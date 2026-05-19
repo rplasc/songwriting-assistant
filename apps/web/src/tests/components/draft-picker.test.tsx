@@ -17,6 +17,7 @@ describe("DraftPicker", () => {
         currentDraftId={null}
         onSelect={() => {}}
         onNew={() => {}}
+        onDelete={() => {}}
       />,
     );
     expect(screen.queryByRole("menu")).toBeNull();
@@ -29,6 +30,7 @@ describe("DraftPicker", () => {
         currentDraftId="b"
         onSelect={() => {}}
         onNew={() => {}}
+        onDelete={() => {}}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /drafts/i }));
@@ -45,6 +47,7 @@ describe("DraftPicker", () => {
         currentDraftId={null}
         onSelect={onSelect}
         onNew={() => {}}
+        onDelete={() => {}}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /drafts/i }));
@@ -60,11 +63,32 @@ describe("DraftPicker", () => {
         currentDraftId={null}
         onSelect={() => {}}
         onNew={onNew}
+        onDelete={() => {}}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /drafts/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /new draft/i }));
     expect(onNew).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires onDelete with the draft id when the trash button is clicked", async () => {
+    const onDelete = vi.fn();
+    const onSelect = vi.fn();
+    render(
+      <DraftPicker
+        drafts={DRAFTS}
+        currentDraftId={null}
+        onSelect={onSelect}
+        onNew={() => {}}
+        onDelete={onDelete}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /drafts/i }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /delete draft “first lines”/i }),
+    );
+    expect(onDelete).toHaveBeenCalledWith("a");
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("shows an empty hint when there are no drafts", async () => {
@@ -74,6 +98,7 @@ describe("DraftPicker", () => {
         currentDraftId={null}
         onSelect={() => {}}
         onNew={() => {}}
+        onDelete={() => {}}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /drafts/i }));

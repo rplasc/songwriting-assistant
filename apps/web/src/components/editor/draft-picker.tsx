@@ -9,6 +9,27 @@ interface DraftPickerProps {
   currentDraftId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onDelete: (id: string) => void;
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 4h10" />
+      <path d="M6.5 4V2.75A.75.75 0 0 1 7.25 2h1.5a.75.75 0 0 1 .75.75V4" />
+      <path d="M4.25 4 5 13.25a.75.75 0 0 0 .75.7h4.5a.75.75 0 0 0 .75-.7L11.75 4" />
+    </svg>
+  );
 }
 
 function formatTimestamp(iso: string): string {
@@ -31,6 +52,7 @@ export function DraftPicker({
   currentDraftId,
   onSelect,
   onNew,
+  onDelete,
 }: DraftPickerProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,7 +138,14 @@ export function DraftPicker({
               {drafts.map((draft) => {
                 const active = draft.id === currentDraftId;
                 return (
-                  <li key={draft.id}>
+                  <li
+                    key={draft.id}
+                    className={cn(
+                      "group flex items-center transition-colors duration-150 ease-out",
+                      "hover:bg-surface-muted focus-within:bg-surface-muted",
+                      active && "bg-surface-muted",
+                    )}
+                  >
                     <button
                       type="button"
                       role="menuitem"
@@ -125,11 +154,8 @@ export function DraftPicker({
                         setOpen(false);
                       }}
                       className={cn(
-                        "flex w-full flex-col gap-0.5 px-3 py-1.5 text-left",
-                        "transition-colors duration-150 ease-out",
-                        "hover:bg-surface-muted",
-                        "focus-visible:outline-none focus-visible:bg-surface-muted",
-                        active && "bg-surface-muted",
+                        "flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-1.5 text-left",
+                        "focus-visible:outline-none",
                       )}
                     >
                       <span className="truncate text-[12px] font-medium text-foreground">
@@ -139,6 +165,24 @@ export function DraftPicker({
                         {formatTimestamp(draft.updatedAt)}
                         {active ? " · open" : ""}
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete draft “${draft.title}”`}
+                      title="Delete draft"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(draft.id);
+                      }}
+                      className={cn(
+                        "mr-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm",
+                        "text-muted-foreground/40 transition-colors duration-150 ease-out",
+                        "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                        "hover:text-danger focus-visible:text-danger",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30",
+                      )}
+                    >
+                      <TrashIcon />
                     </button>
                   </li>
                 );

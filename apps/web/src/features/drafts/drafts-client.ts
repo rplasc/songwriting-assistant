@@ -75,6 +75,22 @@ export async function getDraft(
   return parseEnvelope(response);
 }
 
+export async function deleteDraft(
+  id: string,
+  options: DraftRequestOptions = {},
+): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/v1/drafts/${id}`, {
+    method: "DELETE",
+    signal: options.signal,
+  });
+  if (!response.ok && response.status !== 404) {
+    throw new DraftRequestError(
+      `Draft delete failed (${response.status})`,
+      response.status,
+    );
+  }
+}
+
 export async function updateDraft(
   id: string,
   patch: UpdateDraftInput,

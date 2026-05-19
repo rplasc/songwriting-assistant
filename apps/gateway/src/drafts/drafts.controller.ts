@@ -2,7 +2,10 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -57,5 +60,11 @@ export class DraftsController {
       language: dto.language,
     });
     return { data: this.presenter.toClient(updated) };
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', new ParseUUIDPipe()) id: string): void {
+    this.drafts.remove(id);
   }
 }

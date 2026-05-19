@@ -5,12 +5,14 @@ import type { Editor } from "@tiptap/react";
 import type { Language } from "@/features/language/language-types";
 import {
   createDraft,
+  deleteDraft as deleteDraftRequest,
   getDraft,
   updateDraft,
   DraftRequestError,
 } from "./drafts-client";
 import {
   getRecentDrafts,
+  removeRecentDraft,
   upsertRecentDraft,
   setCurrentDraftId as persistCurrentId,
   getCurrentDraftId as readCurrentId,
@@ -34,6 +36,7 @@ export interface UseDraftSavingReturn {
   saveNow: () => Promise<void>;
   loadDraft: (id: string) => Promise<void>;
   newDraft: () => void;
+  deleteDraft: (id: string) => Promise<void>;
 }
 
 function deriveTitle(content: string): string {
@@ -230,6 +233,39 @@ export function useDraftSaving(
     [editor, updateCurrentId, updateCurrentLanguage],
   );
 
+  const deleteDraft = useCallback(
+    async (id: string) => {
+      const isCurrent = currentIdRef.current === id;
+      // Optimistically remove from the local index so the picker updates
+      // immediately — the network call is the source of truth but the UI
+      // shouldn't wait on it.
+      setRecentDrafts(removeRecentDraft(id));
+      if (isCurrent && editor) {
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current);
+          debounceRef.current = null;
+        }
+        if (inFlightRef.current) inFlightRef.current.abort();
+        suppressDirtyRef.current = true;
+        editor.commands.setContent("");
+        suppressDirtyRef.current = false;
+        updateCurrentId(null);
+        updateCurrentLanguage(null);
+        setLastSavedAt(null);
+        setStatus("idle");
+      }
+      try {
+        await deleteDraftRequest(id);
+      } catch (err) {
+        if (err instanceof DraftRequestError && err.status === 404) return;
+        // Re-surface other failures via the offline indicator so the user
+        // knows the server copy may still exist.
+        setStatus("offline");
+      }
+    },
+    [editor, updateCurrentId, updateCurrentLanguage],
+  );
+
   const newDraft = useCallback(() => {
     if (!editor) return;
     if (debounceRef.current) {
@@ -255,5 +291,6 @@ export function useDraftSaving(
     saveNow,
     loadDraft,
     newDraft,
+    deleteDraft,
   };
 }

@@ -38,11 +38,11 @@ export class EditorGateway {
 
     const requestId = randomUUID();
     try {
-      const result = await this.editor.analyze(
-        dto.line,
+      const result = await this.editor.analyze(dto.line, {
         requestId,
-        dto.rhyme_mode,
-      );
+        rhymeMode: dto.rhyme_mode,
+        language: dto.language,
+      });
       client.emit('editor.analysis', result);
     } catch (err) {
       this.logger.error(

@@ -1,6 +1,8 @@
 import { HttpService } from '@nestjs/axios';
 import {
   BadGatewayException,
+  BadRequestException,
+  HttpException,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -9,6 +11,14 @@ import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { AnalyzeLineRequest, RhymesRequest } from './dto/fastapi-requests';
 import { LineAnalysisResponse, RhymeResponse } from './dto/fastapi-responses';
+
+interface FastapiErrorEnvelope {
+  error?: {
+    code?: string;
+    message?: string;
+    details?: unknown;
+  };
+}
 
 @Injectable()
 export class FastapiClient {
@@ -42,8 +52,8 @@ export class FastapiClient {
     }
   }
 
-  private mapError(err: unknown, path: string): Error {
-    const ax = err as AxiosError;
+  private mapError(err: unknown, path: string): HttpException {
+    const ax = err as AxiosError<FastapiErrorEnvelope>;
     if (ax?.code === 'ECONNABORTED' || ax?.code === 'ETIMEDOUT') {
       this.logger.warn(`FastAPI timeout calling ${path}`);
       return new ServiceUnavailableException('FastAPI unreachable');
@@ -57,7 +67,22 @@ export class FastapiClient {
       return new ServiceUnavailableException('FastAPI unreachable');
     }
     if (ax?.response) {
-      this.logger.warn(`FastAPI ${ax.response.status} calling ${path}`);
+      const status = ax.response.status;
+      // FastAPI returns 422 for caller-side validation errors (unsupported
+      // language/mode, malformed payload). These are client problems, not
+      // upstream gateway problems — surface them as 400 with the FastAPI
+      // error code preserved so the editor can show a precise message.
+      if (status === 422) {
+        const envelope = ax.response.data;
+        const code = envelope?.error?.code ?? 'upstream_validation_error';
+        const message =
+          envelope?.error?.message ?? 'Upstream validation failed.';
+        this.logger.warn(
+          `FastAPI 422 (${code}) calling ${path}: ${message}`,
+        );
+        return new BadRequestException({ code, message });
+      }
+      this.logger.warn(`FastAPI ${status} calling ${path}`);
       return new BadGatewayException('Upstream analysis failed');
     }
     this.logger.error(`Unexpected FastAPI error calling ${path}`, err as Error);

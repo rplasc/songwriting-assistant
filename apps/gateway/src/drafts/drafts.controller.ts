@@ -25,6 +25,7 @@ export class DraftsController {
     const draft = this.drafts.create({
       title: dto.title,
       content: dto.content,
+      language: dto.language,
     });
     return { data: this.presenter.toClient(draft) };
   }
@@ -41,14 +42,19 @@ export class DraftsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateDraftDto,
   ): { data: DraftPayload } {
-    if (dto.title === undefined && dto.content === undefined) {
+    if (
+      dto.title === undefined &&
+      dto.content === undefined &&
+      dto.language === undefined
+    ) {
       throw new BadRequestException(
-        'At least one of [title, content] must be provided',
+        'At least one of [title, content, language] must be provided',
       );
     }
     const updated = this.drafts.update(id, {
       title: dto.title,
       content: dto.content,
+      language: dto.language,
     });
     return { data: this.presenter.toClient(updated) };
   }

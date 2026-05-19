@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
@@ -63,6 +64,53 @@ describe('FastapiClient', () => {
     );
   });
 
+  it('maps FastAPI 422 unsupported_language to BadRequest, preserving the code', async () => {
+    (http.post as jest.Mock).mockReturnValue(
+      throwError(() =>
+        axiosErr('ERR', {
+          status: 422,
+          data: {
+            error: {
+              code: 'unsupported_language',
+              message: "language 'fr' is not supported.",
+            },
+          },
+        }),
+      ),
+    );
+    try {
+      await client.getRhymes({ word: 'a', language: 'en' });
+      fail('expected BadRequestException');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      const resp = (err as BadRequestException).getResponse() as {
+        code: string;
+        message: string;
+      };
+      expect(resp.code).toBe('unsupported_language');
+      expect(resp.message).toContain("language 'fr'");
+    }
+  });
+
+  it('maps FastAPI 422 unsupported_mode to BadRequest', async () => {
+    (http.post as jest.Mock).mockReturnValue(
+      throwError(() =>
+        axiosErr('ERR', {
+          status: 422,
+          data: {
+            error: {
+              code: 'unsupported_mode',
+              message: "mode 'perfect' is not supported for language 'es'.",
+            },
+          },
+        }),
+      ),
+    );
+    await expect(
+      client.getRhymes({ word: 'corazón', language: 'es', mode: 'perfect' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('returns data on success', async () => {
     (http.post as jest.Mock).mockReturnValue(
       of({
@@ -72,10 +120,12 @@ describe('FastapiClient', () => {
           tokens: [],
           last_word: null,
           normalized_line: 'hi',
+          language: 'en',
         },
       }),
     );
     const out = await client.analyzeLine({ line: 'hi' });
     expect(out.line).toBe('hi');
+    expect(out.language).toBe('en');
   });
 });

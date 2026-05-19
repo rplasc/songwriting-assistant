@@ -15,6 +15,7 @@ describe('DraftsService', () => {
     );
     expect(draft.title).toBe('Song 1');
     expect(draft.content).toBe('verse one');
+    expect(draft.language).toBe('en');
     expect(draft.createdAt).toBe(draft.updatedAt);
   });
 
@@ -25,8 +26,13 @@ describe('DraftsService', () => {
     );
   });
 
+  it('stores Spanish language when supplied', () => {
+    const draft = service.create({ content: 'corazón', language: 'es' });
+    expect(draft.language).toBe('es');
+  });
+
   it('findById round-trips the created draft', () => {
-    const created = service.create({ content: 'lyrics' });
+    const created = service.create({ content: 'lyrics', language: 'es' });
     expect(service.findById(created.id)).toEqual(created);
   });
 
@@ -50,8 +56,16 @@ describe('DraftsService', () => {
     expect(updated.id).toBe(created.id);
     expect(updated.title).toBe('t1');
     expect(updated.content).toBe('c2');
+    expect(updated.language).toBe('en');
     expect(updated.createdAt).toBe(created.createdAt);
     expect(updated.updatedAt > created.updatedAt).toBe(true);
+  });
+
+  it('update can change the draft language', () => {
+    const created = service.create({ content: 'hello', language: 'en' });
+    const updated = service.update(created.id, { language: 'es' });
+    expect(updated.language).toBe('es');
+    expect(updated.content).toBe('hello');
   });
 
   it('update throws NotFoundException for unknown id', () => {

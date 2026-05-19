@@ -1,5 +1,7 @@
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import type { Language } from '../../common/enums/language.enum';
+import { SUPPORTED_LANGUAGES } from '../../common/enums/language.enum';
 
 export class UpdateDraftDto {
   @IsOptional()
@@ -12,4 +14,8 @@ export class UpdateDraftDto {
   @IsString()
   @MaxLength(10_000)
   content?: string;
+
+  @IsOptional()
+  @IsIn(SUPPORTED_LANGUAGES)
+  language?: Language;
 }

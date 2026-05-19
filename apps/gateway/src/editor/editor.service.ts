@@ -1,33 +1,45 @@
 import { Injectable } from '@nestjs/common';
 import { performance } from 'perf_hooks';
+import { Language, RhymeMode } from '../common/enums/language.enum';
 import { FastapiClient } from '../fastapi/fastapi.client';
-import { RhymeMode } from './dto/analyze-line.dto';
+import { LanguageRequestMapper } from './mappers/language-request.mapper';
 import {
   EditorAnalysisPayload,
   EditorResponsePresenter,
 } from './presenters/editor-response.presenter';
+
+export interface AnalyzeOptions {
+  requestId?: string;
+  rhymeMode?: RhymeMode;
+  language?: Language;
+}
 
 @Injectable()
 export class EditorService {
   constructor(
     private readonly fastapi: FastapiClient,
     private readonly presenter: EditorResponsePresenter,
+    private readonly languageMapper: LanguageRequestMapper,
   ) {}
 
   async analyze(
     line: string,
-    requestId?: string,
-    rhymeMode?: RhymeMode,
+    options: AnalyzeOptions = {},
   ): Promise<EditorAnalysisPayload> {
-    const mode: RhymeMode = rhymeMode ?? 'perfect';
+    const { language, mode } = this.languageMapper.resolve({
+      language: options.language,
+      rhyme_mode: options.rhymeMode,
+    });
+
     const t0 = performance.now();
-    const lineResp = await this.fastapi.analyzeLine({ line });
+    const lineResp = await this.fastapi.analyzeLine({ line, language });
 
     const last = lineResp.last_word;
     const rhymes = last
       ? await this.fastapi.getRhymes({
           word: last.normalized,
-          rhyme_mode: mode,
+          mode,
+          language,
         })
       : null;
 
@@ -36,7 +48,8 @@ export class EditorService {
       rhymes,
       performance.now() - t0,
       mode,
-      requestId,
+      language,
+      options.requestId,
     );
   }
 }

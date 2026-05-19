@@ -6,8 +6,16 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
+import type {
+  Language,
+  RhymeMode,
+} from '../../common/enums/language.enum';
+import {
+  SUPPORTED_LANGUAGES,
+  SUPPORTED_RHYME_MODES,
+} from '../../common/enums/language.enum';
 
-export type RhymeMode = 'perfect' | 'near';
+export type { RhymeMode } from '../../common/enums/language.enum';
 
 export class AnalyzeLineDto {
   @IsString()
@@ -17,6 +25,10 @@ export class AnalyzeLineDto {
   line!: string;
 
   @IsOptional()
-  @IsIn(['perfect', 'near'])
+  @IsIn(SUPPORTED_RHYME_MODES)
   rhyme_mode?: RhymeMode;
+
+  @IsOptional()
+  @IsIn(SUPPORTED_LANGUAGES)
+  language?: Language;
 }

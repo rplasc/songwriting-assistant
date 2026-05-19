@@ -1,3 +1,4 @@
+import { coerceLanguage } from "@/features/language/language-types";
 import type { DraftSummary } from "./drafts-types";
 
 const RECENT_KEY = "sa.drafts.recent";
@@ -21,14 +22,21 @@ export function getRecentDrafts(): DraftSummary[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is DraftSummary =>
-        !!item &&
-        typeof item === "object" &&
-        typeof (item as DraftSummary).id === "string" &&
-        typeof (item as DraftSummary).title === "string" &&
-        typeof (item as DraftSummary).updatedAt === "string",
-    );
+    return parsed
+      .filter(
+        (item): item is Omit<DraftSummary, "language"> & { language?: unknown } =>
+          !!item &&
+          typeof item === "object" &&
+          typeof (item as { id?: unknown }).id === "string" &&
+          typeof (item as { title?: unknown }).title === "string" &&
+          typeof (item as { updatedAt?: unknown }).updatedAt === "string",
+      )
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        updatedAt: item.updatedAt,
+        language: coerceLanguage(item.language),
+      }));
   } catch {
     return [];
   }

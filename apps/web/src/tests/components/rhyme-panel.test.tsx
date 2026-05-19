@@ -5,6 +5,7 @@ import type { AnalysisResult } from "@/features/analysis/analysis-types";
 
 const RESULT_WITH_RHYMES: AnalysisResult = {
   line: "I see the fire in your eyes",
+  language: "en",
   totalSyllables: 8,
   tokens: [],
   targetWord: "eyes",
@@ -13,6 +14,7 @@ const RESULT_WITH_RHYMES: AnalysisResult = {
     { word: "rise", syllables: 1, type: "near" },
   ],
   rhymeMode: "perfect",
+  lowConfidence: false,
   latencyMs: 20,
 };
 
@@ -40,9 +42,7 @@ describe("RhymePanel", () => {
 
   it("shows error empty state when status is error and result is null", () => {
     render(<RhymePanel status="error" result={null} />);
-    expect(
-      screen.getByText(/reach the analysis service/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/lost the connection/i)).toBeInTheDocument();
   });
 
   it("shows the target word label when a result has one", () => {
@@ -62,9 +62,7 @@ describe("RhymePanel", () => {
 
   it("shows a no-rhymes message when items list is empty but target exists", () => {
     render(<RhymePanel status="ready" result={RESULT_NO_RHYMES} />);
-    expect(
-      screen.getByText(/no perfect rhymes for this word/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/no perfect rhymes/i)).toBeInTheDocument();
   });
 
   it("shows the finding indicator when loading", () => {
@@ -108,8 +106,6 @@ describe("RhymePanel", () => {
     expect(
       screen.queryByRole("button", { name: /try near/i }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/no near rhymes found/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/nothing near/i)).toBeInTheDocument();
   });
 });

@@ -38,11 +38,11 @@ export function SaveStatusIndicator({ status, lastSavedAt }: SaveStatusProps) {
     return () => clearInterval(interval);
   }, [status]);
 
+  // Stay quiet on an empty page — a co-writer wouldn't narrate a blank slate.
+  if (status === "idle") return null;
+
   let label: string;
   switch (status) {
-    case "idle":
-      label = "Untouched";
-      break;
     case "dirty":
       label = "Unsaved";
       break;

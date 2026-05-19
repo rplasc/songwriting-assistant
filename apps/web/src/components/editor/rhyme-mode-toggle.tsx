@@ -3,12 +3,12 @@
 import { cn } from "@/lib/utils";
 import {
   RHYME_MODE_OPTIONS,
-  type RhymeMode,
+  type ClientRhymeMode,
 } from "@/features/analysis/rhyme-modes";
 
 interface RhymeModeToggleProps {
-  value: RhymeMode;
-  onChange: (mode: RhymeMode) => void;
+  value: ClientRhymeMode;
+  onChange: (mode: ClientRhymeMode) => void;
 }
 
 export function RhymeModeToggle({ value, onChange }: RhymeModeToggleProps) {

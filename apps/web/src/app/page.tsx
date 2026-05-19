@@ -9,8 +9,7 @@ export default function Home() {
             Songwriting Assistant
           </h1>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Write a line and let the tool handle the counting. Syllables and
-            rhymes update as you type.
+            Write. I&rsquo;ll count syllables and find rhymes as you go.
           </p>
           <hr className="mt-1 border-border" />
         </header>

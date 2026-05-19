@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import { SaveStatusIndicator } from "@/components/editor/save-status";
 
 describe("SaveStatusIndicator", () => {
-  it("shows the Idle copy when nothing has been saved", () => {
-    render(<SaveStatusIndicator status="idle" lastSavedAt={null} />);
-    expect(screen.getByRole("status")).toHaveTextContent(/untouched/i);
+  it("renders nothing when idle so an empty page stays quiet", () => {
+    const { container } = render(
+      <SaveStatusIndicator status="idle" lastSavedAt={null} />,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows Unsaved when dirty", () => {

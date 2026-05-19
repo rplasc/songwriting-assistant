@@ -1,9 +1,11 @@
-export type RhymeMode = "perfect" | "near";
+export type RhymeMode = "perfect" | "near" | "consonant" | "assonant";
 
-export const DEFAULT_RHYME_MODE: RhymeMode = "perfect";
+export type ClientRhymeMode = Extract<RhymeMode, "perfect" | "near">;
+
+export const DEFAULT_RHYME_MODE: ClientRhymeMode = "perfect";
 
 export const RHYME_MODE_OPTIONS: ReadonlyArray<{
-  value: RhymeMode;
+  value: ClientRhymeMode;
   label: string;
   description: string;
 }> = [
@@ -21,16 +23,16 @@ export const RHYME_MODE_OPTIONS: ReadonlyArray<{
 
 const STORAGE_KEY = "sa.rhymeMode";
 
-function parseMode(raw: string | null): RhymeMode {
+function parseMode(raw: string | null): ClientRhymeMode {
   return raw === "perfect" || raw === "near" ? raw : DEFAULT_RHYME_MODE;
 }
 
-export function readStoredRhymeMode(): RhymeMode {
+export function readStoredRhymeMode(): ClientRhymeMode {
   if (typeof window === "undefined") return DEFAULT_RHYME_MODE;
   return parseMode(window.localStorage.getItem(STORAGE_KEY));
 }
 
-export function writeStoredRhymeMode(mode: RhymeMode): void {
+export function writeStoredRhymeMode(mode: ClientRhymeMode): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, mode);
   // Notify same-tab subscribers — the storage event only fires cross-tab.

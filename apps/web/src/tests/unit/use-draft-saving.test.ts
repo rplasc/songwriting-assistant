@@ -97,7 +97,7 @@ describe("useDraftSaving", () => {
   it("starts idle when the editor is empty", () => {
     const editor = createFakeEditor();
     const { result } = renderHook(() =>
-      useDraftSaving(editor as unknown as Editor),
+      useDraftSaving(editor as unknown as Editor, { language: "en" }),
     );
     expect(result.current.status).toBe("idle");
     expect(result.current.currentDraftId).toBeNull();
@@ -106,7 +106,7 @@ describe("useDraftSaving", () => {
   it("marks the status dirty as soon as the editor updates", () => {
     const editor = createFakeEditor();
     const { result } = renderHook(() =>
-      useDraftSaving(editor as unknown as Editor),
+      useDraftSaving(editor as unknown as Editor, { language: "en" }),
     );
     act(() => {
       editor.type("Hello darkness");
@@ -119,7 +119,7 @@ describe("useDraftSaving", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
     const editor = createFakeEditor();
     const { result } = renderHook(() =>
-      useDraftSaving(editor as unknown as Editor),
+      useDraftSaving(editor as unknown as Editor, { language: "en" }),
     );
 
     act(() => editor.type("Hello darkness"));
@@ -140,7 +140,7 @@ describe("useDraftSaving", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
     const editor = createFakeEditor();
     const { result } = renderHook(() =>
-      useDraftSaving(editor as unknown as Editor),
+      useDraftSaving(editor as unknown as Editor, { language: "en" }),
     );
 
     act(() => editor.type("first"));
@@ -168,7 +168,7 @@ describe("useDraftSaving", () => {
     ) as unknown as typeof fetch;
     const editor = createFakeEditor();
     const { result } = renderHook(() =>
-      useDraftSaving(editor as unknown as Editor),
+      useDraftSaving(editor as unknown as Editor, { language: "en" }),
     );
 
     act(() => editor.type("offline test"));
@@ -183,7 +183,7 @@ describe("useDraftSaving", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
     const editor = createFakeEditor();
     const { result } = renderHook(() =>
-      useDraftSaving(editor as unknown as Editor),
+      useDraftSaving(editor as unknown as Editor, { language: "en" }),
     );
 
     act(() => editor.type("seed"));

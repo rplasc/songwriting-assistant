@@ -1,10 +1,25 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  DEFAULT_LANGUAGE,
+  type Language,
+} from "@/features/language/language-types";
 import { getSocketAdapter } from "./analysis-socket";
 import { toAnalysisResult } from "./analysis-mappers";
 import type { AnalysisResult, AnalysisStatus } from "./analysis-types";
-import { DEFAULT_RHYME_MODE, type RhymeMode } from "./rhyme-modes";
+import {
+  DEFAULT_RHYME_MODE,
+  type ClientRhymeMode,
+  type RhymeMode,
+} from "./rhyme-modes";
+
+// FastAPI rejects perfect/near for Spanish — it expects consonant/assonant.
+// Translate the unified client toggle into the language's supported mode.
+function resolveRhymeMode(mode: ClientRhymeMode, language: Language): RhymeMode {
+  if (language === "es") return mode === "perfect" ? "consonant" : "assonant";
+  return mode;
+}
 
 const DEBOUNCE_MS = 150;
 const MAX_LINE_LENGTH = 500;
@@ -17,14 +32,19 @@ export interface UseEditorAnalysisReturn {
 
 export function useEditorAnalysis(
   activeLine: string,
-  rhymeMode: RhymeMode = DEFAULT_RHYME_MODE,
+  rhymeMode: ClientRhymeMode = DEFAULT_RHYME_MODE,
+  language: Language = DEFAULT_LANGUAGE,
 ): UseEditorAnalysisReturn {
+  const resolvedMode = resolveRhymeMode(rhymeMode, language);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [status, setStatus] = useState<AnalysisStatus>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  // Track the most recently emitted (line, mode) so we can discard stale responses.
-  const latestSentRef = useRef<{ line: string; mode: RhymeMode } | null>(null);
+  const latestSentRef = useRef<{
+    line: string;
+    mode: RhymeMode;
+    language: Language;
+  } | null>(null);
 
   useEffect(() => {
     const adapter = getSocketAdapter();
@@ -38,12 +58,12 @@ export function useEditorAnalysis(
     });
 
     const removeError = adapter.onError(({ message }) => {
-      setError(message ?? "Unable to analyze line.");
+      setError(message ?? "Couldn't read that line.");
       setStatus("error");
     });
 
     const removeConnectError = adapter.onConnectError(() => {
-      setError("Cannot reach analysis service — check that the gateway is running.");
+      setError("Lost the connection.");
       setStatus("error");
     });
 
@@ -67,7 +87,7 @@ export function useEditorAnalysis(
 
     if (trimmed.length > MAX_LINE_LENGTH) {
       setStatus("error");
-      setError("Line is too long to analyze.");
+      setError("That line is too long to read.");
       return;
     }
 
@@ -75,22 +95,25 @@ export function useEditorAnalysis(
     const alreadyReady =
       sent &&
       sent.line === trimmed &&
-      sent.mode === rhymeMode &&
+      sent.mode === resolvedMode &&
+      sent.language === language &&
       status === "ready";
     if (alreadyReady) return;
 
     const timer = setTimeout(() => {
-      latestSentRef.current = { line: trimmed, mode: rhymeMode };
+      latestSentRef.current = { line: trimmed, mode: resolvedMode, language };
       setStatus("loading");
       setError(null);
-      getSocketAdapter().emit({ line: trimmed, rhymeMode });
+      getSocketAdapter().emit({
+        line: trimmed,
+        rhymeMode: resolvedMode,
+        language,
+      });
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-    // status intentionally excluded from deps — re-running on every status
-    // transition would restart the debounce mid-flight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLine, rhymeMode]);
+  }, [activeLine, resolvedMode, language]);
 
   return { result, status, error };
 }

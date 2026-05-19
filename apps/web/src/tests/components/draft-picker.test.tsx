@@ -5,8 +5,8 @@ import { DraftPicker } from "@/components/editor/draft-picker";
 import type { DraftSummary } from "@/features/drafts/drafts-types";
 
 const DRAFTS: DraftSummary[] = [
-  { id: "a", title: "First lines", updatedAt: "2026-05-18T10:00:00.000Z" },
-  { id: "b", title: "Bridge ideas", updatedAt: "2026-05-17T18:30:00.000Z" },
+  { id: "a", title: "First lines", language: "en", updatedAt: "2026-05-18T10:00:00.000Z" },
+  { id: "b", title: "Bridge ideas", language: "en", updatedAt: "2026-05-17T18:30:00.000Z" },
 ];
 
 describe("DraftPicker", () => {

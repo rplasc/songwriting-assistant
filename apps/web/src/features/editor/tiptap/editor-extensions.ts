@@ -14,6 +14,6 @@ export const lyricEditorExtensions = [
     strike: false,
   }),
   Placeholder.configure({
-    placeholder: "Start writing lyrics here...",
+    placeholder: "Start a line…",
   }),
 ];

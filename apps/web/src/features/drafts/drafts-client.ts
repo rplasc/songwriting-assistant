@@ -1,5 +1,7 @@
 import { apiBaseUrl } from "@/lib/config";
+import type { Language } from "@/features/language/language-types";
 import type { Draft, ServerDraftPayload } from "./drafts-types";
+import { languageFromServer } from "./draft-language-mappers";
 
 export class DraftRequestError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -17,6 +19,7 @@ function fromServer(p: ServerDraftPayload): Draft {
     id: p.id,
     title: p.title,
     content: p.content,
+    language: languageFromServer(p),
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   };
@@ -36,11 +39,13 @@ async function parseEnvelope(response: Response): Promise<Draft> {
 export interface CreateDraftInput {
   title?: string;
   content: string;
+  language: Language;
 }
 
 export interface UpdateDraftInput {
   title?: string;
   content?: string;
+  language?: Language;
 }
 
 export interface DraftRequestOptions {

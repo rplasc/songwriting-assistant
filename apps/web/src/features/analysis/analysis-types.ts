@@ -1,8 +1,10 @@
+import type { Language } from "@/features/language/language-types";
 import type { RhymeMode } from "./rhyme-modes";
 
 export interface SyllableToken {
   text: string;
   syllables: number;
+  low_confidence?: boolean;
 }
 
 export interface RhymeItem {
@@ -13,6 +15,7 @@ export interface RhymeItem {
 
 export interface ServerAnalysisPayload {
   line: string;
+  language?: Language;
   syllables: {
     total: number;
     tokens: SyllableToken[];
@@ -30,11 +33,13 @@ export interface ServerAnalysisPayload {
 
 export interface AnalysisResult {
   line: string;
+  language: Language;
   totalSyllables: number;
   tokens: SyllableToken[];
   targetWord: string | null;
   rhymes: RhymeItem[];
   rhymeMode: RhymeMode;
+  lowConfidence: boolean;
   latencyMs: number;
   requestId?: string;
 }

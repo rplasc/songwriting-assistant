@@ -3,15 +3,51 @@ import type {
   AnalysisResult,
   AnalysisStatus,
 } from "@/features/analysis/analysis-types";
+import {
+  DEFAULT_LANGUAGE,
+  type Language,
+} from "@/features/language/language-types";
 
 interface SyllablePanelProps {
   status: AnalysisStatus;
   result: AnalysisResult | null;
+  language?: Language;
 }
 
-export function SyllablePanel({ status, result }: SyllablePanelProps) {
+const EMPTY_COPY: Record<Language, string> = {
+  en: "Write a line.",
+  es: "Escribe una línea.",
+};
+
+const ERROR_COPY: Record<Language, string> = {
+  en: "Lost the connection.",
+  es: "Se perdió la conexión.",
+};
+
+const COUNTING_COPY: Record<Language, string> = {
+  en: "counting…",
+  es: "contando…",
+};
+
+const SINGULAR_COPY: Record<Language, string> = {
+  en: "syllable",
+  es: "sílaba",
+};
+
+const PLURAL_COPY: Record<Language, string> = {
+  en: "syllables",
+  es: "sílabas",
+};
+
+export function SyllablePanel({
+  status,
+  result,
+  language = DEFAULT_LANGUAGE,
+}: SyllablePanelProps) {
   const isLoading = status === "loading";
   const hasResult = result !== null;
+  const activeLanguage = result?.language ?? language;
+  const hasLowConfidence = result?.lowConfidence === true;
 
   return (
     <section
@@ -27,7 +63,7 @@ export function SyllablePanel({ status, result }: SyllablePanelProps) {
         </h2>
         {isLoading && (
           <span aria-live="polite" className="text-[10px] text-muted-foreground/70 italic">
-            counting…
+            {COUNTING_COPY[activeLanguage]}
           </span>
         )}
       </header>
@@ -35,8 +71,8 @@ export function SyllablePanel({ status, result }: SyllablePanelProps) {
       {!hasResult ? (
         <p className="text-sm text-muted-foreground">
           {status === "error"
-            ? "Couldn’t reach the analysis service."
-            : "Start writing to see syllable counts."}
+            ? ERROR_COPY[activeLanguage]
+            : EMPTY_COPY[activeLanguage]}
         </p>
       ) : (
         <div
@@ -50,7 +86,9 @@ export function SyllablePanel({ status, result }: SyllablePanelProps) {
               {result.totalSyllables}
             </span>
             <span className="text-xs text-muted-foreground">
-              {result.totalSyllables === 1 ? "syllable" : "syllables"}
+              {result.totalSyllables === 1
+                ? SINGULAR_COPY[activeLanguage]
+                : PLURAL_COPY[activeLanguage]}
             </span>
           </div>
           {result.tokens.length > 0 && (
@@ -63,14 +101,32 @@ export function SyllablePanel({ status, result }: SyllablePanelProps) {
                   key={`${t.text}-${i}`}
                   className="flex items-baseline gap-1"
                 >
-                  <span className="text-sm text-foreground">{t.text}</span>
+                  <span
+                    className={cn(
+                      "text-sm",
+                      t.low_confidence
+                        ? "text-muted-foreground italic"
+                        : "text-foreground",
+                    )}
+                    title={t.low_confidence ? "Lower-confidence estimate" : undefined}
+                  >
+                    {t.text}
+                  </span>
                   <span className="text-[10px] tabular-nums text-muted-foreground">
                     {t.syllables}
+                    {t.low_confidence ? "?" : ""}
                   </span>
                 </li>
               ))}
             </ul>
           )}
+          {hasLowConfidence ? (
+            <p className="text-[10px] italic text-muted-foreground/80">
+              {activeLanguage === "es"
+                ? "Adiviné con algunas."
+                : "I had to guess on a few."}
+            </p>
+          ) : null}
         </div>
       )}
     </section>

@@ -2,6 +2,7 @@
 
 import { wsUrl } from "@/lib/config";
 import { io, type Socket } from "socket.io-client";
+import type { Language } from "@/features/language/language-types";
 import type { ServerAnalysisPayload } from "./analysis-types";
 import type { RhymeMode } from "./rhyme-modes";
 
@@ -13,6 +14,7 @@ export interface SocketErrorPayload {
 export interface EmitAnalyzeOptions {
   line: string;
   rhymeMode?: RhymeMode;
+  language?: Language;
 }
 
 type AnalysisHandler = (payload: ServerAnalysisPayload) => void;
@@ -54,9 +56,14 @@ export interface SocketAnalysisAdapter {
 export function getSocketAdapter(): SocketAnalysisAdapter {
   const s = getSocket();
   return {
-    emit({ line, rhymeMode }) {
-      const payload: { line: string; rhyme_mode?: RhymeMode } = { line };
+    emit({ line, rhymeMode, language }) {
+      const payload: {
+        line: string;
+        rhyme_mode?: RhymeMode;
+        language?: Language;
+      } = { line };
       if (rhymeMode) payload.rhyme_mode = rhymeMode;
+      if (language) payload.language = language;
       s.emit("editor.analyze", payload);
     },
     onAnalysis(handler) {

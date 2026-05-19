@@ -10,7 +10,7 @@ import {
 import type { DraftSummary } from "@/features/drafts/drafts-types";
 
 function makeSummary(id: string, title = `Draft ${id}`): DraftSummary {
-  return { id, title, updatedAt: new Date().toISOString() };
+  return { id, title, language: "en", updatedAt: new Date().toISOString() };
 }
 
 describe("drafts-local-index", () => {

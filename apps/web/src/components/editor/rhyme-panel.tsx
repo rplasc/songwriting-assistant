@@ -5,39 +5,70 @@ import type {
 } from "@/features/analysis/analysis-types";
 import {
   DEFAULT_RHYME_MODE,
-  type RhymeMode,
+  type ClientRhymeMode,
 } from "@/features/analysis/rhyme-modes";
+import {
+  DEFAULT_LANGUAGE,
+  type Language,
+} from "@/features/language/language-types";
 
 interface RhymePanelProps {
   status: AnalysisStatus;
   result: AnalysisResult | null;
-  rhymeMode?: RhymeMode;
-  onRequestModeChange?: (mode: RhymeMode) => void;
+  rhymeMode?: ClientRhymeMode;
+  language?: Language;
+  onRequestModeChange?: (mode: ClientRhymeMode) => void;
 }
 
-// Degree indicator — subtle, not wordy
 const RHYME_DEGREE: Record<string, string> = {
   perfect: "●",
   near: "◐",
   family: "○",
+  consonant: "●",
+  assonant: "◐",
 };
 
-const MODE_LABEL: Record<RhymeMode, string> = {
-  perfect: "perfect",
-  near: "near",
+const MODE_LABEL: Record<Language, Record<ClientRhymeMode, string>> = {
+  en: { perfect: "perfect", near: "near" },
+  es: { perfect: "consonante", near: "asonante" },
+};
+
+const FINDING_COPY: Record<Language, string> = {
+  en: "finding…",
+  es: "buscando…",
+};
+
+const EMPTY_COPY: Record<Language, string> = {
+  en: "Finish a word to see rhymes.",
+  es: "Termina una palabra para ver rimas.",
+};
+
+const ERROR_COPY: Record<Language, string> = {
+  en: "Lost the connection.",
+  es: "Se perdió la conexión.",
+};
+
+const FOR_COPY: Record<Language, string> = {
+  en: "for",
+  es: "para",
 };
 
 export function RhymePanel({
   status,
   result,
   rhymeMode = DEFAULT_RHYME_MODE,
+  language = DEFAULT_LANGUAGE,
   onRequestModeChange,
 }: RhymePanelProps) {
   const isLoading = status === "loading";
   const target = result?.targetWord ?? null;
   const items = result?.rhymes ?? [];
   const hasRhymes = target !== null;
-  const activeMode = result?.rhymeMode ?? rhymeMode;
+  // Anchor labels and the empty-state affordance to the user's toggle, not the
+  // backend's resolved mode. Otherwise "Perfect" on the toggle pairs with
+  // "consonante" in the panel — same idea, different vocabulary, confusing.
+  const activeMode = rhymeMode;
+  const activeLanguage = result?.language ?? language;
 
   return (
     <section
@@ -53,7 +84,7 @@ export function RhymePanel({
         </h2>
         {isLoading && (
           <span aria-live="polite" className="text-[10px] text-muted-foreground/70 italic">
-            finding…
+            {FINDING_COPY[activeLanguage]}
           </span>
         )}
       </header>
@@ -61,8 +92,8 @@ export function RhymePanel({
       {!hasRhymes ? (
         <p className="text-sm text-muted-foreground">
           {status === "error"
-            ? "Couldn't reach the analysis service."
-            : "Finish a word to see rhymes."}
+            ? ERROR_COPY[activeLanguage]
+            : EMPTY_COPY[activeLanguage]}
         </p>
       ) : (
         <div
@@ -72,15 +103,19 @@ export function RhymePanel({
           )}
         >
           <p className="text-[11px] text-muted-foreground">
-            for{" "}
+            {FOR_COPY[activeLanguage]}{" "}
             <span className="font-semibold text-accent tracking-wide">
               {target}
             </span>
-            <span className="text-muted-foreground/70"> · {MODE_LABEL[activeMode]}</span>
+            <span className="text-muted-foreground/70">
+              {" · "}
+              {MODE_LABEL[activeLanguage][activeMode]}
+            </span>
           </p>
           {items.length === 0 ? (
             <EmptyRhymes
               mode={activeMode}
+              language={activeLanguage}
               onRequestModeChange={onRequestModeChange}
             />
           ) : (
@@ -122,33 +157,47 @@ export function RhymePanel({
 }
 
 interface EmptyRhymesProps {
-  mode: RhymeMode;
-  onRequestModeChange?: (mode: RhymeMode) => void;
+  mode: ClientRhymeMode;
+  language: Language;
+  onRequestModeChange?: (mode: ClientRhymeMode) => void;
 }
 
-function EmptyRhymes({ mode, onRequestModeChange }: EmptyRhymesProps) {
-  if (mode === "perfect") {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No perfect rhymes for this word.
-        {onRequestModeChange ? (
-          <>
-            {" "}
-            <button
-              type="button"
-              onClick={() => onRequestModeChange("near")}
-              className="rounded-sm text-accent underline decoration-accent/30 decoration-dotted underline-offset-[3px] transition-colors duration-150 ease-out hover:decoration-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-            >
-              Try Near?
-            </button>
-          </>
-        ) : null}
-      </p>
-    );
-  }
+const EMPTY_RHYMES_COPY: Record<
+  Language,
+  Record<ClientRhymeMode, { message: string; nudge: string }>
+> = {
+  en: {
+    perfect: { message: "No perfect rhymes.", nudge: "Try Near?" },
+    near: { message: "Nothing near here.", nudge: "" },
+  },
+  es: {
+    perfect: {
+      message: "Sin rimas consonantes.",
+      nudge: "¿Probar asonantes?",
+    },
+    near: { message: "Sin rimas asonantes.", nudge: "" },
+  },
+};
+
+function EmptyRhymes({ mode, language, onRequestModeChange }: EmptyRhymesProps) {
+  const copy = EMPTY_RHYMES_COPY[language][mode];
+  const canNudge = mode === "perfect" && Boolean(onRequestModeChange);
+
   return (
     <p className="text-sm text-muted-foreground">
-      No near rhymes found for this word.
+      {copy.message}
+      {canNudge ? (
+        <>
+          {" "}
+          <button
+            type="button"
+            onClick={() => onRequestModeChange?.("near")}
+            className="rounded-sm text-accent underline decoration-accent/30 decoration-dotted underline-offset-[3px] transition-colors duration-150 ease-out hover:decoration-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          >
+            {copy.nudge}
+          </button>
+        </>
+      ) : null}
     </p>
   );
 }

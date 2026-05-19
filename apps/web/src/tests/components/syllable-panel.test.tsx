@@ -5,6 +5,7 @@ import type { AnalysisResult } from "@/features/analysis/analysis-types";
 
 const RESULT: AnalysisResult = {
   line: "I see the fire in your eyes",
+  language: "en",
   totalSyllables: 8,
   tokens: [
     { text: "I", syllables: 1 },
@@ -14,22 +15,19 @@ const RESULT: AnalysisResult = {
   targetWord: "eyes",
   rhymes: [],
   rhymeMode: "perfect",
+  lowConfidence: false,
   latencyMs: 30,
 };
 
 describe("SyllablePanel", () => {
   it("shows the empty-state prompt in idle with no result", () => {
     render(<SyllablePanel status="idle" result={null} />);
-    expect(
-      screen.getByText(/start writing to see syllable counts/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/write a line/i)).toBeInTheDocument();
   });
 
   it("shows the error empty state when status is error and result is null", () => {
     render(<SyllablePanel status="error" result={null} />);
-    expect(
-      screen.getByText(/reach the analysis service/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/lost the connection/i)).toBeInTheDocument();
   });
 
   it("shows the total syllable count when a result is present", () => {

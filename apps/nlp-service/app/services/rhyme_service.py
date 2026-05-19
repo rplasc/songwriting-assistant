@@ -1,10 +1,11 @@
+from dataclasses import dataclass
 from functools import lru_cache
 
 from app.domain.heuristic_g2p import heuristic_phoneme_tails
 from app.repositories.pronunciation_repository import PronunciationRepository
 from app.schemas.responses import RhymeCandidate
 from app.services.pronunciation_service import PronunciationService
-from app.services.ranking_service import ScoredCandidate, score_entries
+from app.services.ranking_service import score_entries
 from app.services.rhyme_index import RhymeIndex
 from app.services.syllable_service import SyllableService
 
@@ -19,6 +20,21 @@ _REASON_BY_TYPE: dict[str, str] = {
 }
 
 _CACHE_SIZE = 1024
+
+
+@dataclass(frozen=True, slots=True)
+class _RankedEntry:
+    """Scored, ranked candidate stored in the LRU cache.
+
+    Kept separate from RhymeCandidate so include_metadata (which only affects
+    the match_reason field) is applied after retrieval rather than baked into
+    the cache key.
+    """
+
+    word: str
+    syllables: int
+    rhyme_type: str
+    score: float
 
 
 class RhymeService:
@@ -36,6 +52,8 @@ class RhymeService:
         # lru_cache on a closure binds to this instance; one cache per service
         # singleton, garbage-collected with it. The corpus is read-only after
         # startup, so no invalidation is needed.
+        # include_metadata is intentionally excluded from the key — it only
+        # controls match_reason formatting, which is applied in find_rhymes.
         self._cached_candidates = lru_cache(maxsize=_CACHE_SIZE)(
             self._compute_candidates
         )
@@ -50,32 +68,42 @@ class RhymeService:
     ) -> tuple[str | None, bool, list[RhymeCandidate]]:
         """Return (normalized_word, pronunciations_found, ranked rhyme candidates).
 
-        Cached on (normalized, limit, mode, include_metadata). Songwriting
-        editing re-queries the same line-end word on every keystroke, so this
-        is the dominant hot-path win.
+        Cached on (normalized, limit, mode). Songwriting editing re-queries the
+        same line-end word on every keystroke, so this is the dominant hot-path win.
         """
         normalized, prons = self._pronunciation.lookup(word)
         if not normalized:
             return None, False, []
-        cached = self._cached_candidates(normalized, limit, mode, include_metadata)
-        # Pronunciation is "found" if CMU had the word OR the heuristic produced
-        # usable candidates from spelling — both cases are honest pronunciations.
+        cached = self._cached_candidates(normalized, limit, mode)
+        # pronunciations_found is True for two distinct cases: (a) the word is in
+        # the CMU dictionary, or (b) the heuristic spelling rules produced usable
+        # candidates. Clients that need to distinguish these quality levels should
+        # inspect the token-level `source` field on LineAnalysisResponse instead,
+        # which already carries "dictionary" | "heuristic".
         found = bool(prons) or bool(cached)
-        return normalized, found, list(cached)
+        return normalized, found, [
+            RhymeCandidate(
+                word=e.word,
+                syllables=e.syllables,
+                rhyme_type=e.rhyme_type,
+                score=e.score,
+                match_reason=_REASON_BY_TYPE[e.rhyme_type] if include_metadata else None,
+            )
+            for e in cached
+        ]
 
     def _compute_candidates(
         self,
         normalized: str,
         limit: int,
         mode: str,
-        include_metadata: bool,
-    ) -> tuple[RhymeCandidate, ...]:
+    ) -> tuple[_RankedEntry, ...]:
         # Pronunciations are re-looked-up here (vs threaded through from
         # find_rhymes) so this method's signature is fully hashable for the
         # LRU cache. The lookup is a dict access — negligible.
         prons = self._pronunciation.lookup(normalized)[1]
         if not prons:
-            return self._heuristic_candidates(normalized, limit, include_metadata)
+            return self._heuristic_candidates(normalized, limit)
         phonemes_list = [p.phonemes for p in prons]
         query_syllables = prons[0].syllables
 
@@ -99,7 +127,13 @@ class RhymeService:
                 query_syllables=query_syllables,
             )
             return tuple(
-                self._candidate(c, "near", include_metadata) for c in scored
+                _RankedEntry(
+                    word=c.word,
+                    syllables=c.syllables,
+                    rhyme_type="near",
+                    score=round(c.score, 4),
+                )
+                for c in scored
             )
 
         # mode == "perfect" — tiered cascade.
@@ -110,16 +144,17 @@ class RhymeService:
         perfect_words = self._index.words_for_perfect_keys(
             perfect_keys, exclude=normalized
         )
-        family_words = self._index.words_for_family_keys(
-            family_keys, exclude=normalized
-        ) - perfect_words
+        family_words = (
+            self._index.words_for_family_keys(family_keys, exclude=normalized)
+            - perfect_words
+        )
         near_words = (
             self._index.words_for_near_keys(near_keys, exclude=normalized)
             - perfect_words
             - family_words
         )
 
-        results: list[RhymeCandidate] = []
+        results: list[_RankedEntry] = []
         for tier, words in (
             ("perfect", perfect_words),
             ("family", family_words),
@@ -137,13 +172,21 @@ class RhymeService:
                 limit=remaining,
                 query_syllables=query_syllables,
             )
-            results.extend(self._candidate(c, tier, include_metadata) for c in scored)
+            results.extend(
+                _RankedEntry(
+                    word=c.word,
+                    syllables=c.syllables,
+                    rhyme_type=tier,
+                    score=round(c.score, 4),
+                )
+                for c in scored
+            )
 
         return tuple(results)
 
     def _heuristic_candidates(
-        self, normalized: str, limit: int, include_metadata: bool
-    ) -> tuple[RhymeCandidate, ...]:
+        self, normalized: str, limit: int
+    ) -> tuple[_RankedEntry, ...]:
         """Fallback path for words missing from CMU dict.
 
         Derives candidate ARPABET tails from English spelling, queries the
@@ -176,17 +219,11 @@ class RhymeService:
             query_syllables=heuristic_syllables,
         )
         return tuple(
-            self._candidate(c, "family", include_metadata) for c in scored
-        )
-
-    @staticmethod
-    def _candidate(
-        scored: ScoredCandidate, tier: str, include_metadata: bool
-    ) -> RhymeCandidate:
-        return RhymeCandidate(
-            word=scored.word,
-            syllables=scored.syllables,
-            rhyme_type=tier,
-            score=round(scored.score, 4),
-            match_reason=_REASON_BY_TYPE[tier] if include_metadata else None,
+            _RankedEntry(
+                word=c.word,
+                syllables=c.syllables,
+                rhyme_type="family",
+                score=round(c.score, 4),
+            )
+            for c in scored
         )

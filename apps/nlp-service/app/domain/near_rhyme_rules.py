@@ -52,6 +52,9 @@ def near_rhyme_key(phonemes: Sequence[str]) -> str | None:
         if _is_vowel(p):
             parts.append(_vowel_base(p))
         else:
+            # Unknown phoneme falls through verbatim, creating a singleton bucket
+            # that only matches itself. All standard ARPABET consonants are covered
+            # above; this path only fires for non-standard or future phonemes.
             parts.append(_MANNER_CLASS.get(p, p))
     return "_".join(parts)
 

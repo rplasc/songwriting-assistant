@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -60,7 +60,7 @@ class LineAnalysisResponse(BaseModel):
 class ErrorDetail(BaseModel):
     code: str
     message: str
-    details: list = []
+    details: list[Any] = []
 
 
 class ErrorResponse(BaseModel):

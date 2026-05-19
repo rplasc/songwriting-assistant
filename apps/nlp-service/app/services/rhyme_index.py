@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -8,12 +9,18 @@ from app.domain.near_rhyme_rules import near_rhyme_key
 from app.domain.rhyme_rules import family_rhyme_key, rhyme_key
 from app.repositories.pronunciation_repository import PronunciationRepository
 
+# Deliberately excludes hyphens: normalize_word accepts "well-known" as a valid
+# lookup input, but hyphenated compounds make poor rhyme candidates (the rhyming
+# unit is the final component, not the compound). Keeping candidates to plain
+# or apostrophised words keeps result quality high without needing a split pass.
 _ALPHA_APOSTROPHE = re.compile(r"^[a-z][a-z']*[a-z]$")
 
 # Words with frequency below this floor never enter the rhyme corpus, so they
 # never appear as candidates. Filters surnames, archaic tokens, and invented
 # words that cmudict includes but wordfreq has no evidence for.
-_MIN_FREQUENCY: float = 1e-8
+# This constant is imported by ranking_service to derive its log-floor so both
+# values stay in sync if the threshold is ever tuned.
+CORPUS_FREQ_FLOOR: float = 1e-8
 
 
 def _is_clean_word(word: str) -> bool:
@@ -38,14 +45,13 @@ class RhymeIndex:
     """
 
     def __init__(self, repository: PronunciationRepository) -> None:
-        # First pass: collect pronunciations per word so we can compute keys
-        # over all variants without rebuilding the entry table.
+        # First pass: collect pronunciations and syllable counts per word so we
+        # can compute keys over all variants without rebuilding the entry table.
         prons_by_word: dict[str, list[tuple[str, ...]]] = {}
-        first_syllables: dict[str, int] = {}
+        syllable_counts: dict[str, list[int]] = {}
         for word, pron in repository.iter_entries():
             prons_by_word.setdefault(word, []).append(pron.phonemes)
-            if word not in first_syllables:
-                first_syllables[word] = pron.syllables
+            syllable_counts.setdefault(word, []).append(pron.syllables)
 
         entries: dict[str, RhymeEntry] = {}
         by_perfect: dict[str, set[str]] = {}
@@ -56,11 +62,18 @@ class RhymeIndex:
             if not _is_clean_word(word):
                 continue
             freq = word_frequency(word, "en")
-            if freq < _MIN_FREQUENCY:
+            if freq < CORPUS_FREQ_FLOOR:
                 continue
+            # Use the modal syllable count across all pronunciations. For words
+            # where pronunciations agree (the common case) this is identical to
+            # "first". For heteronyms where one count dominates (e.g. three
+            # pronunciations at 3 syllables vs one at 2), it picks the majority.
+            # Ties resolve in CMU-insertion order via Counter's stability.
+            counts = syllable_counts[word]
+            modal_syllables = Counter(counts).most_common(1)[0][0]
             entries[word] = RhymeEntry(
                 word=word,
-                syllables=first_syllables[word],
+                syllables=modal_syllables,
                 frequency=freq,
             )
             for phonemes in prons:
@@ -137,3 +150,8 @@ class RhymeIndex:
         if exclude is not None:
             out.discard(exclude)
         return out
+
+
+def warm_frequency_cache() -> None:
+    """Load wordfreq's data files eagerly at startup to avoid first-request latency."""
+    word_frequency("the", "en")

@@ -100,3 +100,17 @@ def test_silent_trailing_h() -> None:
     # 'o' -> AA1/OW1/AO1; tail 'h' silent.
     assert any(t == ("OW1",) for t in tails)
     assert all(len(t) == 1 for t in tails)
+
+
+def test_magic_e_soft_c_gives_s_not_k() -> None:
+    """Before a silent 'e', 'c' is soft: blace/place/race → ...S, not ...K."""
+    tails = heuristic_phoneme_tails("blace")
+    assert any(t[-1] == "S" for t in tails), "expected S in tails"
+    assert not any(t[-1] == "K" for t in tails), "unexpected K in tails"
+
+
+def test_magic_e_soft_g_gives_jh_not_g() -> None:
+    """Before a silent 'e', 'g' is soft: strage/stage/huge → ...JH, not ...G."""
+    tails = heuristic_phoneme_tails("strage")
+    assert any(t[-1] == "JH" for t in tails), "expected JH in tails"
+    assert not any(t[-1] == "G" for t in tails), "unexpected G in tails"

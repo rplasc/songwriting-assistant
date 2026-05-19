@@ -127,6 +127,13 @@ def _consonant_tail_phonemes(tail: str) -> list[str]:
         if matched:
             continue
         ch = tail[i]
+        # Soft-C and soft-G: c/g before e, i, y → S / JH.
+        # The regex-derived tail never contains vowels, so this branch only fires
+        # when the function is called directly (e.g. from tests or future callers).
+        if ch in "cg" and i + 1 < n and tail[i + 1] in "eiy":
+            out.append("S" if ch == "c" else "JH")
+            i += 2  # consume the consonant and its following vowel diacritic
+            continue
         if i + 1 < n and tail[i + 1] == ch:
             i += 1
         phs = _CONSONANT_PHONEMES.get(ch)
@@ -206,7 +213,16 @@ def heuristic_phoneme_tails(word: str) -> list[tuple[str, ...]]:
         vowels = _MAGIC_E.get(magic_vowel, _VOWEL_PHONEMES.get(magic_vowel, ()))
         if vowels:
             vowels = _expand_stress(vowels)
-            cons_phonemes = _consonant_tail_phonemes(w[-2])
+            cons_char = w[-2]
+            # Soft-C and soft-G: before the silent 'e', c→S and g→JH.
+            # Handles "-ace"/"-ice"/"-uce" (place, price,uce) and
+            # "-age"/"-ege"/"-uge" (stage, huge).
+            if cons_char == "c":
+                cons_phonemes: list[str] = ["S"]
+            elif cons_char == "g":
+                cons_phonemes = ["JH"]
+            else:
+                cons_phonemes = _consonant_tail_phonemes(cons_char)
             tails = [(v, *cons_phonemes) for v in vowels]
             return _dedupe(tails)[:_MAX_CANDIDATES]
 

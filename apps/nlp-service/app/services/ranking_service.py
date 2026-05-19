@@ -5,11 +5,12 @@ from dataclasses import dataclass
 
 from wordfreq import word_frequency
 
-from app.services.rhyme_index import RhymeEntry
+from app.services.rhyme_index import CORPUS_FREQ_FLOOR, RhymeEntry
 
-# Floor used to compute the frequency component of the score. log10(1e-8)=-8,
-# log10(1e-2)=-2; we map that range to [0, 1].
-_FREQ_LOG_FLOOR: float = -8.0
+# Floor used to compute the frequency component of the score.
+# Derived from CORPUS_FREQ_FLOOR so the corpus filter and the score formula
+# always share the same boundary: a word just above the floor scores near 0.0.
+_FREQ_LOG_FLOOR: float = math.log10(CORPUS_FREQ_FLOOR)  # -8.0 at 1e-8
 _FREQ_LOG_CEIL: float = -2.0
 
 # Score weights — kept transparent and tunable. Final score is clamped to [0, 1].
@@ -82,6 +83,20 @@ def _is_same_stem_inflection(query: str, candidate: str) -> bool:
 
 
 def _shares_stem(query: str, candidate: str, min_stem: int = 4) -> bool:
+    """True if query and candidate share a long enough common prefix to suggest
+    they are derived from the same root word (e.g. "fire"/"fireplace").
+
+    Two conditions must both hold:
+      - ``shared >= min_stem``: absolute floor — at least 4 matching chars.
+      - ``shared >= len(query) - 1``: relative floor — for longer queries a 4-char
+        coincidental prefix match should not trigger the penalty; this scales the
+        required overlap with query length so "content"/"contemplate" (5 shared)
+        does not penalise, while "fire"/"fireplace" (4 shared == len("fire")) does.
+
+    True inflections of the query (runs, running, walked…) are caught by
+    ``_is_same_stem_inflection`` before this function is reached (``elif`` in the
+    caller), so this function handles derived non-inflected forms only.
+    """
     if len(query) < min_stem or len(candidate) < min_stem:
         return False
     shared = 0
@@ -155,6 +170,3 @@ def score_entries(
     return heapq.nsmallest(limit, out, key=_sort_key)
 
 
-def warm_frequency_cache() -> None:
-    """Load wordfreq's data files eagerly at startup to avoid first-request latency."""
-    word_frequency("the", "en")

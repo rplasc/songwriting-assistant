@@ -9,8 +9,7 @@ from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger, timed
 from app.repositories.cmudict_repository import CmuDictRepository
 from app.services.pronunciation_service import PronunciationService
-from app.services.ranking_service import warm_frequency_cache
-from app.services.rhyme_index import RhymeIndex
+from app.services.rhyme_index import RhymeIndex, warm_frequency_cache
 from app.services.rhyme_service import RhymeService
 from app.services.syllable_service import SyllableService
 

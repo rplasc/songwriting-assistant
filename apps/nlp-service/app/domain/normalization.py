@@ -80,7 +80,9 @@ _CONTRACTIONS: dict[str, str] = {
 }
 
 _WORD_RE = re.compile(r"^[a-z][a-z'\-]*[a-z]?$")
-_PUNCT_STRIP = "‘’“”\"'.,;:!?()[]{}<>—–"
+# Curly quotes (‘’“”) are absent here intentionally:
+# _flatten_quotes normalises them to ASCII equivalents before this strip runs.
+_PUNCT_STRIP = "\"'.,;:!?()[]{}<>—–"
 
 
 def _flatten_quotes(text: str) -> str:

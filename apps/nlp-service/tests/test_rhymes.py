@@ -79,9 +79,23 @@ def test_rhymes_near_mode_returns_near_type(client: TestClient) -> None:
 
 
 def test_rhymes_near_and_perfect_are_disjoint(client: TestClient) -> None:
+    # "fire" is monosyllabic — perfect key == family key, so this was always passing.
     perfect = client.post("/v1/rhymes", json={"word": "fire", "limit": 25}).json()
     near = client.post(
         "/v1/rhymes", json={"word": "fire", "mode": "near", "limit": 25}
+    ).json()
+    perfect_words = {r["word"] for r in perfect["rhymes"]}
+    near_words = {r["word"] for r in near["rhymes"]}
+    assert perfect_words.isdisjoint(near_words)
+
+
+def test_rhymes_near_and_perfect_are_disjoint_polysyllabic(client: TestClient) -> None:
+    # Polysyllabic words have a distinct family key (last vowel != last stressed vowel).
+    # Before the fix, family-tier words appeared in BOTH perfect-mode and near-mode
+    # results because near mode only subtracted perfect rhymes, not family rhymes.
+    perfect = client.post("/v1/rhymes", json={"word": "running", "limit": 25}).json()
+    near = client.post(
+        "/v1/rhymes", json={"word": "running", "mode": "near", "limit": 25}
     ).json()
     perfect_words = {r["word"] for r in perfect["rhymes"]}
     near_words = {r["word"] for r in near["rhymes"]}

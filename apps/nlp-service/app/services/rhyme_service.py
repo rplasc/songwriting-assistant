@@ -83,10 +83,14 @@ class RhymeService:
             near_keys = self._index.near_keys_for_phonemes(phonemes_list)
             near_words = self._index.words_for_near_keys(near_keys, exclude=normalized)
             perfect_keys = self._index.perfect_keys_for_phonemes(phonemes_list)
+            family_keys = self._index.family_keys_for_phonemes(phonemes_list)
             perfect_words = self._index.words_for_perfect_keys(
                 perfect_keys, exclude=normalized
             )
-            candidate_words = near_words - perfect_words
+            family_words = self._index.words_for_family_keys(
+                family_keys, exclude=normalized
+            )
+            candidate_words = near_words - perfect_words - family_words
             scored = score_entries(
                 self._index.entries_for(candidate_words),
                 query=normalized,

@@ -6,5 +6,6 @@ import { DraftPresenter } from './presenters/draft.presenter';
 @Module({
   controllers: [DraftsController],
   providers: [DraftsService, DraftPresenter],
+  exports: [DraftsService, DraftPresenter],
 })
 export class DraftsModule {}

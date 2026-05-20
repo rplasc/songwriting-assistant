@@ -111,6 +111,36 @@ describe('FastapiClient', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('analyzeDraft posts to /v1/analyze-draft and returns data on success', async () => {
+    const upstream = {
+      language: 'en',
+      summary: { section_count: 1, line_count: 2 },
+      sections: [{ id: 's1', label: 'verse', line_start: 1, line_end: 2 }],
+      insights: [],
+      capabilities: { rhyme_scheme: true, cadence: true, repetition: true },
+    };
+    (http.post as jest.Mock).mockReturnValue(of({ data: upstream }));
+    const out = await client.analyzeDraft({ content: 'a\nb' });
+    expect(http.post).toHaveBeenCalledWith('/v1/analyze-draft', {
+      content: 'a\nb',
+    });
+    expect(out).toEqual(upstream);
+  });
+
+  it('analyzeDraft maps FastAPI 422 to BadRequest', async () => {
+    (http.post as jest.Mock).mockReturnValue(
+      throwError(() =>
+        axiosErr('ERR', {
+          status: 422,
+          data: { error: { code: 'invalid_sections', message: 'bad' } },
+        }),
+      ),
+    );
+    await expect(
+      client.analyzeDraft({ content: 'x' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('returns data on success', async () => {
     (http.post as jest.Mock).mockReturnValue(
       of({

@@ -1,13 +1,16 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
 import type { Language } from '../../common/enums/language.enum';
 import { SUPPORTED_LANGUAGES } from '../../common/enums/language.enum';
+import { DraftSectionInputDto } from './draft-section.dto';
 
 export class CreateDraftDto {
   @IsOptional()
@@ -24,4 +27,10 @@ export class CreateDraftDto {
   @IsOptional()
   @IsIn(SUPPORTED_LANGUAGES)
   language?: Language;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DraftSectionInputDto)
+  sections?: DraftSectionInputDto[];
 }

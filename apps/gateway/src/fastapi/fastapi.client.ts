@@ -9,8 +9,16 @@ import {
 } from '@nestjs/common';
 import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
-import { AnalyzeLineRequest, RhymesRequest } from './dto/fastapi-requests';
-import { LineAnalysisResponse, RhymeResponse } from './dto/fastapi-responses';
+import {
+  AnalyzeDraftRequest,
+  AnalyzeLineRequest,
+  RhymesRequest,
+} from './dto/fastapi-requests';
+import {
+  DraftAnalysisResponse,
+  LineAnalysisResponse,
+  RhymeResponse,
+} from './dto/fastapi-responses';
 
 interface FastapiErrorEnvelope {
   error?: {
@@ -41,6 +49,10 @@ export class FastapiClient {
 
   async getRhymes(req: RhymesRequest): Promise<RhymeResponse> {
     return this.post<RhymeResponse>('/v1/rhymes', req);
+  }
+
+  async analyzeDraft(req: AnalyzeDraftRequest): Promise<DraftAnalysisResponse> {
+    return this.post<DraftAnalysisResponse>('/v1/analyze-draft', req);
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {

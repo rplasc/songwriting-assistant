@@ -29,6 +29,7 @@ export class DraftsController {
       title: dto.title,
       content: dto.content,
       language: dto.language,
+      sections: dto.sections,
     });
     return { data: this.presenter.toClient(draft) };
   }
@@ -48,16 +49,18 @@ export class DraftsController {
     if (
       dto.title === undefined &&
       dto.content === undefined &&
-      dto.language === undefined
+      dto.language === undefined &&
+      dto.sections === undefined
     ) {
       throw new BadRequestException(
-        'At least one of [title, content, language] must be provided',
+        'At least one of [title, content, language, sections] must be provided',
       );
     }
     const updated = this.drafts.update(id, {
       title: dto.title,
       content: dto.content,
       language: dto.language,
+      sections: dto.sections,
     });
     return { data: this.presenter.toClient(updated) };
   }

@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DraftsService } from './drafts.service';
 
 describe('DraftsService', () => {
@@ -84,5 +84,65 @@ describe('DraftsService', () => {
     expect(() =>
       service.remove('00000000-0000-0000-0000-000000000000'),
     ).toThrow(NotFoundException);
+  });
+
+  describe('sections', () => {
+    it('creates a draft with sorted sections and assigns UUIDs', () => {
+      const draft = service.create({
+        content: 'a\nb\nc\nd',
+        sections: [
+          { label: 'chorus', lineStart: 3, lineEnd: 4 },
+          { label: 'verse', lineStart: 1, lineEnd: 2 },
+        ],
+      });
+      expect(draft.sections).toHaveLength(2);
+      expect(draft.sections?.[0].label).toBe('verse');
+      expect(draft.sections?.[1].label).toBe('chorus');
+      for (const s of draft.sections ?? []) {
+        expect(s.id).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+        );
+      }
+    });
+
+    it('rejects overlapping sections', () => {
+      expect(() =>
+        service.create({
+          content: 'a\nb\nc',
+          sections: [
+            { label: 'verse', lineStart: 1, lineEnd: 2 },
+            { label: 'chorus', lineStart: 2, lineEnd: 3 },
+          ],
+        }),
+      ).toThrow(BadRequestException);
+    });
+
+    it('rejects section lineEnd beyond content line count', () => {
+      expect(() =>
+        service.create({
+          content: 'only one line',
+          sections: [{ label: 'verse', lineStart: 1, lineEnd: 5 }],
+        }),
+      ).toThrow(BadRequestException);
+    });
+
+    it('rejects lineStart greater than lineEnd', () => {
+      expect(() =>
+        service.create({
+          content: 'a\nb\nc',
+          sections: [{ label: 'verse', lineStart: 3, lineEnd: 1 }],
+        }),
+      ).toThrow(BadRequestException);
+    });
+
+    it('update with sections re-validates against new content', () => {
+      const created = service.create({ content: 'a\nb\nc' });
+      const updated = service.update(created.id, {
+        content: 'a\nb',
+        sections: [{ label: 'verse', lineStart: 1, lineEnd: 2 }],
+      });
+      expect(updated.sections).toHaveLength(1);
+      expect(updated.sections?.[0].lineEnd).toBe(2);
+    });
   });
 });

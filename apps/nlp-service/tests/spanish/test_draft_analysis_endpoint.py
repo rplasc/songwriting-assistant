@@ -21,6 +21,7 @@ def test_spanish_draft_with_labels(client: TestClient) -> None:
     assert body["language"] == "es"
     assert body["capabilities"]["cadence_patterns"] == "full"
     assert body["capabilities"]["rhyme_scheme"] == "full"
+    assert body["capabilities"]["repetition"] == "full"
 
     sections = body["sections"]
     assert [s["label"] for s in sections] == ["verse", "chorus"]

@@ -21,7 +21,7 @@ def test_analyze_draft_basic_with_inline_labels(client: TestClient) -> None:
     assert body["language"] == "en"
     assert body["capabilities"]["rhyme_scheme"] == "full"
     assert body["capabilities"]["cadence_patterns"] == "full"
-    assert body["capabilities"]["repetition"] == "unsupported"
+    assert body["capabilities"]["repetition"] == "full"
     assert body["capabilities"]["stress_hints"] == "unsupported"
 
     sections = body["sections"]
@@ -35,11 +35,21 @@ def test_analyze_draft_basic_with_inline_labels(client: TestClient) -> None:
     assert all(n > 0 for n in chorus["syllable_pattern"])
     assert chorus["rhyme_scheme"] in {"AA", "AB"}
     assert chorus["rhyme_scheme_confidence"] in {"full", "partial"}
-    assert chorus["repetition_signals"] == []
 
-    # Each non-empty section produces a syllable_variance insight.
+    # Chorus opens "Hold me..." on both lines — expect an opening_phrase_repeat signal.
+    opening_sigs = [
+        s for s in chorus["repetition_signals"] if s["type"] == "opening_phrase_repeat"
+    ]
+    assert len(opening_sigs) == 1
+    assert opening_sigs[0]["value"].startswith("hold")
+
     insight_types = {i["type"] for i in body["insights"]}
     assert "syllable_variance" in insight_types
+    # Opening repeat in a chorus should produce an info-severity repetition_opening insight.
+    rep_insights = [i for i in body["insights"] if i["type"] == "repetition_opening"]
+    assert len(rep_insights) >= 1
+    chorus_rep = next(i for i in rep_insights if i["target"] == chorus["id"])
+    assert chorus_rep["severity"] == "info"
 
     assert body["summary"]["section_count"] == 2
     assert body["summary"]["line_count"] == 4

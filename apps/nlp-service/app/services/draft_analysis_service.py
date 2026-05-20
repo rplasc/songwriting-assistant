@@ -1,6 +1,6 @@
 """Compose line-level primitives into draft-level analysis.
 
-Phase 4 Milestones 1-3: section parsing, rhyme-scheme assignment,
+Current Phase: section parsing, rhyme-scheme assignment,
 syllable-pattern cadence classification, and repetition detection.
 Stress-hint insights remain deferred.
 """

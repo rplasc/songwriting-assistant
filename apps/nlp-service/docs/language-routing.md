@@ -22,7 +22,7 @@ A `LanguageContext` bundles the engine, repository, index, and three services fo
 
 ## The request path
 
-```
+```text
 1. Route handler reads `language` from the validated request body.
 2. router.get(language) → LanguageContext
 3. Handler calls ctx.engine.validate_mode(mode) if a mode is present.

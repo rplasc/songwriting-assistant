@@ -8,7 +8,7 @@ For the cross-language view, see [`bilingual.md`](./bilingual.md).
 
 ## Module layout
 
-```
+```text
 app/domain/languages/spanish/
   engine.py          ← SpanishEngine, wires the modules into LanguageEngine
   normalization.py   ← case folding, allowed character set, junk filtering

@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     max_rhyme_limit: int = 25
     max_line_length: int = 500
 
-    # Phase 3 — Spanish track.
     # Top-N most-frequent words from wordfreq's "es" data feed the rhyme index.
     # Raised from 80k to 150k to surface more rare/poetic/regional vocabulary.
     # Trade-off: ~2-5% longer startup time.

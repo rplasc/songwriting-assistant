@@ -12,6 +12,7 @@ import {
 export interface AnalyzeDraftOptions {
   requestId?: string;
   draftId?: string;
+  title?: string;
   language?: Language;
   content: string;
   inlineSections?: Array<{
@@ -48,9 +49,11 @@ export class AnalysisService {
     const upstream = await this.fastapi.analyzeDraft({
       content: opts.content,
       language: resolved.language,
-      sections: resolved.upstreamSections,
-      force_refresh: opts.forceRefresh,
-      revision_hash: resolved.revisionHash,
+      title: opts.title,
+      sections:
+        resolved.upstreamSections.length > 0
+          ? resolved.upstreamSections
+          : undefined,
     });
 
     return this.presenter.toClient({

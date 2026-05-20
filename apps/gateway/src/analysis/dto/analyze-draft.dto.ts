@@ -19,6 +19,12 @@ export class AnalyzeDraftDto {
   @IsUUID()
   draftId?: string;
 
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @MaxLength(200)
+  title?: string;
+
   @IsString()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsNotEmpty()

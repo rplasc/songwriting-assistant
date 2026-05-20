@@ -50,32 +50,40 @@ export interface RhymeResponse {
   meta: RhymeMeta;
 }
 
-export interface DraftAnalysisSection {
-  id: string;
-  label: string;
-  line_start: number;
-  line_end: number;
+export type CapabilityLevel = 'full' | 'partial' | 'unsupported';
+
+export interface DraftAnalysisCapabilities {
+  rhyme_scheme: CapabilityLevel;
+  cadence_patterns: CapabilityLevel;
+  stress_hints: CapabilityLevel;
+  repetition: CapabilityLevel;
+  mixed_language: CapabilityLevel;
 }
 
 export interface DraftAnalysisSummary {
   section_count: number;
   line_count: number;
+  total_syllables: number;
+  notable_patterns: string[];
 }
 
-export interface DraftAnalysisCapabilities {
-  rhyme_scheme: boolean;
-  cadence: boolean;
-  repetition: boolean;
+export interface DraftAnalysisSection {
+  id: string;
+  label: string | null;
+  line_start: number;
+  line_end: number;
+  line_count: number;
+  rhyme_scheme: string | null;
+  rhyme_scheme_confidence: number | null;
+  syllable_pattern: number[];
+  syllable_variance: number;
+  cadence_class: string;
+  repetition_signals: unknown[];
 }
 
-/**
- * Draft-level analysis response. Contract is provisional pending FastAPI
- * Phase 4 plan alignment — the gateway presenter forwards `insights`
- * opaquely so FastAPI can evolve insight payloads without changing this
- * envelope.
- */
 export interface DraftAnalysisResponse {
   language: Language;
+  title: string | null;
   summary: DraftAnalysisSummary;
   sections: DraftAnalysisSection[];
   insights: unknown[];

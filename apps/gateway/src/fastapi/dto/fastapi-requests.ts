@@ -20,15 +20,9 @@ export interface AnalyzeDraftSection {
   line_end: number;
 }
 
-/**
- * Draft-level analysis request. Contract is provisional pending FastAPI
- * Phase 4 plan alignment — field shapes match what the gateway presenter
- * expects to receive back.
- */
 export interface AnalyzeDraftRequest {
   content: string;
   language?: Language;
+  title?: string;
   sections?: AnalyzeDraftSection[];
-  force_refresh?: boolean;
-  revision_hash?: string;
 }

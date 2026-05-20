@@ -114,10 +114,36 @@ describe('FastapiClient', () => {
   it('analyzeDraft posts to /v1/analyze-draft and returns data on success', async () => {
     const upstream = {
       language: 'en',
-      summary: { section_count: 1, line_count: 2 },
-      sections: [{ id: 's1', label: 'verse', line_start: 1, line_end: 2 }],
+      title: null,
+      summary: {
+        section_count: 1,
+        line_count: 2,
+        total_syllables: 8,
+        notable_patterns: [],
+      },
+      sections: [
+        {
+          id: 's1',
+          label: 'verse',
+          line_start: 1,
+          line_end: 2,
+          line_count: 2,
+          rhyme_scheme: 'AB',
+          rhyme_scheme_confidence: 0.9,
+          syllable_pattern: [4, 4],
+          syllable_variance: 0,
+          cadence_class: 'consistent',
+          repetition_signals: [],
+        },
+      ],
       insights: [],
-      capabilities: { rhyme_scheme: true, cadence: true, repetition: true },
+      capabilities: {
+        rhyme_scheme: 'full',
+        cadence_patterns: 'full',
+        stress_hints: 'unsupported',
+        repetition: 'full',
+        mixed_language: 'unsupported',
+      },
     };
     (http.post as jest.Mock).mockReturnValue(of({ data: upstream }));
     const out = await client.analyzeDraft({ content: 'a\nb' });

@@ -10,10 +10,22 @@ function upstreamFixture(
 ): DraftAnalysisResponse {
   return {
     language: 'en',
-    summary: { section_count: 0, line_count: 2 },
+    title: null,
+    summary: {
+      section_count: 0,
+      line_count: 2,
+      total_syllables: 10,
+      notable_patterns: [],
+    },
     sections: [],
     insights: [],
-    capabilities: { rhyme_scheme: true, cadence: true, repetition: true },
+    capabilities: {
+      rhyme_scheme: 'full',
+      cadence_patterns: 'full',
+      stress_hints: 'unsupported',
+      repetition: 'full',
+      mixed_language: 'unsupported',
+    },
     ...overrides,
   };
 }
@@ -74,10 +86,10 @@ describe('AnalysisService', () => {
     expect(callArg.sections?.[0].label).toBe('chorus');
   });
 
-  it('sends empty sections when no draft id and no inline sections', async () => {
+  it('sends sections as undefined when no draft id and no inline sections', async () => {
     fastapi.analyzeDraft.mockResolvedValue(upstreamFixture());
     await service.analyzeDraft({ content: 'a\nb' });
-    expect(fastapi.analyzeDraft.mock.calls[0][0].sections).toEqual([]);
+    expect(fastapi.analyzeDraft.mock.calls[0][0].sections).toBeUndefined();
   });
 
   it('computes a deterministic revisionHash from content', async () => {
@@ -99,13 +111,15 @@ describe('AnalysisService', () => {
     expect(out.meta.latency_ms).toBeGreaterThanOrEqual(0);
   });
 
-  it('marks analysis_status unsupported when all capabilities are off', async () => {
+  it('marks analysis_status unsupported when all capabilities are unsupported', async () => {
     fastapi.analyzeDraft.mockResolvedValue(
       upstreamFixture({
         capabilities: {
-          rhyme_scheme: false,
-          cadence: false,
-          repetition: false,
+          rhyme_scheme: 'unsupported',
+          cadence_patterns: 'unsupported',
+          stress_hints: 'unsupported',
+          repetition: 'unsupported',
+          mixed_language: 'unsupported',
         },
       }),
     );
@@ -113,13 +127,15 @@ describe('AnalysisService', () => {
     expect(out.analysis_status).toBe('unsupported');
   });
 
-  it('marks analysis_status fresh when at least one capability is enabled', async () => {
+  it('marks analysis_status fresh when at least one capability is not unsupported', async () => {
     fastapi.analyzeDraft.mockResolvedValue(
       upstreamFixture({
         capabilities: {
-          rhyme_scheme: false,
-          cadence: false,
-          repetition: true,
+          rhyme_scheme: 'unsupported',
+          cadence_patterns: 'unsupported',
+          stress_hints: 'unsupported',
+          repetition: 'partial',
+          mixed_language: 'unsupported',
         },
       }),
     );
@@ -127,11 +143,21 @@ describe('AnalysisService', () => {
     expect(out.analysis_status).toBe('fresh');
   });
 
-  it('forwards forceRefresh flag and revision_hash to FastAPI', async () => {
+  it('passes title to FastAPI', async () => {
+    fastapi.analyzeDraft.mockResolvedValue(upstreamFixture({ title: 'My Song' }));
+    const out = await service.analyzeDraft({
+      content: 'x',
+      title: 'My Song',
+    });
+    expect(fastapi.analyzeDraft.mock.calls[0][0].title).toBe('My Song');
+    expect(out.analysis.title).toBe('My Song');
+  });
+
+  it('does not forward force_refresh or revision_hash to FastAPI', async () => {
     fastapi.analyzeDraft.mockResolvedValue(upstreamFixture());
     await service.analyzeDraft({ content: 'x', forceRefresh: true });
     const callArg = fastapi.analyzeDraft.mock.calls[0][0];
-    expect(callArg.force_refresh).toBe(true);
-    expect(callArg.revision_hash).toHaveLength(16);
+    expect(callArg).not.toHaveProperty('force_refresh');
+    expect(callArg).not.toHaveProperty('revision_hash');
   });
 });

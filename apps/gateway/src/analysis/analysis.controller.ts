@@ -17,6 +17,7 @@ export class AnalysisController {
     return this.analysis.analyzeDraft({
       requestId,
       draftId: dto.draftId,
+      title: dto.title,
       language: dto.language,
       content: dto.content,
       inlineSections: dto.sections,

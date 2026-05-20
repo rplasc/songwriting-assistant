@@ -4,14 +4,9 @@ import { Language } from '../../common/enums/language.enum';
 import {
   DraftAnalysisCapabilities,
   DraftAnalysisResponse,
+  DraftAnalysisSection,
+  DraftAnalysisSummary,
 } from '../../fastapi/dto/fastapi-responses';
-
-export interface DraftAnalysisSectionPayload {
-  id: string;
-  label: string;
-  line_start: number;
-  line_end: number;
-}
 
 export interface DraftAnalysisPayload {
   draft_id: string | null;
@@ -20,8 +15,9 @@ export interface DraftAnalysisPayload {
   analyzed_at: string;
   analysis: {
     language: Language;
-    summary: { section_count: number; line_count: number };
-    sections: DraftAnalysisSectionPayload[];
+    title: string | null;
+    summary: DraftAnalysisSummary;
+    sections: DraftAnalysisSection[];
     insights: unknown[];
     capabilities: DraftAnalysisCapabilities;
   };
@@ -41,8 +37,9 @@ export class DraftAnalysisPresenter {
     requestId?: string;
   }): DraftAnalysisPayload {
     const caps = input.upstream.capabilities;
-    const anyCapabilityEnabled =
-      caps.rhyme_scheme || caps.cadence || caps.repetition;
+    const anyCapabilityEnabled = Object.values(caps).some(
+      (v) => v !== 'unsupported',
+    );
     const status: AnalysisStatus = anyCapabilityEnabled ? 'fresh' : 'unsupported';
     return {
       draft_id: input.draftId,
@@ -51,13 +48,9 @@ export class DraftAnalysisPresenter {
       analyzed_at: new Date().toISOString(),
       analysis: {
         language: input.upstream.language,
+        title: input.upstream.title,
         summary: input.upstream.summary,
-        sections: input.upstream.sections.map((s) => ({
-          id: s.id,
-          label: s.label,
-          line_start: s.line_start,
-          line_end: s.line_end,
-        })),
+        sections: input.upstream.sections,
         insights: input.upstream.insights,
         capabilities: caps,
       },

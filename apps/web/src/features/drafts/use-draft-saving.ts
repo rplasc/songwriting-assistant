@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import type { Language } from "@/features/language/language-types";
+import type { DraftSection } from "@/features/structure/structure-types";
 import {
   createDraft,
   deleteDraft as deleteDraftRequest,
@@ -18,12 +19,33 @@ import {
   getCurrentDraftId as readCurrentId,
 } from "./drafts-local-index";
 import type { Draft, DraftSummary, SaveStatus } from "./drafts-types";
+import { getEditorText } from "@/features/editor/tiptap/editor-lines";
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 const DEFAULT_TITLE = "Untitled Draft";
 
+function parseStoredContent(raw: string): string {
+  if (!raw) return "<p></p>";
+  // New format: HTML saved by editor.getHTML() — pass through directly.
+  if (raw.trimStart().startsWith("<")) return raw;
+  // Legacy format: plain text saved by editor.getText() with \n\n blockSeparator.
+  return (
+    raw
+      .split(/\r?\n\r?\n/)
+      .map((para) => {
+        const escaped = para
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        return `<p>${escaped}</p>`;
+      })
+      .join("") || "<p></p>"
+  );
+}
+
 export interface UseDraftSavingOptions {
   language: Language;
+  sections?: DraftSection[];
   onDraftLoaded?: (draft: Draft) => void;
 }
 
@@ -59,7 +81,7 @@ function summarize(draft: Draft): DraftSummary {
 
 export function useDraftSaving(
   editor: Editor | null,
-  { language, onDraftLoaded }: UseDraftSavingOptions,
+  { language, sections, onDraftLoaded }: UseDraftSavingOptions,
 ): UseDraftSavingReturn {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -75,6 +97,7 @@ export function useDraftSaving(
   const currentIdRef = useRef<string | null>(currentDraftId);
   const currentDraftLanguageRef = useRef<Language | null>(null);
   const languageRef = useRef<Language>(language);
+  const sectionsRef = useRef<DraftSection[]>(sections ?? []);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef<AbortController | null>(null);
   const suppressDirtyRef = useRef(false);
@@ -107,18 +130,24 @@ export function useDraftSaving(
     const controller = new AbortController();
     inFlightRef.current = controller;
 
-    const content = editor.getText();
-    if (content.trim().length === 0) {
+    if (editor.state.doc.textContent.trim().length === 0) {
       setStatus("idle");
       return;
     }
+
+    const content = editor.getHTML();
+    const text = getEditorText(editor);
 
     setStatus("saving");
     const targetLanguage = languageRef.current;
     try {
       let saved: Draft;
       if (currentIdRef.current) {
-        const patch: { content: string; language?: Language } = { content };
+        const patch: {
+          content: string;
+          language?: Language;
+          sections?: DraftSection[];
+        } = { content, sections: sectionsRef.current };
         if (
           currentDraftLanguageRef.current &&
           currentDraftLanguageRef.current !== targetLanguage
@@ -132,8 +161,9 @@ export function useDraftSaving(
         saved = await createDraft(
           {
             content,
-            title: deriveTitle(content),
+            title: deriveTitle(text),
             language: targetLanguage,
+            sections: sectionsRef.current,
           },
           { signal: controller.signal },
         );
@@ -166,11 +196,14 @@ export function useDraftSaving(
   }, [language]);
 
   useEffect(() => {
+    sectionsRef.current = sections ?? [];
+  }, [sections]);
+
+  useEffect(() => {
     if (!editor) return;
     const handleUpdate = () => {
       if (suppressDirtyRef.current) return;
-      const content = editor.getText();
-      if (content.trim().length === 0) {
+      if (editor.state.doc.textContent.trim().length === 0) {
         if (debounceRef.current) {
           clearTimeout(debounceRef.current);
           debounceRef.current = null;
@@ -213,7 +246,7 @@ export function useDraftSaving(
       try {
         const draft = await getDraft(id, { signal: controller.signal });
         suppressDirtyRef.current = true;
-        editor.commands.setContent(draft.content || "");
+        editor.commands.setContent(parseStoredContent(draft.content));
         suppressDirtyRef.current = false;
         updateCurrentId(draft.id);
         updateCurrentLanguage(draft.language);
@@ -223,7 +256,12 @@ export function useDraftSaving(
         onDraftLoadedRef.current?.(draft);
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
-        setStatus("offline");
+        if (err instanceof DraftRequestError && err.status === 404) {
+          setRecentDrafts(removeRecentDraft(id));
+          setStatus("idle");
+        } else {
+          setStatus("offline");
+        }
       } finally {
         if (inFlightRef.current === controller) {
           inFlightRef.current = null;

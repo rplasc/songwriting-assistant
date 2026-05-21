@@ -13,16 +13,20 @@ import { useDraftSaving } from "@/features/drafts/use-draft-saving";
 import { useDraftLanguage } from "@/features/language/use-draft-language";
 import type { Language } from "@/features/language/language-types";
 import { useLyricEditor } from "@/features/editor/tiptap/use-lyric-editor";
+import { jumpToLine } from "@/features/editor/tiptap/jump-to-line";
+import { useDraftSections } from "@/features/structure/use-draft-sections";
+import { useDraftAnalysis } from "@/features/draft-analysis/use-draft-analysis";
 import { EditorHeader } from "./editor-header";
 import { EditorLayout } from "./editor-layout";
 import { LyricEditor } from "./lyric-editor";
 import { RhymePanel } from "./rhyme-panel";
 import { SyllablePanel } from "./syllable-panel";
+import { DraftAnalysisRail } from "./draft-analysis-rail";
 
 const getServerRhymeMode = () => DEFAULT_RHYME_MODE;
 
 export function LyricEditorShell() {
-  const { editor, activeLine } = useLyricEditor();
+  const { editor, activeLine, content } = useLyricEditor();
 
   const rhymeMode = useSyncExternalStore(
     subscribeToRhymeMode,
@@ -41,6 +45,16 @@ export function LyricEditorShell() {
     rhymeMode,
     language,
   );
+
+  const {
+    stanzas,
+    sections,
+    labelFor,
+    assignLabel,
+    clearLabel,
+    resetFromDraft,
+  } = useDraftSections(editor);
+
   const {
     status: saveStatus,
     lastSavedAt,
@@ -52,11 +66,25 @@ export function LyricEditorShell() {
     deleteDraft,
   } = useDraftSaving(editor, {
     language,
-    onDraftLoaded: (draft) => setLanguage(draft.language),
+    sections,
+    onDraftLoaded: (draft) => {
+      setLanguage(draft.language);
+      resetFromDraft(draft.sections);
+    },
   });
 
-  // Persist a language switch immediately if there's an existing draft —
-  // otherwise the change would only land on the next keystroke.
+  const {
+    status: analysisStatus,
+    analysis,
+    error: analysisError,
+    refresh: refreshAnalysis,
+  } = useDraftAnalysis({
+    draftId: currentDraftId,
+    content,
+    language,
+    sections,
+  });
+
   const saveNowRef = useRef(saveNow);
   useEffect(() => {
     saveNowRef.current = saveNow;
@@ -73,8 +101,35 @@ export function LyricEditorShell() {
     [language, setLanguage, currentDraftId, editor],
   );
 
+  const handleAssignLabel = useCallback(
+    (range: { lineStart: number; lineEnd: number }, label: string) => {
+      assignLabel(range, label);
+      if (currentDraftId) {
+        queueMicrotask(() => void saveNowRef.current());
+      }
+    },
+    [assignLabel, currentDraftId],
+  );
+
+  const handleClearLabel = useCallback(
+    (range: { lineStart: number; lineEnd: number }) => {
+      clearLabel(range);
+      if (currentDraftId) {
+        queueMicrotask(() => void saveNowRef.current());
+      }
+    },
+    [clearLabel, currentDraftId],
+  );
+
+  const handleJump = useCallback(
+    (lineStart: number) => {
+      if (editor) jumpToLine(editor, lineStart);
+    },
+    [editor],
+  );
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <EditorHeader
         rhymeMode={rhymeMode}
         onRhymeModeChange={handleRhymeModeChange}
@@ -107,14 +162,25 @@ export function LyricEditorShell() {
             />
           </>
         }
+        rail={
+          <DraftAnalysisRail
+            status={analysisStatus}
+            analysis={analysis}
+            error={analysisError}
+            language={language}
+            stanzas={stanzas}
+            labelFor={labelFor}
+            onAssignLabel={handleAssignLabel}
+            onClearLabel={handleClearLabel}
+            onRefresh={() => void refreshAnalysis()}
+            onJump={handleJump}
+          />
+        }
       />
       {status === "error" && error ? (
-        <div
-          role="alert"
-          className="mt-1 rounded border border-border bg-surface-muted px-3 py-2 text-[11px] text-muted-foreground"
-        >
+        <p role="alert" className="text-[11px] text-muted-foreground">
           {error} Keep writing — I&rsquo;ll catch up when I&rsquo;m back.
-        </div>
+        </p>
       ) : null}
     </div>
   );

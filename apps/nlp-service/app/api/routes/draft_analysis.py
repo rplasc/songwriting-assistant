@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from app.core.logging import get_logger, timed
 from app.schemas.draft_analysis import DraftAnalysisRequest, DraftAnalysisResponse
@@ -31,4 +31,19 @@ def post_analyze_draft(
         chars=len(payload.content),
         sections=len(payload.sections) if payload.sections else 0,
     ):
-        return service.analyze(payload, ctx)
+        try:
+            return service.analyze(payload, ctx)
+        except Exception:
+            logger.exception(
+                "analyze_draft.failed",
+                extra={
+                    "extras": {
+                        "language": payload.language,
+                        "chars": len(payload.content),
+                    }
+                },
+            )
+            raise HTTPException(
+                status_code=500,
+                detail={"error": "analysis_failed"},
+            )

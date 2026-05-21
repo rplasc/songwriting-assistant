@@ -7,10 +7,10 @@ Stress-hint insights remain deferred.
 
 from __future__ import annotations
 
-from app.domain.draft_analysis.cadence_rules import (
-    CadenceSummary,
-    classify_pattern,
-)
+from dataclasses import dataclass
+
+from app.core.logging import get_logger, timed
+from app.domain.draft_analysis.cadence_rules import classify_pattern
 from app.domain.draft_analysis.repetition_rules import (
     RepetitionSignal as DomainRepetitionSignal,
     detect_draft_overuse,
@@ -25,6 +25,7 @@ from app.domain.heuristic_g2p import heuristic_phoneme_tails
 from app.domain.languages.spanish.g2p import g2p as spanish_g2p
 from app.domain.languages.spanish.rhyme_rules import consonant_rhyme_key
 from app.domain.rhyme_rules import rhyme_key
+from app.models.token import Token
 from app.schemas.draft_analysis import (
     Capabilities,
     DraftAnalysisRequest,
@@ -35,6 +36,9 @@ from app.schemas.draft_analysis import (
     SectionAnalysis,
 )
 from app.services.language_router import LanguageContext
+
+
+_logger = get_logger("nlp.draft_analysis")
 
 
 _BASE_CAPABILITIES: dict[str, Capabilities] = {
@@ -56,9 +60,20 @@ _BASE_CAPABILITIES: dict[str, Capabilities] = {
 
 # Chorus and hook labels where opening repetition is presumed intentional.
 _HOOK_LABELS: frozenset[str] = frozenset({"chorus", "hook", "refrain"})
-# Overuse thresholds for severity escalation.
-_OVERUSE_MEDIUM = 3
+# Word-overuse severity escalates from medium to high at this line count.
 _OVERUSE_HIGH = 5
+
+
+# Per-request cache of rhyme keys, keyed on the last token's identifying word.
+RhymeCache = dict[str, str | None]
+
+
+@dataclass(frozen=True, slots=True)
+class _SectionResult:
+    payload: SectionAnalysis
+    insights: list[Insight]
+    notable: str | None
+    token_lists: list[list[str]]
 
 
 class DraftAnalysisService:
@@ -74,76 +89,129 @@ class DraftAnalysisService:
             if request.sections
             else None
         )
-        parsed = parse_sections(request.content, explicit)
+        with timed(
+            _logger,
+            "analyze_draft.parse_sections",
+            language=request.language,
+            chars=len(request.content),
+        ):
+            parsed = parse_sections(request.content, explicit)
 
         section_payloads: list[SectionAnalysis] = []
         insights: list[Insight] = []
         notable_patterns: list[str] = []
         total_lines = 0
         total_syllables = 0
-        # Collect all per-line token lists for draft-level overuse detection.
         all_token_lists: list[list[str]] = []
+        rhyme_cache: RhymeCache = {}
 
-        for section in parsed:
-            line_token_lists = [
-                [t.normalized for t in context.engine.tokenize_line(line.text)]
-                for line in section.lines
-            ]
-            syllable_pattern = [
-                self._line_syllables_from_tokens(context, tl)
-                for tl in line_token_lists
-            ]
-            keys = [
-                self._line_rhyme_key(context, line.text) for line in section.lines
-            ]
-            scheme, confidence = assign_scheme(keys)
-            cadence = classify_pattern(syllable_pattern, section.label)
+        with timed(
+            _logger,
+            "analyze_draft.per_section_pipeline",
+            language=request.language,
+            sections=len(parsed),
+        ):
+            for section in parsed:
+                result = self._analyze_section(context, section, rhyme_cache)
+                section_payloads.append(result.payload)
+                insights.extend(result.insights)
+                if result.notable is not None:
+                    notable_patterns.append(result.notable)
+                total_lines += result.payload.line_count
+                total_syllables += sum(result.payload.syllable_pattern)
+                all_token_lists.extend(result.token_lists)
 
-            rep_domain = detect_section_signals(line_token_lists)
-            rep_signals = [
-                RepetitionSignal(type=s.type, value=s.value) for s in rep_domain
-            ]
+        with timed(
+            _logger,
+            "analyze_draft.draft_overuse",
+            lines=len(all_token_lists),
+        ):
+            insights.extend(self._build_overuse_insights(all_token_lists))
 
-            section_payloads.append(
-                SectionAnalysis(
-                    id=section.id,
-                    label=section.label,
-                    line_start=section.line_start,
-                    line_end=section.line_end,
-                    line_count=len(section.lines),
-                    rhyme_scheme=scheme,
-                    rhyme_scheme_confidence=confidence,
-                    syllable_pattern=syllable_pattern,
-                    syllable_variance=cadence.variance,
-                    cadence_class=cadence.cadence_class,
-                    repetition_signals=rep_signals,
+        return DraftAnalysisResponse(
+            language=request.language,
+            title=request.title,
+            capabilities=_BASE_CAPABILITIES[request.language],
+            summary=self._build_summary(
+                section_payloads, total_lines, total_syllables, notable_patterns
+            ),
+            sections=section_payloads,
+            insights=insights,
+        )
+
+    def _analyze_section(
+        self,
+        ctx: LanguageContext,
+        section: ParsedSection,
+        rhyme_cache: RhymeCache,
+    ) -> _SectionResult:
+        line_token_objects: list[list[Token]] = [
+            ctx.engine.tokenize_line(line.text) for line in section.lines
+        ]
+        line_token_lists: list[list[str]] = [
+            [t.normalized for t in tokens] for tokens in line_token_objects
+        ]
+        syllable_pattern = [
+            self._line_syllables(ctx, tokens) for tokens in line_token_objects
+        ]
+        keys = [
+            self._line_rhyme_key(ctx, tokens, rhyme_cache)
+            for tokens in line_token_objects
+        ]
+        scheme, confidence = assign_scheme(keys)
+        cadence = classify_pattern(syllable_pattern, section.label)
+
+        rep_domain = detect_section_signals(line_token_lists)
+        rep_signals = [
+            RepetitionSignal(type=s.type, value=s.value) for s in rep_domain
+        ]
+
+        payload = SectionAnalysis(
+            id=section.id,
+            label=section.label,
+            line_start=section.line_start,
+            line_end=section.line_end,
+            line_count=len(section.lines),
+            rhyme_scheme=scheme,
+            rhyme_scheme_confidence=confidence,
+            syllable_pattern=syllable_pattern,
+            syllable_variance=cadence.variance,
+            cadence_class=cadence.cadence_class,
+            repetition_signals=rep_signals,
+        )
+
+        insights: list[Insight] = []
+        notable: str | None = None
+        if section.lines:
+            insights.append(
+                Insight(
+                    type="syllable_variance",
+                    scope="section",
+                    target=section.id,
+                    severity=cadence.severity,
+                    message=cadence.message,
                 )
             )
+            insights.extend(
+                _repetition_insights(section.id, section.label, rep_domain)
+            )
+            if cadence.cadence_class == "consistent" and len(syllable_pattern) >= 2:
+                notable = _notable_consistency(section)
 
-            if section.lines:
-                insights.append(
-                    Insight(
-                        type="syllable_variance",
-                        scope="section",
-                        target=section.id,
-                        severity=cadence.severity,
-                        message=cadence.message,
-                    )
-                )
-                insights.extend(
-                    _repetition_insights(section.id, section.label, rep_domain)
-                )
-                if cadence.cadence_class == "consistent" and len(syllable_pattern) >= 2:
-                    notable_patterns.append(_notable_consistency(section, cadence))
+        return _SectionResult(
+            payload=payload,
+            insights=insights,
+            notable=notable,
+            token_lists=line_token_lists,
+        )
 
-            total_lines += len(section.lines)
-            total_syllables += sum(syllable_pattern)
-            all_token_lists.extend(line_token_lists)
-
-        # Draft-level overuse insights (span all sections).
+    def _build_overuse_insights(
+        self, all_token_lists: list[list[str]]
+    ) -> list[Insight]:
+        out: list[Insight] = []
         for overuse in detect_draft_overuse(all_token_lists):
             severity = "high" if overuse.line_count >= _OVERUSE_HIGH else "medium"
-            insights.append(
+            out.append(
                 Insight(
                     type="word_overuse",
                     scope="draft",
@@ -154,40 +222,51 @@ class DraftAnalysisService:
                     ),
                 )
             )
+        return out
 
-        return DraftAnalysisResponse(
-            language=request.language,
-            title=request.title,
-            capabilities=_BASE_CAPABILITIES[request.language],
-            summary=DraftSummary(
-                section_count=len(section_payloads),
-                line_count=total_lines,
-                total_syllables=total_syllables,
-                notable_patterns=notable_patterns,
-            ),
-            sections=section_payloads,
-            insights=insights,
+    def _build_summary(
+        self,
+        section_payloads: list[SectionAnalysis],
+        total_lines: int,
+        total_syllables: int,
+        notable_patterns: list[str],
+    ) -> DraftSummary:
+        return DraftSummary(
+            section_count=len(section_payloads),
+            line_count=total_lines,
+            total_syllables=total_syllables,
+            notable_patterns=notable_patterns,
         )
 
-    def _line_syllables_from_tokens(
-        self, ctx: LanguageContext, normalized_tokens: list[str]
-    ) -> int:
-        from app.models.token import Token
-        if not normalized_tokens:
+    def _line_syllables(self, ctx: LanguageContext, tokens: list[Token]) -> int:
+        if not tokens:
             return 0
-        tokens = [Token(text=t, normalized=t) for t in normalized_tokens]
         total, _ = ctx.syllable_service.count_tokens(tokens)
         return total
 
-    def _line_rhyme_key(self, ctx: LanguageContext, line_text: str) -> str | None:
-        tokens = ctx.engine.tokenize_line(line_text)
+    def _line_rhyme_key(
+        self,
+        ctx: LanguageContext,
+        tokens: list[Token],
+        cache: RhymeCache,
+    ) -> str | None:
         if not tokens:
             return None
         last = tokens[-1]
         if ctx.engine.code == "en":
-            return _english_rhyme_key(ctx, last.text, last.normalized)
+            cache_key = f"en:{last.text}"
+            if cache_key in cache:
+                return cache[cache_key]
+            key = _english_rhyme_key(ctx, last.text, last.normalized)
+            cache[cache_key] = key
+            return key
         if ctx.engine.code == "es":
-            return _spanish_rhyme_key(last.normalized)
+            cache_key = f"es:{last.normalized}"
+            if cache_key in cache:
+                return cache[cache_key]
+            key = _spanish_rhyme_key(last.normalized)
+            cache[cache_key] = key
+            return key
         return None
 
 
@@ -251,7 +330,7 @@ def _repetition_insights(
     return out
 
 
-def _notable_consistency(section: ParsedSection, cadence: CadenceSummary) -> str:
+def _notable_consistency(section: ParsedSection) -> str:
     where = section.label or "Section"
     return f"{where.capitalize()} line lengths are closely matched."
 

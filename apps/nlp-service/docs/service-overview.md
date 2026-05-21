@@ -104,19 +104,21 @@ For Spanish, the syllabification rule is the primary source — there is no dict
 
 ---
 
-## 7. Separate `POST /v1/rhymes` and `POST /v1/analyze-line` endpoints
+## 7. Four focused endpoints rather than a combined `POST /v1/analyze`
 
-**Decision:** Rhyme lookup and line analysis are separate endpoints rather than a combined `POST /v1/analyze` that returns both in one call.
+**Decision:** The service exposes four endpoints — `GET /healthz`, `POST /v1/rhymes`, `POST /v1/analyze-line`, and `POST /v1/analyze-draft` — instead of a combined endpoint that returns everything in one call.
 
 **Reasoning:**
 
-The two operations have different callers and different trigger conditions in the UI: syllable analysis fires on every keystroke (or on pause), while rhyme lookup fires only when the user explicitly requests suggestions for a specific word. Combining them would force the rhyme lookup on every analysis request, wasting work and latency.
+Each endpoint has a distinct caller and a distinct trigger in the UI: syllable analysis fires on keystroke (or on pause); rhyme lookup fires only when the user explicitly requests suggestions for a word; draft analysis fires when the user saves or requests a structural review of the full draft. Combining them would force rhyme lookup on every line-analysis call and draft-level work on every word query — unnecessary computation and latency in all cases.
 
-Keeping them separate also makes each endpoint independently testable and keeps each service class focused on one responsibility.
+Keeping them separate also makes each endpoint independently testable and keeps each service class focused on one responsibility. The draft analysis endpoint in particular aggregates across all lines and sections in one call; coupling it to per-word rhyme lookup would produce awkward request shapes.
 
 **Tradeoffs:**
 
-- If a future UI feature requires both in a single round-trip, NestJS would need to issue two parallel HTTP requests or the service would need the combined endpoint added. The combined endpoint can be added without touching existing routes.
+- If a future UI feature requires rhymes and line analysis in a single round-trip, NestJS would need to issue two parallel requests or the service would need an aggregated endpoint added. The aggregated endpoint can be added without touching existing routes.
+
+See [`draft-analysis.md`](./draft-analysis.md) for the design decisions specific to `POST /v1/analyze-draft`.
 
 ---
 
@@ -169,3 +171,4 @@ The `UnsupportedLanguageError` and `UnsupportedModeError` raised by the language
 - [`bilingual.md`](./bilingual.md) — the cross-cutting language contract: what is shared, what is per-language, what FastAPI guarantees the gateway.
 - [`language-routing.md`](./language-routing.md) — how the `LanguageRouter` dispatches each request to the right engine.
 - [`spanish-pipeline.md`](./spanish-pipeline.md) — Spanish-specific decisions: rule-based G2P, syllabification, stress, the synthesized corpus, and the consonant/assonant rhyme definitions.
+- [`draft-analysis.md`](./draft-analysis.md) — design decisions for `POST /v1/analyze-draft`: section parsing, rhyme scheme assignment, cadence classification, and repetition detection.

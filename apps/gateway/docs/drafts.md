@@ -10,7 +10,7 @@ The drafts module owns draft persistence for the songwriting workspace. It expos
 | --- | --- | --- | --- | --- |
 | `POST` | `/v1/drafts` | `CreateDraftDto` | `201 { data: DraftPayload }` | `title` defaults to `"Untitled Draft"`; `language` defaults to `en` |
 | `GET` | `/v1/drafts/:id` | — | `200 { data: DraftPayload }` | 404 → `DRAFT_NOT_FOUND` |
-| `PATCH` | `/v1/drafts/:id` | `UpdateDraftDto` | `200 { data: DraftPayload }` | At least one of `title`, `content`, `language` is required |
+| `PATCH` | `/v1/drafts/:id` | `UpdateDraftDto` | `200 { data: DraftPayload }` | At least one of `title`, `content`, `language`, `sections` is required |
 | `DELETE` | `/v1/drafts/:id` | — | `204 No Content` | 404 → `DRAFT_NOT_FOUND` |
 
 `:id` is validated as a UUID v4 via `ParseUUIDPipe`. Invalid UUIDs fail before they reach the service.
@@ -48,7 +48,7 @@ The tradeoff is obvious: restarting the gateway loses every draft. This is accep
 
 ### PATCH requires at least one mutating field
 
-The controller throws `BadRequestException` if all three of `title`, `content`, `language` are `undefined`. Without this guard, a no-op PATCH would still bump `updated_at`, breaking the contract that `updated_at` reflects an actual change. The check sits in the controller because it is request-shape validation, not domain logic.
+The controller throws `BadRequestException` if all four of `title`, `content`, `language`, and `sections` are `undefined`. Without this guard, a no-op PATCH would still bump `updated_at`, breaking the contract that `updated_at` reflects an actual change. The check sits in the controller because it is request-shape validation, not domain logic.
 
 ### Language defaulting at create, not at read
 

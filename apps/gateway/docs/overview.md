@@ -10,25 +10,28 @@ Transport and orchestration layer between the editor UI and the FastAPI rhyme/sy
 Editor UI
    │
    ├── HTTP  POST   /v1/editor/analyze
+   ├── HTTP  POST   /v1/editor/analyze-draft
    ├── HTTP  POST   /v1/drafts
    ├── HTTP  GET    /v1/drafts/:id
    ├── HTTP  PATCH  /v1/drafts/:id
    ├── HTTP  DELETE /v1/drafts/:id
    └── WS    /editor  editor.analyze
               │
-        ┌─────┴──────┐
-        │            │
-   EditorService  DraftsService
-        │            │
-   LanguageRequestMapper           (in-memory store, Phase 3)
+        ┌─────┴────────────────┐
+        │                      │
+   EditorService          DraftsService
+        │                      │
+   LanguageRequestMapper    (in-memory store, Phase 3)
         │
-  POST /v1/analyze-line   POST /v1/rhymes
-        │                        │
-        └─── FastAPI NLP service ┘
-                (routed per language: en | es)
+   AnalysisService ──────────────────────┐
+        │                                │
+  POST /v1/analyze-line   POST /v1/rhymes │  POST /v1/analyze-draft
+        │                        │        │
+        └──────── FastAPI NLP service ────┘
+                   (routed per language: en | es)
 ```
 
-Both the HTTP controller and the WebSocket gateway share a single `EditorService` so orchestration logic is defined once and tested once. Drafts live in their own module with their own controller, service, and presenter.
+Both the HTTP controller and the WebSocket gateway share a single `EditorService` so orchestration logic is defined once and tested once. Drafts live in their own module. Draft-level structural analysis (`analyze-draft`) is handled by `AnalysisService`, which loads the stored draft from `DraftsService` and delegates to FastAPI.
 
 ---
 
@@ -79,6 +82,7 @@ All errors — validation failures, downstream unavailability, internal errors, 
 | Module | Responsibility | Detailed doc |
 | --- | --- | --- |
 | `editor/` | Analyze-line orchestration (HTTP + WS), language defaulting, response shaping | inline in this file |
+| `analysis/` | Draft-level analysis orchestration (`POST /v1/editor/analyze-draft`) — loads draft from `DraftsService`, calls FastAPI, presents result | inline in this file |
 | `drafts/` | CRUD over drafts, in-memory store, language-aware payloads | [`drafts.md`](./drafts.md) |
 | `fastapi/` | Typed HTTP client + DTOs for the NLP service | inline |
 | `common/` | Shared filters, interceptors, enums (language, rhyme mode) | inline |

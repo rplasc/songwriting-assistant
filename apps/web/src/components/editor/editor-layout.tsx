@@ -11,8 +11,8 @@ export function EditorLayout({ editor, panels, rail }: EditorLayoutProps) {
     <div
       className={
         rail
-          ? "grid w-full gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_17rem_15rem]"
-          : "grid w-full gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]"
+          ? "grid w-full gap-5 2xl:gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_17rem_15rem] 2xl:grid-cols-[minmax(0,1fr)_21rem_18rem]"
+          : "grid w-full gap-5 2xl:gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_26rem]"
       }
     >
       <div className="min-w-0">{editor}</div>

@@ -49,9 +49,16 @@ export async function analyzeDraft(
   }
   if (input.forceRefresh) body.forceRefresh = true;
 
+  const requestId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const response = await fetch(`${apiBaseUrl}/v1/editor/analyze-draft`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-request-id": requestId,
+    },
     body: JSON.stringify(body),
     signal: options.signal,
   });

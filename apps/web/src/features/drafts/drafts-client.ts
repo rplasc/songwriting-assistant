@@ -31,6 +31,7 @@ function fromServer(p: ServerDraftPayload): Draft {
     content: p.content,
     language: languageFromServer(p),
     sections: (p.sections ?? []).map(sectionFromServer),
+    version: p.version,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   };
@@ -51,6 +52,19 @@ async function parseEnvelope(response: Response): Promise<Draft> {
   return fromServer(body.data);
 }
 
+function newRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function baseHeaders(requestId: string): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    "x-request-id": requestId,
+  };
+}
+
 export interface CreateDraftInput {
   title?: string;
   content: string;
@@ -63,10 +77,16 @@ export interface UpdateDraftInput {
   content?: string;
   language?: Language;
   sections?: DraftSection[];
+  /**
+   * Last known server version. When supplied, sent as If-Match so the
+   * server can reject a stale update with 409 instead of overwriting.
+   */
+  expectedVersion?: number;
 }
 
 export interface DraftRequestOptions {
   signal?: AbortSignal;
+  requestId?: string;
 }
 
 export async function createDraft(
@@ -81,7 +101,7 @@ export async function createDraft(
   if (input.sections !== undefined) body.sections = input.sections.map(toSectionInput);
   const response = await fetch(`${apiBaseUrl}/v1/drafts`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: baseHeaders(options.requestId ?? newRequestId()),
     body: JSON.stringify(body),
     signal: options.signal,
   });
@@ -93,6 +113,7 @@ export async function getDraft(
   options: DraftRequestOptions = {},
 ): Promise<Draft> {
   const response = await fetch(`${apiBaseUrl}/v1/drafts/${id}`, {
+    headers: { "x-request-id": options.requestId ?? newRequestId() },
     signal: options.signal,
   });
   return parseEnvelope(response);
@@ -104,6 +125,7 @@ export async function deleteDraft(
 ): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/v1/drafts/${id}`, {
     method: "DELETE",
+    headers: { "x-request-id": options.requestId ?? newRequestId() },
     signal: options.signal,
   });
   if (!response.ok && response.status !== 404) {
@@ -124,9 +146,13 @@ export async function updateDraft(
   if (patch.content !== undefined) body.content = patch.content;
   if (patch.language !== undefined) body.language = patch.language;
   if (patch.sections !== undefined) body.sections = patch.sections.map(toSectionInput);
+  const headers = baseHeaders(options.requestId ?? newRequestId());
+  if (patch.expectedVersion !== undefined) {
+    headers["if-match"] = String(patch.expectedVersion);
+  }
   const response = await fetch(`${apiBaseUrl}/v1/drafts/${id}`, {
     method: "PATCH",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(body),
     signal: options.signal,
   });

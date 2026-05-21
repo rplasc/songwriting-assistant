@@ -27,6 +27,8 @@ const DOT_CLASS: Record<SaveStatus, string> = {
   saving: "bg-accent/80 animate-pulse",
   saved: "bg-success/85",
   offline: "bg-danger/85",
+  conflict: "bg-danger/85",
+  error: "bg-danger/85",
 };
 
 export function SaveStatusIndicator({ status, lastSavedAt }: SaveStatusProps) {
@@ -39,7 +41,11 @@ export function SaveStatusIndicator({ status, lastSavedAt }: SaveStatusProps) {
   }, [status]);
 
   // Stay quiet on an empty page — a co-writer wouldn't narrate a blank slate.
-  if (status === "idle") return null;
+  // Terminal states (conflict, error) are surfaced by the margin notice
+  // above the editor; the inline chip stays out of their way.
+  if (status === "idle" || status === "conflict" || status === "error") {
+    return null;
+  }
 
   let label: string;
   switch (status) {

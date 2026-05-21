@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { DraftSummary } from "@/features/drafts/drafts-types";
 
@@ -55,17 +55,27 @@ export function DraftPicker({
   onDelete,
 }: DraftPickerProps) {
   const [open, setOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+  const closeMenu = useCallback(() => {
+    setOpen(false);
+    setPendingDeleteId(null);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     const handleClick = (event: MouseEvent) => {
       if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
+        closeMenu();
       }
     };
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        if (pendingDeleteId) setPendingDeleteId(null);
+        else closeMenu();
+      }
     };
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleKey);
@@ -73,7 +83,15 @@ export function DraftPicker({
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("keydown", handleKey);
     };
-  }, [open]);
+  }, [open, pendingDeleteId, closeMenu]);
+
+  // Move focus to the confirm button when a row enters delete-pending mode
+  // so the writer can press Enter (commit) or Escape (cancel) without aiming.
+  useEffect(() => {
+    if (pendingDeleteId && confirmButtonRef.current) {
+      confirmButtonRef.current.focus();
+    }
+  }, [pendingDeleteId]);
 
   return (
     <div ref={containerRef} className="relative">
@@ -137,53 +155,95 @@ export function DraftPicker({
             <ul className="max-h-64 overflow-y-auto py-1">
               {drafts.map((draft) => {
                 const active = draft.id === currentDraftId;
+                const pending = pendingDeleteId === draft.id;
                 return (
                   <li
                     key={draft.id}
                     className={cn(
-                      "group flex items-center transition-colors duration-150 ease-out",
-                      "hover:bg-surface-muted focus-within:bg-surface-muted",
-                      active && "bg-surface-muted",
+                      "group flex items-center transition-colors duration-200 ease-out",
+                      !pending && "hover:bg-surface-muted focus-within:bg-surface-muted",
+                      active && !pending && "bg-surface-muted",
+                      pending && "bg-danger/6",
                     )}
                   >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        onSelect(draft.id);
-                        setOpen(false);
-                      }}
-                      className={cn(
-                        "flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-1.5 text-left",
-                        "focus-visible:outline-none",
-                      )}
-                    >
-                      <span className="truncate text-[12px] font-medium text-foreground">
-                        {draft.title}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground tabular-nums">
-                        {formatTimestamp(draft.updatedAt)}
-                        {active ? " · open" : ""}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Delete draft “${draft.title}”`}
-                      title="Delete draft"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDelete(draft.id);
-                      }}
-                      className={cn(
-                        "mr-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm",
-                        "text-muted-foreground/40 transition-colors duration-150 ease-out",
-                        "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-                        "hover:text-danger focus-visible:text-danger",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30",
-                      )}
-                    >
-                      <TrashIcon />
-                    </button>
+                    {pending ? (
+                      <div className="flex min-w-0 flex-1 items-baseline gap-3 px-3 py-1.5 text-[11px]">
+                        <span className="truncate font-medium tracking-tight text-danger">
+                          Discard “{draft.title}”?
+                        </span>
+                        <span className="ml-auto flex shrink-0 items-baseline gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setPendingDeleteId(null)}
+                            className={cn(
+                              "underline decoration-dotted decoration-1 underline-offset-[3px]",
+                              "text-muted-foreground transition-colors duration-150 ease-out",
+                              "hover:text-foreground focus-visible:text-foreground",
+                              "focus-visible:outline-none",
+                            )}
+                          >
+                            keep
+                          </button>
+                          <button
+                            ref={confirmButtonRef}
+                            type="button"
+                            onClick={() => {
+                              setPendingDeleteId(null);
+                              onDelete(draft.id);
+                            }}
+                            className={cn(
+                              "underline decoration-dotted decoration-1 underline-offset-[3px]",
+                              "font-medium text-danger transition-colors duration-150 ease-out",
+                              "hover:text-foreground focus-visible:text-foreground",
+                              "focus-visible:outline-none",
+                            )}
+                          >
+                            discard
+                          </button>
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            onSelect(draft.id);
+                            setOpen(false);
+                          }}
+                          className={cn(
+                            "flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-1.5 text-left",
+                            "focus-visible:outline-none",
+                          )}
+                        >
+                          <span className="truncate text-[12px] font-medium text-foreground">
+                            {draft.title}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground tabular-nums">
+                            {formatTimestamp(draft.updatedAt)}
+                            {active ? " · open" : ""}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete draft “${draft.title}”`}
+                          title="Delete draft"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setPendingDeleteId(draft.id);
+                          }}
+                          className={cn(
+                            "mr-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm",
+                            "text-muted-foreground/40 transition-colors duration-150 ease-out",
+                            "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                            "hover:text-danger focus-visible:text-danger",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30",
+                          )}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </>
+                    )}
                   </li>
                 );
               })}

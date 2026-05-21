@@ -24,6 +24,12 @@ import { getEditorText } from "@/features/editor/tiptap/editor-lines";
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 const DEFAULT_TITLE = "Untitled Draft";
 
+// Bounded retry budget for network-class failures. The client stays in
+// "offline" between attempts and transitions to "error" after exhausting
+// the budget. Conflicts and validation errors are terminal immediately.
+const RETRY_DELAYS_MS = [1000, 3000, 8000];
+const JITTER = 0.25;
+
 function parseStoredContent(raw: string): string {
   if (!raw) return "<p></p>";
   // New format: HTML saved by editor.getHTML() — pass through directly.
@@ -79,6 +85,38 @@ function summarize(draft: Draft): DraftSummary {
   };
 }
 
+function isAbortError(err: unknown): boolean {
+  return (err as Error)?.name === "AbortError";
+}
+
+function isRetryable(err: unknown): boolean {
+  if (err instanceof DraftRequestError) {
+    // 4xx are terminal (validation, conflict, not found, etc.). 5xx are
+    // worth retrying — the server may recover.
+    return err.status !== undefined && err.status >= 500;
+  }
+  // Native fetch failures throw TypeError on network errors.
+  return err instanceof TypeError;
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const t = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 export function useDraftSaving(
   editor: Editor | null,
   { language, sections, onDraftLoaded }: UseDraftSavingOptions,
@@ -96,6 +134,7 @@ export function useDraftSaving(
 
   const currentIdRef = useRef<string | null>(currentDraftId);
   const currentDraftLanguageRef = useRef<Language | null>(null);
+  const currentVersionRef = useRef<number | null>(null);
   const languageRef = useRef<Language>(language);
   const sectionsRef = useRef<DraftSection[]>(sections ?? []);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,13 +179,14 @@ export function useDraftSaving(
 
     setStatus("saving");
     const targetLanguage = languageRef.current;
-    try {
-      let saved: Draft;
+
+    const attemptSave = async (): Promise<Draft> => {
       if (currentIdRef.current) {
         const patch: {
           content: string;
           language?: Language;
           sections?: DraftSection[];
+          expectedVersion?: number;
         } = { content, sections: sectionsRef.current };
         if (
           currentDraftLanguageRef.current &&
@@ -154,38 +194,79 @@ export function useDraftSaving(
         ) {
           patch.language = targetLanguage;
         }
-        saved = await updateDraft(currentIdRef.current, patch, {
+        if (currentVersionRef.current !== null) {
+          patch.expectedVersion = currentVersionRef.current;
+        }
+        return updateDraft(currentIdRef.current, patch, {
           signal: controller.signal,
         });
-      } else {
-        saved = await createDraft(
-          {
-            content,
-            title: deriveTitle(text),
-            language: targetLanguage,
-            sections: sectionsRef.current,
-          },
-          { signal: controller.signal },
-        );
-        updateCurrentId(saved.id);
       }
-      updateCurrentLanguage(saved.language);
-      setLastSavedAt(new Date(saved.updatedAt));
-      setStatus("saved");
-      setRecentDrafts(upsertRecentDraft(summarize(saved)));
-    } catch (err) {
-      if ((err as Error).name === "AbortError") return;
-      if (err instanceof DraftRequestError && err.status === 404) {
-        updateCurrentId(null);
-        updateCurrentLanguage(null);
-      }
-      setStatus("offline");
-    } finally {
-      if (inFlightRef.current === controller) {
-        inFlightRef.current = null;
+      const created = await createDraft(
+        {
+          content,
+          title: deriveTitle(text),
+          language: targetLanguage,
+          sections: sectionsRef.current,
+        },
+        { signal: controller.signal },
+      );
+      updateCurrentId(created.id);
+      return created;
+    };
+
+    let attempt = 0;
+    while (true) {
+      try {
+        const saved = await attemptSave();
+        currentVersionRef.current = saved.version;
+        updateCurrentLanguage(saved.language);
+        setLastSavedAt(new Date(saved.updatedAt));
+        setStatus("saved");
+        setRecentDrafts(upsertRecentDraft(summarize(saved)));
+        return;
+      } catch (err) {
+        if (isAbortError(err)) return;
+        if (err instanceof DraftRequestError) {
+          if (err.status === 409) {
+            // Another writer advanced the draft. Don't retry, don't clobber
+            // — surface the conflict and let the user decide (reload).
+            setStatus("conflict");
+            return;
+          }
+          if (err.status === 404) {
+            // Server-side draft is gone. Reset local pointer so the next
+            // save creates a fresh one instead of looping on a dead id.
+            updateCurrentId(null);
+            updateCurrentLanguage(null);
+            currentVersionRef.current = null;
+            setStatus("error");
+            return;
+          }
+        }
+        if (!isRetryable(err) || attempt >= RETRY_DELAYS_MS.length) {
+          setStatus("error");
+          return;
+        }
+        setStatus("offline");
+        const base = RETRY_DELAYS_MS[attempt];
+        const jitter = base * JITTER * (Math.random() * 2 - 1);
+        try {
+          await sleep(Math.max(0, base + jitter), controller.signal);
+        } catch {
+          return; // aborted during backoff
+        }
+        attempt += 1;
       }
     }
   }, [editor, updateCurrentId, updateCurrentLanguage]);
+
+  // Track the running flush so the unmount/abort path can clear it.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (inFlightRef.current) inFlightRef.current.abort();
+    };
+  }, []);
 
   const saveNow = useCallback(async () => {
     await flushSave();
@@ -224,13 +305,6 @@ export function useDraftSaving(
     };
   }, [editor, flushSave]);
 
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (inFlightRef.current) inFlightRef.current.abort();
-    };
-  }, []);
-
   const loadDraft = useCallback(
     async (id: string) => {
       if (!editor) return;
@@ -250,12 +324,13 @@ export function useDraftSaving(
         suppressDirtyRef.current = false;
         updateCurrentId(draft.id);
         updateCurrentLanguage(draft.language);
+        currentVersionRef.current = draft.version;
         setLastSavedAt(new Date(draft.updatedAt));
         setStatus("saved");
         setRecentDrafts(upsertRecentDraft(summarize(draft)));
         onDraftLoadedRef.current?.(draft);
       } catch (err) {
-        if ((err as Error).name === "AbortError") return;
+        if (isAbortError(err)) return;
         if (err instanceof DraftRequestError && err.status === 404) {
           setRecentDrafts(removeRecentDraft(id));
           setStatus("idle");
@@ -289,6 +364,7 @@ export function useDraftSaving(
         suppressDirtyRef.current = false;
         updateCurrentId(null);
         updateCurrentLanguage(null);
+        currentVersionRef.current = null;
         setLastSavedAt(null);
         setStatus("idle");
       }
@@ -316,6 +392,7 @@ export function useDraftSaving(
     suppressDirtyRef.current = false;
     updateCurrentId(null);
     updateCurrentLanguage(null);
+    currentVersionRef.current = null;
     setLastSavedAt(null);
     setStatus("idle");
   }, [editor, updateCurrentId, updateCurrentLanguage]);

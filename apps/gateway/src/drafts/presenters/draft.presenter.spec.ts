@@ -9,6 +9,7 @@ describe('DraftPresenter', () => {
       title: 'Untitled Draft',
       content: 'lyrics',
       language: 'es',
+      version: 1,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-02T00:00:00.000Z',
     };
@@ -18,6 +19,7 @@ describe('DraftPresenter', () => {
       content: 'lyrics',
       language: 'es',
       sections: [],
+      version: 1,
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-02T00:00:00.000Z',
     });
@@ -34,6 +36,7 @@ describe('DraftPresenter', () => {
         { id: 'sec-1', label: 'verse', lineStart: 1, lineEnd: 2 },
         { id: 'sec-2', label: 'chorus', lineStart: 3, lineEnd: 3 },
       ],
+      version: 1,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     };

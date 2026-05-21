@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DraftsService } from './drafts.service';
 
 describe('DraftsService', () => {
@@ -86,6 +90,54 @@ describe('DraftsService', () => {
     ).toThrow(NotFoundException);
   });
 
+  describe('versioning', () => {
+    it('create initializes version to 1', () => {
+      expect(service.create({ content: 'x' }).version).toBe(1);
+    });
+
+    it('update increments version on each successful call', () => {
+      const created = service.create({ content: 'a' });
+      const v2 = service.update(created.id, { content: 'b' });
+      expect(v2.version).toBe(2);
+      const v3 = service.update(created.id, { content: 'c' });
+      expect(v3.version).toBe(3);
+    });
+
+    it('update with matching expectedVersion succeeds', () => {
+      const created = service.create({ content: 'a' });
+      const updated = service.update(created.id, {
+        content: 'b',
+        expectedVersion: 1,
+      });
+      expect(updated.version).toBe(2);
+    });
+
+    it('update with mismatched expectedVersion throws ConflictException with currentVersion', () => {
+      const created = service.create({ content: 'a' });
+      service.update(created.id, { content: 'b' }); // bump to v2
+      try {
+        service.update(created.id, { content: 'c', expectedVersion: 1 });
+        fail('expected ConflictException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ConflictException);
+        const resp = (err as ConflictException).getResponse() as {
+          code: string;
+          currentVersion: number;
+        };
+        expect(resp.code).toBe('DRAFT_VERSION_CONFLICT');
+        expect(resp.currentVersion).toBe(2);
+      }
+    });
+
+    it('update without expectedVersion stays last-write-wins (back-compat)', () => {
+      const created = service.create({ content: 'a' });
+      service.update(created.id, { content: 'b' }); // v2
+      const v3 = service.update(created.id, { content: 'c' });
+      expect(v3.version).toBe(3);
+      expect(v3.content).toBe('c');
+    });
+  });
+
   describe('sections', () => {
     it('creates a draft with sorted sections and assigns UUIDs', () => {
       const draft = service.create({
@@ -131,6 +183,24 @@ describe('DraftsService', () => {
         service.create({
           content: 'a\nb\nc',
           sections: [{ label: 'verse', lineStart: 3, lineEnd: 1 }],
+        }),
+      ).toThrow(BadRequestException);
+    });
+
+    it('accepts sections against HTML content using paragraph count', () => {
+      const draft = service.create({
+        content: '<p>line 1</p><p>line 2</p><p>line 3</p>',
+        sections: [{ label: 'Verse', lineStart: 1, lineEnd: 3 }],
+      });
+      expect(draft.sections).toHaveLength(1);
+      expect(draft.sections?.[0].label).toBe('Verse');
+    });
+
+    it('rejects sections that exceed HTML paragraph count', () => {
+      expect(() =>
+        service.create({
+          content: '<p>one line only</p>',
+          sections: [{ label: 'Verse', lineStart: 1, lineEnd: 3 }],
         }),
       ).toThrow(BadRequestException);
     });

@@ -4,13 +4,16 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
 import { DraftsService } from './drafts.service';
@@ -24,13 +27,19 @@ export class DraftsController {
   ) {}
 
   @Post()
-  create(@Body() dto: CreateDraftDto): { data: DraftPayload } {
-    const draft = this.drafts.create({
-      title: dto.title,
-      content: dto.content,
-      language: dto.language,
-      sections: dto.sections,
-    });
+  create(
+    @Body() dto: CreateDraftDto,
+    @Req() req: Request,
+  ): { data: DraftPayload } {
+    const draft = this.drafts.create(
+      {
+        title: dto.title,
+        content: dto.content,
+        language: dto.language,
+        sections: dto.sections,
+      },
+      { requestId: req.requestId },
+    );
     return { data: this.presenter.toClient(draft) };
   }
 
@@ -45,6 +54,8 @@ export class DraftsController {
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateDraftDto,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Req() req: Request,
   ): { data: DraftPayload } {
     if (
       dto.title === undefined &&
@@ -56,18 +67,41 @@ export class DraftsController {
         'At least one of [title, content, language, sections] must be provided',
       );
     }
-    const updated = this.drafts.update(id, {
-      title: dto.title,
-      content: dto.content,
-      language: dto.language,
-      sections: dto.sections,
-    });
+    const expectedVersion = parseIfMatch(ifMatch);
+    const updated = this.drafts.update(
+      id,
+      {
+        title: dto.title,
+        content: dto.content,
+        language: dto.language,
+        sections: dto.sections,
+        expectedVersion,
+      },
+      { requestId: req.requestId },
+    );
     return { data: this.presenter.toClient(updated) };
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id', new ParseUUIDPipe()) id: string): void {
-    this.drafts.remove(id);
+  remove(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
+  ): void {
+    this.drafts.remove(id, { requestId: req.requestId });
   }
+}
+
+function parseIfMatch(header: string | undefined): number | undefined {
+  if (!header) return undefined;
+  // Strip optional weak prefix and surrounding quotes per RFC 7232.
+  const cleaned = header.trim().replace(/^W\//, '').replace(/^"|"$/g, '');
+  const n = Number(cleaned);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new BadRequestException({
+      code: 'INVALID_IF_MATCH',
+      message: `Malformed If-Match header: ${header}`,
+    });
+  }
+  return n;
 }

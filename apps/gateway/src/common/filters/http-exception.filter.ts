@@ -23,6 +23,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_ERROR';
     let message = 'Internal server error';
+    let details: Record<string, unknown> | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -38,17 +39,33 @@ export class HttpExceptionFilter implements ExceptionFilter {
           ? (resp as { code?: string }).code
           : undefined;
       code = respCode ?? this.codeFor(status, exception);
+      if (typeof resp === 'object' && resp !== null) {
+        const { code: _c, message: _m, ...rest } = resp as Record<
+          string,
+          unknown
+        >;
+        if (Object.keys(rest).length > 0) details = rest;
+      }
     } else {
       this.logger.error(
-        `Unhandled error on ${req.method} ${req.url}`,
+        `Unhandled error on ${req.method} ${req.url} request_id=${req.requestId ?? '-'}`,
         exception as Error,
       );
     }
 
-    res.status(status).json({ error: { code, message } });
+    const requestId = req.requestId;
+    res.status(status).json({
+      error: {
+        code,
+        message,
+        ...(details ? { details } : {}),
+        ...(requestId ? { request_id: requestId } : {}),
+      },
+    });
   }
 
   private codeFor(status: number, exc: HttpException): string {
+    if (status === HttpStatus.CONFLICT) return 'CONFLICT';
     if (status === HttpStatus.SERVICE_UNAVAILABLE) return 'FASTAPI_UNAVAILABLE';
     if (status === HttpStatus.BAD_GATEWAY) return 'UPSTREAM_FAILED';
     if (status === HttpStatus.BAD_REQUEST) return 'VALIDATION_FAILED';

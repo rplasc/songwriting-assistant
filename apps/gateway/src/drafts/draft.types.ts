@@ -13,6 +13,7 @@ export interface Draft {
   content: string;
   language: Language;
   sections?: DraftSection[];
+  version: number;
   createdAt: string;
   updatedAt: string;
 }

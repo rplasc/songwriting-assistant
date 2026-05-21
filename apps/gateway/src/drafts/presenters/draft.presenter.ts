@@ -15,6 +15,7 @@ export interface DraftPayload {
   content: string;
   language: Language;
   sections: DraftSectionPayload[];
+  version: number;
   created_at: string;
   updated_at: string;
 }
@@ -28,6 +29,7 @@ export class DraftPresenter {
       content: d.content,
       language: d.language,
       sections: (d.sections ?? []).map((s) => this.toSectionPayload(s)),
+      version: d.version,
       created_at: d.createdAt,
       updated_at: d.updatedAt,
     };

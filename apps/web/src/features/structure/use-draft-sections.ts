@@ -16,6 +16,14 @@ export interface UseDraftSectionsReturn {
   clearLabel: (range: StanzaRange) => void;
   /** Hydrate labels when loading a draft from the server. */
   resetFromDraft: (sections: DraftSection[]) => void;
+  /**
+   * Labels that were previously applied but no longer match a detected
+   * stanza (because lines shifted). Surface this via the margin notice so
+   * the writer knows the gutter labels aren't silently lost.
+   */
+  droppedLabelCount: number;
+  /** Purge orphaned labels from local state — used by the notice dismiss. */
+  acknowledgeDroppedLabels: () => void;
 }
 
 function normalizeLabel(label: string): string {
@@ -62,6 +70,16 @@ export function useDraftSections(editor: Editor | null): UseDraftSectionsReturn 
 
   const sections = useMemo(() => reconcile(stanzas, labels), [stanzas, labels]);
 
+  const droppedLabelCount = useMemo(() => {
+    if (labels.size === 0) return 0;
+    const keys = new Set(stanzas.map(stanzaKey));
+    let count = 0;
+    for (const k of labels.keys()) {
+      if (!keys.has(k)) count += 1;
+    }
+    return count;
+  }, [labels, stanzas]);
+
   const labelFor = useCallback(
     (range: StanzaRange): string | null =>
       labels.get(stanzaKey(range)) ?? null,
@@ -98,6 +116,20 @@ export function useDraftSections(editor: Editor | null): UseDraftSectionsReturn 
     setLabels(map);
   }, []);
 
+  const acknowledgeDroppedLabels = useCallback(() => {
+    setLabels((prev) => {
+      if (prev.size === 0) return prev;
+      const keys = new Set(stanzas.map(stanzaKey));
+      let changed = false;
+      const next = new Map<string, string>();
+      for (const [k, v] of prev) {
+        if (keys.has(k)) next.set(k, v);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [stanzas]);
+
   return {
     stanzas,
     sections,
@@ -105,5 +137,7 @@ export function useDraftSections(editor: Editor | null): UseDraftSectionsReturn 
     assignLabel,
     clearLabel,
     resetFromDraft,
+    droppedLabelCount,
+    acknowledgeDroppedLabels,
   };
 }

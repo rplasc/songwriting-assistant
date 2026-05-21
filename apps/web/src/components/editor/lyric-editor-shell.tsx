@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useEditorAnalysis } from "@/features/analysis/use-editor-analysis";
 import {
   DEFAULT_RHYME_MODE,
@@ -22,8 +22,14 @@ import { LyricEditor } from "./lyric-editor";
 import { RhymePanel } from "./rhyme-panel";
 import { SyllablePanel } from "./syllable-panel";
 import { DraftAnalysisRail } from "./draft-analysis-rail";
+import { EditorNotice, NoticeAction } from "./editor-notice";
 
 const getServerRhymeMode = () => DEFAULT_RHYME_MODE;
+
+// Mirror the server-side DTO cap from apps/gateway/.../create-draft.dto.ts.
+// When the text content nears this ceiling, surface a soft pre-flight notice.
+const CONTENT_CEILING = 10_000;
+const CONTENT_WARN_AT = Math.floor(CONTENT_CEILING * 0.9);
 
 export function LyricEditorShell() {
   const { editor, activeLine, content } = useLyricEditor();
@@ -53,6 +59,8 @@ export function LyricEditorShell() {
     assignLabel,
     clearLabel,
     resetFromDraft,
+    droppedLabelCount,
+    acknowledgeDroppedLabels,
   } = useDraftSections(editor);
 
   const {
@@ -128,6 +136,20 @@ export function LyricEditorShell() {
     [editor],
   );
 
+  // `content` is the editor's plain text; sized-against-the-DTO check is
+  // intentionally soft — text underestimates the HTML payload, so a notice
+  // near 90% of the ceiling is a comfortable early warning.
+  const contentLength = useMemo(() => content.length, [content]);
+  const nearCeiling = contentLength >= CONTENT_WARN_AT;
+
+  const handleReload = useCallback(() => {
+    if (currentDraftId) void loadDraft(currentDraftId);
+  }, [currentDraftId, loadDraft]);
+
+  const handleRetry = useCallback(() => {
+    void saveNow();
+  }, [saveNow]);
+
   return (
     <div className="flex flex-col gap-4">
       <EditorHeader
@@ -144,6 +166,64 @@ export function LyricEditorShell() {
         onNewDraft={newDraft}
         onDeleteDraft={(id) => void deleteDraft(id)}
       />
+      {(saveStatus === "conflict" ||
+        saveStatus === "error" ||
+        droppedLabelCount > 0 ||
+        nearCeiling) && (
+        <div className="flex flex-col gap-1.5">
+          {saveStatus === "conflict" && (
+            <EditorNotice
+              tone="alert"
+              lead="This draft drifted."
+              actions={
+                currentDraftId ? (
+                  <NoticeAction onClick={handleReload}>Reload</NoticeAction>
+                ) : null
+              }
+            >
+              Looks like the page changed in another window. Reload to see
+              what&rsquo;s there.
+            </EditorNotice>
+          )}
+          {saveStatus === "error" && (
+            <EditorNotice
+              tone="alert"
+              lead="Save didn&rsquo;t take."
+              actions={<NoticeAction onClick={handleRetry}>Try again</NoticeAction>}
+            >
+              The last few keystrokes didn&rsquo;t reach the page.
+            </EditorNotice>
+          )}
+          {droppedLabelCount > 0 && (
+            <EditorNotice
+              tone="warn"
+              lead={`${droppedLabelCount} label${droppedLabelCount === 1 ? "" : "s"} lost ${droppedLabelCount === 1 ? "its" : "their"} stanza.`}
+              actions={
+                <NoticeAction
+                  emphasis="subtle"
+                  onClick={acknowledgeDroppedLabels}
+                >
+                  Dismiss
+                </NoticeAction>
+              }
+            >
+              Pin them again from the gutter when the lines settle.
+            </EditorNotice>
+          )}
+          {nearCeiling && (
+            <EditorNotice tone="warn" lead="Getting full.">
+              <span className="tabular-nums">
+                {contentLength.toLocaleString()}
+              </span>{" "}
+              of{" "}
+              <span className="tabular-nums">
+                {CONTENT_CEILING.toLocaleString()}
+              </span>{" "}
+              characters in — consider tightening.
+            </EditorNotice>
+          )}
+        </div>
+      )}
       <EditorLayout
         editor={<LyricEditor editor={editor} />}
         panels={

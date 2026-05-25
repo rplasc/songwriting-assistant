@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from wordfreq import word_frequency
 
 from app.domain.languages.base import LanguageEngine
+from app.domain.rhyme.multisyllabic_rules import multisyllabic_rhyme_key
 from app.repositories.pronunciation_repository import PronunciationRepository
 
 # Words with frequency below this floor never enter the rhyme corpus, so they
@@ -20,6 +21,11 @@ class RhymeEntry:
     word: str
     syllables: int
     frequency: float
+    # Length (in phonemes) of the entry's multisyllabic tail.
+    # Zero for words with no multisyllabic key (fewer than two vowels after
+    # the last stressed vowel). Used by ranking_service to reward longer
+    # shared stressed tails — see _MULTISYLLABIC_LEN_BONUS.
+    multisyllabic_tail_phonemes: int = 0
 
 
 class RhymeIndex:
@@ -67,10 +73,21 @@ class RhymeIndex:
             # pronunciations at 3 syllables vs one at 2), it picks the majority.
             counts = syllable_counts[word]
             modal_syllables = Counter(counts).most_common(1)[0][0]
+            # Compute the longest multisyllabic tail across pronunciation
+            # variants. Heteronyms can have one variant that qualifies and
+            # another that doesn't (e.g. unstressed vs stressed second
+            # syllable); the longer tail is the more honest signal because
+            # the engine surfaces the matching variant at lookup time.
+            multi_len = 0
+            for phonemes in prons:
+                key = multisyllabic_rhyme_key(phonemes)
+                if key is not None:
+                    multi_len = max(multi_len, len(key.split("_")))
             entries[word] = RhymeEntry(
                 word=word,
                 syllables=modal_syllables,
                 frequency=freq,
+                multisyllabic_tail_phonemes=multi_len,
             )
             for phonemes in prons:
                 for spec in engine.key_specs:

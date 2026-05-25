@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from app.core.logging import get_logger, timed
 from app.domain.draft_analysis.cadence_rules import classify_pattern
+from app.domain.draft_analysis.hook_demotion import demote_inside_hooks
 from app.domain.draft_analysis.repetition_rules import (
     RepetitionSignal as DomainRepetitionSignal,
     detect_draft_overuse,
@@ -35,6 +36,7 @@ from app.schemas.draft_analysis import (
     RepetitionSignal,
     SectionAnalysis,
 )
+from app.services.draft_nlp_service import DraftNlpService
 from app.services.language_router import LanguageContext
 
 
@@ -74,10 +76,14 @@ class _SectionResult:
     insights: list[Insight]
     notable: str | None
     token_lists: list[list[str]]
+    token_objects: list[list[Token]]
 
 
 class DraftAnalysisService:
     """Stateless orchestrator. One instance per app, dispatched per request."""
+
+    def __init__(self, nlp_service: DraftNlpService | None = None) -> None:
+        self._nlp_service = nlp_service
 
     def analyze(
         self,
@@ -103,6 +109,7 @@ class DraftAnalysisService:
         total_lines = 0
         total_syllables = 0
         all_token_lists: list[list[str]] = []
+        section_tokens: dict[str, list[list[Token]]] = {}
         rhyme_cache: RhymeCache = {}
 
         with timed(
@@ -120,6 +127,7 @@ class DraftAnalysisService:
                 total_lines += result.payload.line_count
                 total_syllables += sum(result.payload.syllable_pattern)
                 all_token_lists.extend(result.token_lists)
+                section_tokens[section.id] = result.token_objects
 
         with timed(
             _logger,
@@ -128,12 +136,108 @@ class DraftAnalysisService:
         ):
             insights.extend(self._build_overuse_insights(all_token_lists))
 
+        capabilities = _BASE_CAPABILITIES[request.language].model_copy()
+        motifs: list[str] = []
+        hook_only_overuse: frozenset[str] = frozenset()
+        opts = request.options
+        wants_semantic = opts is not None and opts.include_semantic_repetition
+        wants_motif = opts is not None and opts.include_motif_tracking
+        wants_contrast = opts is not None and opts.include_section_contrast
+        wants_consistency = opts is not None and opts.include_consistency_hints
+        if (
+            wants_semantic
+            or wants_motif
+            or wants_contrast
+            or wants_consistency
+        ) and self._nlp_service is not None:
+            if self._nlp_service.supports(request.language):
+                with timed(
+                    _logger,
+                    "analyze_draft.semantic_pipeline",
+                    language=request.language,
+                ):
+                    nlp_result = self._nlp_service.analyze(
+                        language=request.language,
+                        sections=parsed,
+                        line_token_objects=section_tokens,
+                        include_semantic_repetition=wants_semantic,
+                        include_motif_tracking=wants_motif,
+                        include_section_contrast=wants_contrast,
+                        include_consistency_hints=wants_consistency,
+                    )
+                if wants_semantic:
+                    capabilities.semantic_repetition = "full"
+                    for sem in nlp_result.semantic_repetition:
+                        insights.append(
+                            Insight(
+                                type=sem.type,
+                                scope=sem.scope,
+                                target=sem.target,
+                                severity=sem.severity,
+                                message=sem.message,
+                                evidence=dict(sem.evidence),
+                                confidence=sem.confidence,
+                            )
+                        )
+                if wants_motif:
+                    capabilities.motif_tracking = "full"
+                    motifs = list(nlp_result.motifs)
+                    for mot in nlp_result.motif_insights:
+                        insights.append(
+                            Insight(
+                                type=mot.type,
+                                scope=mot.scope,
+                                target=mot.target,
+                                severity=mot.severity,
+                                message=mot.message,
+                                evidence=dict(mot.evidence),
+                                confidence=mot.confidence,
+                            )
+                        )
+                if wants_contrast:
+                    capabilities.section_contrast = "full"
+                    for con in nlp_result.section_contrast:
+                        insights.append(
+                            Insight(
+                                type=con.type,
+                                scope=con.scope,
+                                target=con.target,
+                                severity=con.severity,
+                                message=con.message,
+                                evidence=dict(con.evidence),
+                                confidence=con.confidence,
+                            )
+                        )
+                if wants_consistency:
+                    capabilities.consistency_hints = (
+                        nlp_result.consistency_capability or "unsupported"
+                    )
+                    for cdr in nlp_result.consistency:
+                        insights.append(
+                            Insight(
+                                type=cdr.type,
+                                scope=cdr.scope,
+                                target=cdr.target,
+                                severity=cdr.severity,
+                                message=cdr.message,
+                                evidence=dict(cdr.evidence),
+                                confidence=cdr.confidence,
+                            )
+                        )
+                hook_only_overuse = nlp_result.hook_only_overuse_words
+
+        # Final pass: demote intentional-repetition signals inside hook
+        # sections so the response speaks the writer's intent. Runs even
+        # when it isn't requested — hook context still applies to
+        # repetition_ending / word_overuse insights.
+        insights = demote_inside_hooks(insights, parsed, hook_only_overuse)
+
         return DraftAnalysisResponse(
             language=request.language,
             title=request.title,
-            capabilities=_BASE_CAPABILITIES[request.language],
+            capabilities=capabilities,
             summary=self._build_summary(
-                section_payloads, total_lines, total_syllables, notable_patterns
+                section_payloads, total_lines, total_syllables, notable_patterns, motifs
             ),
             sections=section_payloads,
             insights=insights,
@@ -203,6 +307,7 @@ class DraftAnalysisService:
             insights=insights,
             notable=notable,
             token_lists=line_token_lists,
+            token_objects=line_token_objects,
         )
 
     def _build_overuse_insights(
@@ -230,12 +335,14 @@ class DraftAnalysisService:
         total_lines: int,
         total_syllables: int,
         notable_patterns: list[str],
+        motifs: list[str] | None = None,
     ) -> DraftSummary:
         return DraftSummary(
             section_count=len(section_payloads),
             line_count=total_lines,
             total_syllables=total_syllables,
             notable_patterns=notable_patterns,
+            motifs=motifs or [],
         )
 
     def _line_syllables(self, ctx: LanguageContext, tokens: list[Token]) -> int:

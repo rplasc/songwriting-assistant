@@ -106,6 +106,6 @@ Words with non-standard apostrophes or diacritics from other languages get rejec
 
 ## What this pipeline does not do
 
-- **No prosody scoring.** Whether a line scans is out of scope. Phase 3 ships syllables and rhymes; rhythm/meter is a future concern.
+- **No prosody scoring.** Whether a line scans is out of scope. The engine ships syllables and rhymes; rhythm/meter is a future concern.
 - **No automatic dialect detection.** The corpus is general Spanish. Regional vocabulary (Mexican, Argentine, Castilian) is represented in `wordfreq` proportionally; the pipeline does not weight or filter by dialect.
-- **No conjugation expansion.** A search for `canto` will not surface conjugated forms of `cantar` as related rhymes; the index sees them as independent words. This is what users actually want for rhyme lookup — but it would be the wrong behavior for a thesaurus feature, which Phase 3 does not provide.
+- **No conjugation expansion.** A search for `canto` will not surface conjugated forms of `cantar` as related rhymes; the index sees them as independent words. This is what users actually want for rhyme lookup — but it would be the wrong behavior for a thesaurus feature.

@@ -1,0 +1,13 @@
+{
+  "$schema_note": "Phase 5 M4 section-contrast golden set. Each case posts a draft to /v1/analyze-draft with include_section_contrast=true and asserts that an insight of type 'section_contrast' is returned with the expected contrast_kind.",
+  "kind": "draft_section_contrast",
+  "cases": [
+    {
+      "language": "en",
+      "name": "duplicate_verses",
+      "content": "[verse]\nThe sky above is wide and blue\nThe road below is long and true\n\n[verse]\nThe sky above is wide and blue\nThe road below is long and true\n\n[chorus]\nWe sing tonight\nWe sing forever",
+      "expected_contrast_kind": "over_similarity",
+      "notes": "Two identical verses should be flagged."
+    }
+  ]
+}

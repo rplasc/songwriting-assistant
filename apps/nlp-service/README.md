@@ -72,6 +72,8 @@ docker run --rm -p 8000:8000 nlp-service
 
 - [`docs/service-overview.md`](docs/service-overview.md) — design decisions and tradeoffs
 - [`docs/draft-analysis.md`](docs/draft-analysis.md) — draft analysis feature design
-- [`docs/bilingual.md`](docs/bilingual.md) — cross-language architectural contract
+- [`docs/bilingual.md`](docs/bilingual.md) — cross-language architectural contract, including M3/M4 capability levels
 - [`docs/language-routing.md`](docs/language-routing.md) — request routing
 - [`docs/spanish-pipeline.md`](docs/spanish-pipeline.md) — Spanish-specific implementation
+- [`docs/taxonomy.md`](docs/taxonomy.md) — Rhyme taxonomy and phrase-ending rules
+- [`docs/draft_intelligence.md`](docs/draft_intelligence.md) — Added threshold reference: clustering, motifs, contrast, consistency hints

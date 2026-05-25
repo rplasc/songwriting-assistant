@@ -1,0 +1,20 @@
+{
+  "$schema_note": "Phase 5 M4 consistency-hints golden set. Each case posts a draft with include_consistency_hints=true and asserts the expected drift kind appears in insights.",
+  "kind": "draft_consistency_hints",
+  "cases": [
+    {
+      "language": "en",
+      "name": "verse_to_chorus_perspective_flip",
+      "content": "[verse]\nI walk alone tonight\nI hold my dreams in sight\nI never let them go\nI keep them safe and slow\n\n[chorus]\nYou take your time and shine\nYou give your heart for mine\nYou call across the night\nYou make the morning right",
+      "expected_drift_kind": "perspective",
+      "notes": "First-person verse flips to second-person chorus."
+    },
+    {
+      "language": "en",
+      "name": "past_to_present_tense_flip",
+      "content": "[verse]\nShe walked alone tonight\nShe whispered to the light\nShe waited by the door\nShe wanted something more\n\n[chorus]\nI am walking by her side\nShe is laughing in the rain\nWe are standing in the light\nI am holding her again",
+      "expected_drift_kind": "tense",
+      "notes": "Past-tense verse against present-progressive chorus (-ing + is/am/are)."
+    }
+  ]
+}

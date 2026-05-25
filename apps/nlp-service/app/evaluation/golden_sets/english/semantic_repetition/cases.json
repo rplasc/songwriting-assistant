@@ -1,0 +1,20 @@
+{
+  "$schema_note": "Phase 5 M3 semantic-repetition golden set. Each case posts a draft to /v1/analyze-draft with include_semantic_repetition=true and asserts that an insight whose evidence.lemmas contains at least one of expected_lemmas is returned.",
+  "kind": "draft_semantic_repetition",
+  "cases": [
+    {
+      "language": "en",
+      "name": "listening_image_reuse",
+      "content": "I hear your shadow in the hall\nI hear your footsteps on the floor",
+      "expected_lemmas_any_of": ["hear", "shadow", "footstep"],
+      "notes": "Both lines anchor on the verb 'hear' with image variations; should cluster."
+    },
+    {
+      "language": "en",
+      "name": "running_lemma_family",
+      "content": "She was running through the rain\nShe is running beneath the storm\nShe runs into the night",
+      "expected_lemmas_any_of": ["run"],
+      "notes": "Lemma family running/runs should collapse via simplemma into 'run'."
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Bilingual Contract
 
-What is shared across languages, what is per-language, and what FastAPI guarantees the gateway. Phase 3 added Spanish; this doc records the architecture so a future third language is a localized change rather than a refactor.
+What is shared across languages, what is per-language, and what FastAPI guarantees the gateway. With Spanish added; this doc records the architecture so a future third language is a localized change rather than a refactor.
 
 ---
 
@@ -66,7 +66,7 @@ In **consonant mode** (cascade), the assonant secondary tier subtracts the conso
 
 For each supported language, the FastAPI `lifespan` hook builds a `LanguageContext`:
 
-```
+```text
 PronunciationRepository  →  RhymeIndex (built from repo + engine.key_specs)
                                 │
                                 ▼
@@ -114,6 +114,27 @@ Mode validity is engine-owned and enforced inside the engine via `validate_mode`
 | Spanish | `consonant`, `assonant` | `consonant` |
 
 The gateway is **not** responsible for translating between vocabularies. If the UI wants to expose a unified "strict / loose" toggle, the translation happens client-side before the request leaves the browser. FastAPI rejects cross-language modes rather than silently coercing them — silent coercion would hide real bugs in the request path.
+
+---
+
+## Draft analysis capability contract
+
+Each feature is reported in the `capabilities` object of every `POST /v1/analyze-draft` response. The level is one of
+`"unsupported"`, `"partial"`, or `"full"`.
+
+| Capability | English | Spanish | Notes |
+| --- | --- | --- | --- |
+| `rhyme_scheme` | `full` | `full` | always returned |
+| `syllable_analysis` | `full` | `full` | always returned |
+| `cadence` | `full` | `full` | always returned |
+| `repetition` | `full` | `full` | always returned |
+| `semantic_repetition` | `full` | `full` | opt-in |
+| `motif_tracking` | `full` | `full` | opt-in |
+| `section_contrast` | `full` | `full` | opt-in |
+| `consistency_hints` | `full` | `partial` | opt-in — ES is `partial` because simplemma mis-lemmatizes common irregular verbs (ser, ir, haber), making tense detection unreliable for ES. Pronoun-drift detection would be `full` in both, but the umbrella field reflects the weakest sub-feature. |
+
+Capabilities that are not requested default to `"unsupported"` in the response regardless
+of language, so clients can check the value without knowing the request options.
 
 ---
 

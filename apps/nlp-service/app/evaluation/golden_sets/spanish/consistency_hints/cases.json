@@ -1,0 +1,13 @@
+{
+  "$schema_note": "Phase 5 M4 consistency-hints golden set (Spanish). Capability ships at 'partial'.",
+  "kind": "draft_consistency_hints",
+  "cases": [
+    {
+      "language": "es",
+      "name": "cambio_de_persona",
+      "content": "[verse]\nYo camino sola en la noche\nYo guardo mis sueños sin tregua\nYo nunca los dejo ir\nYo los cuido siempre\n\n[chorus]\nTú tomas tu tiempo y brillas\nTú das tu corazón por el mío\nTú llamas a través de la noche\nTú haces la mañana real",
+      "expected_drift_kind": "perspective",
+      "notes": "Verso en primera persona contra estribillo en segunda persona."
+    }
+  ]
+}

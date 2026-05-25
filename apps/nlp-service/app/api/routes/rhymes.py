@@ -24,22 +24,33 @@ def post_rhymes(payload: RhymeRequest, request: Request) -> RhymeResponse:
         limit=payload.limit,
         mode=payload.mode,
         language=payload.language,
+        target_type=payload.target_type,
     ):
-        normalized, found, resolved_mode, rhymes = ctx.rhyme_service.find_rhymes(
+        lookup = ctx.rhyme_service.find_rhymes(
             payload.word,
             payload.limit,
             mode=payload.mode,
+            target_type=payload.target_type,
             include_metadata=payload.include_metadata,
         )
+    multi_cap = (
+        "full" if getattr(ctx.engine, "multisyllabic_supported", False) else "unsupported"
+    )
     return RhymeResponse(
         word=payload.word,
-        normalized_word=normalized,
+        normalized_word=lookup.normalized,
         language=payload.language,
-        pronunciations_found=found,
-        rhymes=rhymes,
+        pronunciations_found=lookup.pronunciations_found,
+        rhymes=lookup.candidates,
         meta=RhymeMeta(
             limit=payload.limit,
-            mode=resolved_mode,
-            include_near=resolved_mode == "near",
+            mode=lookup.resolved_mode,
+            include_near=lookup.resolved_mode == "near",
+            target_type=payload.target_type,
+            query_span=lookup.query_span,
+            capabilities={
+                "multisyllabic": multi_cap,
+                "phrase_ending": "full",
+            },
         ),
     )

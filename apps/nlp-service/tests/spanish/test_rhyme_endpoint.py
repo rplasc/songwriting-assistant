@@ -87,3 +87,61 @@ def test_normalized_word_round_trips(client: TestClient) -> None:
     )
     body = resp.json()
     assert body["normalized_word"] == "corazón"
+
+
+# --- Phase 5 M1 ---
+
+
+def test_spanish_candidates_carry_rhyme_family(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/rhymes",
+        json={"word": "corazón", "language": "es", "limit": 10},
+    )
+    body = resp.json()
+    families = {r["rhyme_family"] for r in body["rhymes"]}
+    # Three-syllable -ción words share a multisyllabic tail with corazón.
+    assert families & {"consonant", "multisyllabic"}, families
+    assert None not in families
+
+
+def test_spanish_multisyllabic_mode_returns_multi_tier(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/rhymes",
+        json={
+            "word": "corazón",
+            "language": "es",
+            "mode": "multisyllabic",
+            "limit": 10,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meta"]["mode"] == "multisyllabic"
+    if body["rhymes"]:
+        assert all(r["rhyme_type"] == "multisyllabic" for r in body["rhymes"])
+        assert all(r["rhyme_family"] == "multisyllabic" for r in body["rhymes"])
+
+
+def test_spanish_phrase_ending_trims_leading_article(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/rhymes",
+        json={
+            "word": "en la noche",
+            "language": "es",
+            "target_type": "phrase_ending",
+            "limit": 5,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meta"]["target_type"] == "phrase_ending"
+    # Span is the *trimmed* ending; "en" and "la" are leading function words.
+    assert body["meta"]["query_span"] == "noche"
+    assert body["normalized_word"] == "noche"
+
+
+def test_spanish_capabilities_block_present(client: TestClient) -> None:
+    resp = client.post("/v1/rhymes", json={"word": "corazón", "language": "es"})
+    caps = resp.json()["meta"]["capabilities"]
+    assert caps["multisyllabic"] == "full"
+    assert caps["phrase_ending"] == "full"

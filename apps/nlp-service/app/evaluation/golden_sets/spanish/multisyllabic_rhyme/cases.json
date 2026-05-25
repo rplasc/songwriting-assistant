@@ -1,0 +1,22 @@
+{
+  "$schema_note": "Phase 5 M1 Spanish multisyllabic golden set. Spanish corpus is rich in -ana / -ente / -ado families so multisyllabic mode tends to perform well.",
+  "limit": 10,
+  "cases": [
+    {
+      "query": "mañana",
+      "language": "es",
+      "mode": "multisyllabic",
+      "expected_any_of": ["semana", "hermana", "humana", "ventana", "mexicana", "gana"],
+      "must_not_include": ["mañana"],
+      "notes": "A1_N_A0 tail; one of the largest Spanish multisyllabic clusters."
+    },
+    {
+      "query": "ventana",
+      "language": "es",
+      "mode": "multisyllabic",
+      "expected_any_of": ["mañana", "semana", "hermana", "humana", "americana"],
+      "must_not_include": ["ventana"],
+      "notes": "Same A1_N_A0 family."
+    }
+  ]
+}

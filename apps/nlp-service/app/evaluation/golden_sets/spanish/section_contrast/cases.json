@@ -1,0 +1,13 @@
+{
+  "$schema_note": "Phase 5 M4 section-contrast golden set (Spanish).",
+  "kind": "draft_section_contrast",
+  "cases": [
+    {
+      "language": "es",
+      "name": "versos_duplicados",
+      "content": "[verse]\nEl cielo es ancho y azul\nEl camino es largo y fiel\n\n[verse]\nEl cielo es ancho y azul\nEl camino es largo y fiel\n\n[chorus]\nCantamos esta noche\nCantamos para siempre",
+      "expected_contrast_kind": "over_similarity",
+      "notes": "Dos versos idénticos deben marcarse."
+    }
+  ]
+}

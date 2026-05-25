@@ -90,3 +90,154 @@ def test_analyze_draft_unsupported_language(client: TestClient) -> None:
         json={"language": "fr", "content": "hello world"},
     )
     assert resp.status_code == 422
+
+
+def test_analyze_draft_without_options_keeps_phase4_shape(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={"language": "en", "content": _DRAFT},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # M3 capabilities default to unsupported when the caller hasn't opted in.
+    assert body["capabilities"]["semantic_repetition"] == "unsupported"
+    assert body["capabilities"]["motif_tracking"] == "unsupported"
+    assert body["summary"]["motifs"] == []
+    types = {i["type"] for i in body["insights"]}
+    assert "semantic_repetition" not in types
+    assert "motif_concentration" not in types
+
+
+def test_analyze_draft_with_semantic_repetition_option(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={
+            "language": "en",
+            "content": _DRAFT,
+            "options": {"include_semantic_repetition": True},
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["capabilities"]["semantic_repetition"] == "full"
+    semantic = [i for i in body["insights"] if i["type"] == "semantic_repetition"]
+    assert semantic, "expected at least one semantic_repetition insight"
+    insight = semantic[0]
+    assert insight["confidence"] in {"low", "medium", "high"}
+    assert insight["evidence"] and "phrases" in insight["evidence"]
+
+
+_SIMILAR_VERSES = (
+    "[verse]\nThe sky above is wide and blue\nThe road below is long and true\n"
+    "\n[verse]\nThe sky above is wide and blue\nThe road below is long and true\n"
+    "\n[chorus]\nWe sing tonight\nWe sing forever"
+)
+
+_PERSPECTIVE_FLIP = (
+    "[verse]\nI walk alone tonight\nI hold my dreams in sight\nI never let them go\nI keep them safe and slow\n"
+    "\n[chorus]\nYou take your time and shine\nYou give your heart for mine\nYou call across the night\nYou make the morning right"
+)
+
+
+def test_analyze_draft_with_section_contrast_option(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={
+            "language": "en",
+            "content": _SIMILAR_VERSES,
+            "options": {"include_section_contrast": True},
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["capabilities"]["section_contrast"] == "full"
+    contrasts = [i for i in body["insights"] if i["type"] == "section_contrast"]
+    assert contrasts, "expected a section_contrast insight"
+    assert contrasts[0]["evidence"]["contrast_kind"] == "over_similarity"
+
+
+def test_analyze_draft_with_consistency_hints_option(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={
+            "language": "en",
+            "content": _PERSPECTIVE_FLIP,
+            "options": {"include_consistency_hints": True},
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["capabilities"]["consistency_hints"] == "full"
+    drifts = [i for i in body["insights"] if i["type"] == "perspective_drift"]
+    assert drifts, "expected a perspective_drift insight"
+
+
+def test_analyze_draft_consistency_hints_spanish_is_partial(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={
+            "language": "es",
+            "content": "Yo canto solo\nYo busco la luz\n\nTú vienes ya\nTú llamas hoy",
+            "options": {"include_consistency_hints": True},
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["capabilities"]["consistency_hints"] == "partial"
+
+
+def test_default_request_keeps_m4_capabilities_unsupported(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={"language": "en", "content": _DRAFT},
+    )
+    body = resp.json()
+    assert body["capabilities"]["section_contrast"] == "unsupported"
+    assert body["capabilities"]["consistency_hints"] == "unsupported"
+    types = {i["type"] for i in body["insights"]}
+    assert "section_contrast" not in types
+    assert "perspective_drift" not in types
+    assert "tense_drift" not in types
+
+
+def test_chorus_repetition_ending_demoted_to_info(client: TestClient) -> None:
+    # Two chorus lines closing on "tonight" — Phase 4 emits repetition_ending
+    # at severity "info" already; the demotion pass keeps it at "info" but
+    # tags the evidence with hook_context.
+    draft = (
+        "[chorus]\nWe sing tonight\nWe dance tonight\n"
+        "\n[verse]\nThe stars are bright\nThe river flows"
+    )
+    resp = client.post(
+        "/v1/analyze-draft", json={"language": "en", "content": draft}
+    )
+    body = resp.json()
+    rep_endings = [
+        i for i in body["insights"]
+        if i["type"] == "repetition_ending" and i["target"] is not None
+    ]
+    assert rep_endings, "expected a repetition_ending insight in the chorus"
+    chorus_id = next(
+        s["id"] for s in body["sections"] if s["label"] == "chorus"
+    )
+    chorus_rep = next(i for i in rep_endings if i["target"] == chorus_id)
+    assert chorus_rep["evidence"] == {"hook_context": True}
+
+
+def test_analyze_draft_with_motif_tracking_option(client: TestClient) -> None:
+    motif_draft = (
+        "[verse]\nThe fire on the hill is burning\nThe fire in my chest still calls\n"
+        "\n[chorus]\nAll we have is fire and ashes\nAll we have is fire and rain"
+    )
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={
+            "language": "en",
+            "content": motif_draft,
+            "options": {"include_motif_tracking": True},
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["capabilities"]["motif_tracking"] == "full"
+    assert "fire" in body["summary"]["motifs"]

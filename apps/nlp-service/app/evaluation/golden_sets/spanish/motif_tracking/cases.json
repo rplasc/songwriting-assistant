@@ -1,0 +1,13 @@
+{
+  "$schema_note": "Phase 5 M3 motif-tracking golden set (Spanish).",
+  "kind": "draft_motif_tracking",
+  "cases": [
+    {
+      "language": "es",
+      "name": "fuego_motivo",
+      "content": "[verse]\nEl fuego en la colina arde\nEl fuego en mi pecho llama\n\n[chorus]\nSolo tenemos fuego y cenizas\nSolo tenemos fuego y lluvia",
+      "expected_motifs": ["fuego"],
+      "notes": "'fuego' aparece en varias secciones; motivo claro."
+    }
+  ]
+}

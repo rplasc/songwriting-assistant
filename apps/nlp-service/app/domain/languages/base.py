@@ -56,6 +56,12 @@ class LanguageEngine(ABC):
     default_mode: str
     key_specs: tuple[KeySpec, ...]
     match_reasons: dict[str, str]
+    # Closed-class words used by the phrase-ending extractor; default empty
+    # so engines that don't ship phrase-ending support degrade gracefully.
+    function_words: frozenset[str] = frozenset()
+    # Engines with at least one stressed multi-syllable example in their
+    # corpus set this True so the route handler can expose the capability.
+    multisyllabic_supported: bool = False
 
     @abstractmethod
     def normalize_word(self, text: str | None) -> str | None: ...

@@ -12,6 +12,7 @@ from app.domain.languages.spanish import SpanishEngine
 from app.repositories.cmudict_repository import CmuDictRepository
 from app.repositories.spanish_corpus import SpanishCorpus
 from app.services.draft_analysis_service import DraftAnalysisService
+from app.services.draft_nlp_service import DraftNlpService
 from app.services.language_router import LanguageContext, LanguageRouter
 from app.services.pronunciation_service import PronunciationService
 from app.services.rhyme_index import RhymeIndex, warm_frequency_cache
@@ -79,7 +80,10 @@ async def lifespan(app: FastAPI):
 
     router = LanguageRouter({"en": en_ctx, "es": es_ctx})
     app.state.language_router = router
-    app.state.draft_analysis_service = DraftAnalysisService()
+    with timed(logger, "startup.build_draft_nlp"):
+        nlp_service = DraftNlpService()
+    app.state.draft_nlp_service = nlp_service
+    app.state.draft_analysis_service = DraftAnalysisService(nlp_service=nlp_service)
 
     # Legacy single-language attributes preserved so any external callers or
     # tests reaching into ``app.state`` directly continue to work. New code

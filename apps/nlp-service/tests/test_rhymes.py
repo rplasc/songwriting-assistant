@@ -9,7 +9,13 @@ def test_rhymes_known_word(client: TestClient) -> None:
     assert body["pronunciations_found"] is True
     assert len(body["rhymes"]) > 0
     assert all(r["word"] != "fire" for r in body["rhymes"])
-    assert body["meta"] == {"limit": 10, "mode": "perfect", "include_near": False}
+    assert body["meta"]["limit"] == 10
+    assert body["meta"]["mode"] == "perfect"
+    assert body["meta"]["include_near"] is False
+    assert body["meta"]["target_type"] == "word"
+    assert body["meta"]["query_span"] is None
+    assert body["meta"]["capabilities"]["multisyllabic"] == "full"
+    assert body["meta"]["capabilities"]["phrase_ending"] == "full"
     assert all(r["rhyme_type"] == "perfect" for r in body["rhymes"])
     assert all(0.0 <= r["score"] <= 1.0 for r in body["rhymes"])
     # Without include_metadata, match_reason should be omitted/null.
@@ -161,3 +167,132 @@ def test_rhymes_inflection_does_not_top_results(client: TestClient) -> None:
     words = [r["word"] for r in body["rhymes"]]
     if "runs" in words:
         assert words.index("runs") > 0
+
+
+# --- Phase 5 M1: rhyme_family annotation, multisyllabic mode, phrase_ending ---
+
+
+def test_rhymes_every_candidate_carries_rhyme_family(client: TestClient) -> None:
+    """Phase 5 contract: every successful candidate has a non-null family
+    drawn from the published taxonomy."""
+    resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 10})
+    body = resp.json()
+    assert body["rhymes"]
+    legal = {"perfect", "multisyllabic", "near", "assonant", "consonant"}
+    families = {r["rhyme_family"] for r in body["rhymes"]}
+    assert None not in families
+    assert families <= legal
+
+
+def test_rhymes_long_match_classifies_as_multisyllabic(client: TestClient) -> None:
+    """A dactylic query like 'wonderful' returns family-tier candidates
+    that should be labeled as multisyllabic family-wise."""
+    resp = client.post("/v1/rhymes", json={"word": "wonderful", "limit": 20})
+    body = resp.json()
+    families = {r["rhyme_family"] for r in body["rhymes"]}
+    assert "multisyllabic" in families
+
+
+def test_rhymes_matched_span_defaults_to_candidate_word(client: TestClient) -> None:
+    resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 5})
+    for r in resp.json()["rhymes"]:
+        assert r["matched_span"] == r["word"]
+
+
+def test_rhymes_multisyllabic_mode_returns_only_multi_tier(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/rhymes",
+        json={"word": "wonderful", "mode": "multisyllabic", "limit": 10},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meta"]["mode"] == "multisyllabic"
+    if body["rhymes"]:
+        assert all(r["rhyme_type"] == "multisyllabic" for r in body["rhymes"])
+        assert all(r["rhyme_family"] == "multisyllabic" for r in body["rhymes"])
+
+
+def test_rhymes_multisyllabic_mode_empty_for_short_word(client: TestClient) -> None:
+    # "cat" has only one vowel in its stressed tail -> no multisyllabic key.
+    resp = client.post(
+        "/v1/rhymes",
+        json={"word": "cat", "mode": "multisyllabic", "limit": 10},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["rhymes"] == []
+
+
+def test_rhymes_phrase_ending_accepts_multi_token_input(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/rhymes",
+        json={"word": "hold me", "target_type": "phrase_ending", "limit": 10},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meta"]["target_type"] == "phrase_ending"
+    assert body["meta"]["query_span"] == "hold me"
+    # Phrase_ending falls through to the language default (perfect for
+    # English); callers opt into multisyllabic explicitly.
+    assert body["meta"]["mode"] == "perfect"
+    # The concatenated span phonemes anchor on the final stressed vowel,
+    # so "hold me" rhymes the way "me" would — many single-syllable
+    # candidates ending in /iː/.
+    assert body["rhymes"]
+
+
+def test_rhymes_phrase_ending_trims_leading_function_words(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/rhymes",
+        json={
+            "word": "in the night",
+            "target_type": "phrase_ending",
+            "limit": 5,
+        },
+    )
+    body = resp.json()
+    # Span is the *trimmed* ending — "in" and "the" are leading function
+    # words and don't enter the phonetic lookup.
+    assert body["meta"]["query_span"] == "night"
+    assert body["normalized_word"] == "night"
+
+
+def test_rhymes_rejects_multi_word_for_word_target(client: TestClient) -> None:
+    # Existing rule: target_type="word" still rejects multi-token input.
+    resp = client.post("/v1/rhymes", json={"word": "two words"})
+    assert resp.status_code == 422
+
+
+def test_rhymes_capabilities_block_present(client: TestClient) -> None:
+    resp = client.post("/v1/rhymes", json={"word": "fire"})
+    caps = resp.json()["meta"]["capabilities"]
+    assert caps["multisyllabic"] == "full"
+    assert caps["phrase_ending"] == "full"
+
+
+# --- Phase 5 M2 ---
+
+
+def test_phrase_ending_excludes_all_span_tokens(client: TestClient) -> None:
+    """No span token may resurface as a candidate -- recommending the
+    user's own line ending back to them is editorially useless."""
+    resp = client.post(
+        "/v1/rhymes",
+        json={"word": "walking away", "target_type": "phrase_ending", "limit": 10},
+    )
+    body = resp.json()
+    words = {r["word"] for r in body["rhymes"]}
+    assert "walking" not in words
+    assert "away" not in words
+
+
+def test_top_results_for_high_cluster_query_are_diversified(client: TestClient) -> None:
+    """A query like 'fire' has rich phonetic variety in its rhymes (wire,
+    higher, choir, buyer, liar, ...). The soft diversity pass should keep
+    the top-10 covering multiple 3-char suffix families, not collapsed
+    onto one."""
+    resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 10})
+    rhymes = resp.json()["rhymes"]
+    assert rhymes
+    suffixes = {r["word"][-3:] for r in rhymes if len(r["word"]) >= 3}
+    assert len(suffixes) >= 4, f"top-10 collapsed onto {suffixes}"

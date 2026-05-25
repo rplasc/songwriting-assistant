@@ -28,12 +28,24 @@ _STRESS_BONUS: float = 0.03
 _BASE_CONSONANT: float = 0.80
 _BASE_ASSONANT: float = 0.62
 
+# Multisyllabic matches are strictly stronger than single-syllable perfect
+# matches (more shared phonemes), so they sit slightly above perfect/consonant.
+_BASE_MULTISYLLABIC: float = 0.85
+
+# Scale a small bonus by the length of the shared stressed tail.
+# Fires only when BOTH query and candidate carry a multisyllabic key, so it
+# never affects single-vowel-tail queries like "cat" or "fire". The
+# normaliser saturates around 4 vowels + 4 consonants of shared tail.
+_MULTISYLLABIC_LEN_BONUS: float = 0.05
+_MULTISYLLABIC_LEN_NORMALISER: int = 8
+
 _BASE_BY_TYPE: dict[str, float] = {
     "perfect": _BASE_PERFECT,
     "family": _BASE_FAMILY,
     "near": _BASE_NEAR,
     "consonant": _BASE_CONSONANT,
     "assonant": _BASE_ASSONANT,
+    "multisyllabic": _BASE_MULTISYLLABIC,
 }
 
 # Editorial penalties for low-value rhymes.
@@ -67,6 +79,7 @@ def score_entries(
     rhyme_type: str,
     limit: int,
     query_syllables: int | None = None,
+    query_multisyllabic_len: int | None = None,
     engine: LanguageEngine,
 ) -> list[ScoredCandidate]:
     """Score pre-filtered rhyme entries and return the top `limit` ordered.
@@ -104,6 +117,11 @@ def score_entries(
             score += _SYLLABLE_BONUS
         if query_stress is not None and engine.stress_signature(word) == query_stress:
             score += _STRESS_BONUS
+        if query_multisyllabic_len and e.multisyllabic_tail_phonemes:
+            shared = min(query_multisyllabic_len, e.multisyllabic_tail_phonemes)
+            score += _MULTISYLLABIC_LEN_BONUS * min(
+                shared / _MULTISYLLABIC_LEN_NORMALISER, 1.0
+            )
         if word in inflection_set:
             score -= _INFLECTION_PENALTY
         elif engine.shares_stem(query, word):

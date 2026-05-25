@@ -1,0 +1,33 @@
+{
+  "$schema_note": "Phase 5 M1 Spanish phrase-ending golden set.",
+  "limit": 10,
+  "cases": [
+    {
+      "query": "en la noche",
+      "language": "es",
+      "target_type": "phrase_ending",
+      "expected_span": "noche",
+      "expected_any_of": ["coche", "broche", "boche", "reproche"],
+      "must_not_include": ["noche"],
+      "notes": "Article + preposition trimmed; rhymes on /oʧe/."
+    },
+    {
+      "query": "ventana abierta",
+      "language": "es",
+      "target_type": "phrase_ending",
+      "expected_span": "ventana abierta",
+      "expected_any_of": ["puerta", "cierta", "oferta", "alerta", "cubierta", "despierta"],
+      "must_not_include": ["abierta"],
+      "notes": "Two-content-word span; tail anchored on stressed E1 of abierta."
+    },
+    {
+      "query": "por el camino",
+      "language": "es",
+      "target_type": "phrase_ending",
+      "expected_span": "camino",
+      "expected_any_of": ["destino", "vino", "fino", "divino", "pino"],
+      "must_not_include": ["camino"],
+      "notes": "Tail anchored on stressed I1_N_O0."
+    }
+  ]
+}

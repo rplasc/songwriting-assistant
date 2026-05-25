@@ -9,6 +9,7 @@ from wordfreq import word_frequency
 
 from app.domain.languages.base import CandidateTier, KeySpec, LanguageEngine
 from app.domain.languages.spanish.data.pr_slang import PR_SLANG
+from app.domain.languages.spanish.function_words import SPANISH_FUNCTION_WORDS
 from app.domain.languages.spanish.inflection import (
     inflection_forms as _es_inflection_forms,
     is_same_stem_inflection as _es_is_same_stem_inflection,
@@ -20,6 +21,7 @@ from app.domain.languages.spanish.rhyme_rules import (
 )
 from app.domain.languages.spanish.stress import stress_signature as _es_stress_signature
 from app.domain.languages.spanish.syllabification import syllabify
+from app.domain.rhyme.multisyllabic_rules import multisyllabic_rhyme_key
 from app.models.token import Token
 
 if TYPE_CHECKING:
@@ -49,15 +51,19 @@ def _spanish_tokenize_line(line: str) -> list[Token]:
 
 class SpanishEngine(LanguageEngine):
     code = "es"
-    supported_modes = ("consonant", "assonant")
+    supported_modes = ("consonant", "assonant", "multisyllabic")
     default_mode = "consonant"
+    function_words = SPANISH_FUNCTION_WORDS
+    multisyllabic_supported = True
     key_specs = (
         KeySpec(name="consonant", fn=consonant_rhyme_key),
         KeySpec(name="assonant", fn=assonant_rhyme_key),
+        KeySpec(name="multisyllabic", fn=multisyllabic_rhyme_key),
     )
     match_reasons = {
         "consonant": "shared ending from stressed vowel",
         "assonant": "shared vowel pattern from stressed vowel",
+        "multisyllabic": "shared multisyllabic ending",
     }
 
     def normalize_word(self, text: str | None) -> str | None:
@@ -97,6 +103,13 @@ class SpanishEngine(LanguageEngine):
         mode: str,
         query_syllables: int,
     ) -> list[CandidateTier]:
+        if mode == "multisyllabic":
+            multi_keys = index.keys_for("multisyllabic", phonemes_list)
+            multi_words = index.words_for(
+                "multisyllabic", multi_keys, exclude=normalized
+            )
+            return [CandidateTier(name="multisyllabic", words=multi_words)]
+
         consonant_keys = index.keys_for("consonant", phonemes_list)
         assonant_keys = index.keys_for("assonant", phonemes_list)
 

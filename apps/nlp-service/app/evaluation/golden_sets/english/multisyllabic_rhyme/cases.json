@@ -1,0 +1,41 @@
+{
+  "$schema_note": "Phase 5 M1 multisyllabic golden set. mode='multisyllabic' is strict: results require both query and candidate to share a >=2-vowel stressed tail. Many dactylic queries return 0 results, which is honest. We seed cases known to have at least one corpus match.",
+  "limit": 10,
+  "cases": [
+    {
+      "query": "ridiculous",
+      "mode": "multisyllabic",
+      "expected_any_of": ["meticulous"],
+      "must_not_include": ["ridiculous"],
+      "notes": "Canonical multisyllabic English pair."
+    },
+    {
+      "query": "running",
+      "mode": "multisyllabic",
+      "expected_any_of": ["sunning", "stunning", "shunning", "punning", "gunning"],
+      "must_not_include": ["running"],
+      "notes": "2-syllable stressed tail UH1_N_IH0_NG."
+    },
+    {
+      "query": "swimming",
+      "mode": "multisyllabic",
+      "expected_any_of": ["dimming", "skimming", "trimming", "brimming"],
+      "must_not_include": ["swimming"],
+      "notes": "IH1_M_IH0_NG tail."
+    },
+    {
+      "query": "morning",
+      "mode": "multisyllabic",
+      "expected_any_of": ["warning", "scorning", "mourning", "storming"],
+      "must_not_include": ["morning"],
+      "notes": "AO1_R_N_IH0_NG / closely related tails."
+    },
+    {
+      "query": "meticulous",
+      "mode": "multisyllabic",
+      "expected_any_of": ["ridiculous"],
+      "must_not_include": ["meticulous"],
+      "notes": "Phase 5 M2: long shared tail beats short. The multisyllabic length bonus should keep ridiculous near the top."
+    }
+  ]
+}

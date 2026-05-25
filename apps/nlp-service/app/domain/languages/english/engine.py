@@ -12,8 +12,10 @@ from wordfreq import word_frequency
 
 from app.domain.heuristic_g2p import heuristic_phoneme_tails
 from app.domain.languages.base import CandidateTier, KeySpec, LanguageEngine
+from app.domain.languages.english.function_words import ENGLISH_FUNCTION_WORDS
 from app.domain.near_rhyme_rules import near_rhyme_key
 from app.domain.normalization import normalize_word
+from app.domain.rhyme.multisyllabic_rules import multisyllabic_rhyme_key
 from app.domain.rhyme_rules import family_rhyme_key, rhyme_key
 from app.domain.tokenization import tokenize_line
 from app.models.token import Token
@@ -85,17 +87,21 @@ def _english_heuristic_syllable_count(word: str) -> int:
 
 class EnglishEngine(LanguageEngine):
     code = "en"
-    supported_modes = ("perfect", "near")
+    supported_modes = ("perfect", "near", "multisyllabic")
     default_mode = "perfect"
+    function_words = ENGLISH_FUNCTION_WORDS
+    multisyllabic_supported = True
     key_specs = (
         KeySpec(name="perfect", fn=rhyme_key),
         KeySpec(name="family", fn=family_rhyme_key),
         KeySpec(name="near", fn=near_rhyme_key),
+        KeySpec(name="multisyllabic", fn=multisyllabic_rhyme_key),
     )
     match_reasons = {
         "perfect": "shared stressed ending",
         "family": "shared trailing syllable",
         "near": "shared vowel with similar consonants",
+        "multisyllabic": "shared multisyllabic ending",
     }
 
     def normalize_word(self, text: str | None) -> str | None:
@@ -125,6 +131,13 @@ class EnglishEngine(LanguageEngine):
         mode: str,
         query_syllables: int,
     ) -> list[CandidateTier]:
+        if mode == "multisyllabic":
+            multi_keys = index.keys_for("multisyllabic", phonemes_list)
+            multi_words = index.words_for(
+                "multisyllabic", multi_keys, exclude=normalized
+            )
+            return [CandidateTier(name="multisyllabic", words=multi_words)]
+
         perfect_keys = index.keys_for("perfect", phonemes_list)
         family_keys = index.keys_for("family", phonemes_list)
         near_keys = index.keys_for("near", phonemes_list)

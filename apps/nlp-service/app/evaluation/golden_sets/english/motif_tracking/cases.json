@@ -1,0 +1,13 @@
+{
+  "$schema_note": "Phase 5 M3 motif-tracking golden set. Each case posts a draft to /v1/analyze-draft with include_motif_tracking=true and asserts that summary.motifs contains at least one of expected_motifs.",
+  "kind": "draft_motif_tracking",
+  "cases": [
+    {
+      "language": "en",
+      "name": "fire_motif",
+      "content": "[verse]\nThe fire on the hill is burning\nThe fire in my chest still calls\n\n[chorus]\nAll we have is fire and ashes\nAll we have is fire and rain",
+      "expected_motifs": ["fire"],
+      "notes": "'fire' recurs in both verse and chorus; clear motif."
+    }
+  ]
+}

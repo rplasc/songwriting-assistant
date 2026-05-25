@@ -1,0 +1,13 @@
+{
+  "$schema_note": "Phase 5 M3 semantic-repetition golden set (Spanish).",
+  "kind": "draft_semantic_repetition",
+  "cases": [
+    {
+      "language": "es",
+      "name": "oir_imagen",
+      "content": "Oigo tu sombra en el pasillo\nOigo tus pasos en el suelo",
+      "expected_lemmas_any_of": ["oír", "sombra", "paso"],
+      "notes": "Ambas líneas reusan la imagen de escuchar; deben agruparse."
+    }
+  ]
+}

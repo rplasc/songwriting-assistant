@@ -1,0 +1,55 @@
+{
+  "$schema_note": "Phase 5 M1 phrase-ending golden set. Each case must keep at least one entry from `expected_any_of` in the top-N response. Failures are an input to M2 ranking work, not necessarily a regression.",
+  "limit": 10,
+  "cases": [
+    {
+      "query": "in the night",
+      "target_type": "phrase_ending",
+      "expected_span": "night",
+      "expected_any_of": ["light", "right", "fight", "bright", "sight", "might"],
+      "must_not_include": ["the", "in"],
+      "notes": "Leading function words trimmed; anchors on 'night'."
+    },
+    {
+      "query": "hold me",
+      "target_type": "phrase_ending",
+      "expected_span": "hold me",
+      "expected_any_of": ["see", "be", "we", "tree", "free", "key", "tea", "agree"],
+      "must_not_include": ["me", "hold"],
+      "notes": "Last word 'me' stressed; rhymes on /iː/."
+    },
+    {
+      "query": "of my heart",
+      "target_type": "phrase_ending",
+      "expected_span": "heart",
+      "expected_any_of": ["start", "part", "art", "smart", "apart"],
+      "must_not_include": ["my", "of"],
+      "notes": "Preposition + possessive trimmed; anchors on 'heart'."
+    },
+    {
+      "query": "walking away",
+      "target_type": "phrase_ending",
+      "expected_span": "walking away",
+      "expected_any_of": ["day", "say", "way", "stay", "play", "today"],
+      "must_not_include": ["away"],
+      "notes": "Final stressed /eɪ/ pulls in many natural rhymes."
+    },
+    {
+      "query": "by the sea",
+      "target_type": "phrase_ending",
+      "expected_span": "sea",
+      "expected_any_of": ["be", "see", "tree", "free", "me", "we"],
+      "must_not_include": ["sea", "by", "the"],
+      "notes": "Article + preposition trimmed."
+    },
+    {
+      "query": "walking away",
+      "target_type": "phrase_ending",
+      "expected_span": "walking away",
+      "expected_any_of": ["day", "say", "way", "stay", "play", "today"],
+      "must_not_include": ["walking", "away"],
+      "max_cluster_share": 0.7,
+      "notes": "Phase 5 M2: span tokens stay excluded after ranking; diversity keeps top-10 from collapsing onto a single suffix."
+    }
+  ]
+}

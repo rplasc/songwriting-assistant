@@ -9,8 +9,18 @@ from app.services.rhyme_index import RhymeEntry
 _engine = EnglishEngine()
 
 
-def _entry(word: str, syllables: int = 1, frequency: float = 1e-4) -> RhymeEntry:
-    return RhymeEntry(word=word, syllables=syllables, frequency=frequency)
+def _entry(
+    word: str,
+    syllables: int = 1,
+    frequency: float = 1e-4,
+    multisyllabic_tail_phonemes: int = 0,
+) -> RhymeEntry:
+    return RhymeEntry(
+        word=word,
+        syllables=syllables,
+        frequency=frequency,
+        multisyllabic_tail_phonemes=multisyllabic_tail_phonemes,
+    )
 
 
 def test_inflection_detected() -> None:
@@ -74,6 +84,54 @@ def test_family_score_between_perfect_and_near() -> None:
         [_entry("higher")], query="fire", rhyme_type="near", limit=10, engine=_engine
     )
     assert perfect[0].score > family[0].score > near[0].score
+
+
+def test_multisyllabic_length_bonus_applied() -> None:
+    """A candidate with a long shared stressed tail scores above one
+    without when both query and candidate have multisyllabic keys."""
+    with_tail = score_entries(
+        [_entry("meticulous", syllables=4, multisyllabic_tail_phonemes=7)],
+        query="ridiculous",
+        rhyme_type="perfect",
+        limit=10,
+        query_syllables=4,
+        query_multisyllabic_len=7,
+        engine=_engine,
+    )
+    without_tail = score_entries(
+        [_entry("meticulous", syllables=4, multisyllabic_tail_phonemes=0)],
+        query="ridiculous",
+        rhyme_type="perfect",
+        limit=10,
+        query_syllables=4,
+        query_multisyllabic_len=7,
+        engine=_engine,
+    )
+    assert with_tail[0].score > without_tail[0].score
+
+
+def test_multisyllabic_bonus_inert_for_short_queries() -> None:
+    """When the query has no multisyllabic key, the bonus must not fire
+    even if the candidate has a long tail (otherwise a 'cat' lookup would
+    drift toward unrelated multisyllabic candidates)."""
+    no_query_len = score_entries(
+        [_entry("hat", syllables=1, multisyllabic_tail_phonemes=0)],
+        query="cat",
+        rhyme_type="perfect",
+        limit=10,
+        query_syllables=1,
+        query_multisyllabic_len=None,
+        engine=_engine,
+    )
+    baseline = score_entries(
+        [_entry("hat", syllables=1, multisyllabic_tail_phonemes=0)],
+        query="cat",
+        rhyme_type="perfect",
+        limit=10,
+        query_syllables=1,
+        engine=_engine,
+    )
+    assert no_query_len[0].score == baseline[0].score
 
 
 def test_syllable_match_bonus_applied() -> None:

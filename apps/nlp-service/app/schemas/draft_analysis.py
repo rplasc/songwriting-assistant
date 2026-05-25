@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -8,6 +8,7 @@ Language = Literal["en", "es"]
 CapabilityLevel = Literal["full", "partial", "unsupported"]
 CadenceClass = Literal["consistent", "mixed", "varied"]
 InsightSeverity = Literal["info", "low", "medium", "high"]
+InsightConfidence = Literal["low", "medium", "high"]
 RhymeConfidence = Literal["full", "partial"]
 
 
@@ -30,11 +31,19 @@ class SectionInput(BaseModel):
         return s or None
 
 
+class DraftAnalysisOptions(BaseModel):
+    include_semantic_repetition: bool = False
+    include_motif_tracking: bool = False
+    include_section_contrast: bool = False
+    include_consistency_hints: bool = False
+
+
 class DraftAnalysisRequest(BaseModel):
     language: Language = "en"
     title: str | None = Field(default=None, max_length=200)
     content: str = Field(min_length=1, max_length=_MAX_DRAFT_CHARS)
     sections: list[SectionInput] | None = Field(default=None, max_length=_MAX_SECTIONS)
+    options: DraftAnalysisOptions | None = None
 
     @field_validator("content")
     @classmethod
@@ -50,6 +59,10 @@ class Capabilities(BaseModel):
     stress_hints: CapabilityLevel
     repetition: CapabilityLevel
     mixed_language: CapabilityLevel
+    semantic_repetition: CapabilityLevel = "unsupported"
+    motif_tracking: CapabilityLevel = "unsupported"
+    section_contrast: CapabilityLevel = "unsupported"
+    consistency_hints: CapabilityLevel = "unsupported"
 
 
 class RepetitionSignal(BaseModel):
@@ -76,6 +89,7 @@ class DraftSummary(BaseModel):
     line_count: int
     total_syllables: int
     notable_patterns: list[str]
+    motifs: list[str] = []
 
 
 class Insight(BaseModel):
@@ -84,6 +98,8 @@ class Insight(BaseModel):
     target: str | None
     severity: InsightSeverity
     message: str
+    evidence: dict[str, Any] | None = None
+    confidence: InsightConfidence | None = None
 
 
 class DraftAnalysisResponse(BaseModel):

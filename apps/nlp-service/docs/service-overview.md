@@ -166,6 +166,35 @@ The `UnsupportedLanguageError` and `UnsupportedModeError` raised by the language
 
 ---
 
+## 10. `DraftNlpService` constructed once at startup
+
+**Decision:** New changes added a `DraftNlpService` that holds per-language
+`SimplemmaLemmatizer` instances. It is constructed once in the FastAPI `lifespan` hook
+(alongside the per-language `LanguageContext` bundles) and injected into
+`DraftAnalysisService` via its constructor.
+
+**Reasoning:**
+
+`simplemma` performs a small amount of initialization work on first use per language. If
+`DraftNlpService` were constructed per-request, that initialization cost would be paid on
+every draft analysis call. Building it once at startup amortises the cost across the
+service lifetime, matching the pattern used for rhyme indexes.
+
+`DraftNlpService` is intentionally separate from the per-language `LanguageContext`. It
+does not belong to a single language — it holds instances for all supported languages and
+dispatches at call time based on the requested language. Attaching it to one language
+bundle would either require duplicating it or creating an awkward cross-bundle reference.
+
+**Tradeoffs:**
+
+- `DraftNlpService` must be updated when a new language is added (a new
+  `SimplemmaLemmatizer` entry in its constructor). This is a small but real addition to
+  the "add a language" checklist alongside the `LanguageContext` registration.
+- The service is stateless after construction (all caches are per-call, not shared across
+  requests). Thread safety is trivial.
+
+---
+
 ## Further reading
 
 - [`bilingual.md`](./bilingual.md) — the cross-cutting language contract: what is shared, what is per-language, what FastAPI guarantees the gateway.

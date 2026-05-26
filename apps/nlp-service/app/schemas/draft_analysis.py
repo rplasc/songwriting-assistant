@@ -1,11 +1,13 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
+from app.schemas.anchors import InsightAnchor
+from app.schemas.capability import Capabilities
+from app.schemas.evidence import TypedEvidence
 
 Language = Literal["en", "es"]
-CapabilityLevel = Literal["full", "partial", "unsupported"]
 CadenceClass = Literal["consistent", "mixed", "varied"]
 InsightSeverity = Literal["info", "low", "medium", "high"]
 InsightConfidence = Literal["low", "medium", "high"]
@@ -53,18 +55,6 @@ class DraftAnalysisRequest(BaseModel):
         return v
 
 
-class Capabilities(BaseModel):
-    rhyme_scheme: CapabilityLevel
-    cadence_patterns: CapabilityLevel
-    stress_hints: CapabilityLevel
-    repetition: CapabilityLevel
-    mixed_language: CapabilityLevel
-    semantic_repetition: CapabilityLevel = "unsupported"
-    motif_tracking: CapabilityLevel = "unsupported"
-    section_contrast: CapabilityLevel = "unsupported"
-    consistency_hints: CapabilityLevel = "unsupported"
-
-
 class RepetitionSignal(BaseModel):
     type: str
     value: str
@@ -90,16 +80,25 @@ class DraftSummary(BaseModel):
     total_syllables: int
     notable_patterns: list[str]
     motifs: list[str] = []
+    insight_count: int = 0
+    family_counts: dict[str, int] = {}
 
 
 class Insight(BaseModel):
+    id: str
     type: str
     scope: Literal["draft", "section"]
     target: str | None
     severity: InsightSeverity
     message: str
-    evidence: dict[str, Any] | None = None
+    evidence: TypedEvidence | None = None
+    anchor: InsightAnchor | None = None
     confidence: InsightConfidence | None = None
+    hook_context: bool = False
+
+
+class DraftDetail(BaseModel):
+    sections: list[SectionAnalysis]
 
 
 class DraftAnalysisResponse(BaseModel):
@@ -107,5 +106,5 @@ class DraftAnalysisResponse(BaseModel):
     title: str | None
     capabilities: Capabilities
     summary: DraftSummary
-    sections: list[SectionAnalysis]
     insights: list[Insight]
+    detail: DraftDetail

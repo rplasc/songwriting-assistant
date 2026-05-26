@@ -2,11 +2,21 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from app.schemas.capability import Capability
+
 TokenSource = Literal["dictionary", "heuristic"]
 Language = Literal["en", "es"]
 RhymeFamily = Literal["perfect", "multisyllabic", "near", "assonant", "consonant"]
 RhymeTargetType = Literal["word", "phrase_ending"]
-Capability = Literal["full", "partial", "unsupported"]
+RhymeConfidence = Literal["high", "medium", "low"]
+EvidenceTag = Literal[
+    "shared_stressed_ending",
+    "shared_vowel_pattern",
+    "shared_consonant_tail",
+    "phrase_ending_match",
+    "heuristic_fallback",
+    "multisyllabic_key_match",
+]
 
 
 class HealthResponse(BaseModel):
@@ -18,41 +28,33 @@ class RhymeCandidate(BaseModel):
     syllables: int
     rhyme_type: str
     score: float
-    # New in Phase 5: editorial family label. Null only when the engine
-    # couldn't classify (e.g. legacy or unknown tier). Existing clients
-    # ignore the field.
     rhyme_family: RhymeFamily | None = None
-    # The matched ending span the candidate represents. For single-word
-    # candidates this is just the candidate word; phrase-ending candidate
-    # support arrives in a later milestone, but the field is reserved now
-    # so the contract is stable.
     matched_span: str | None = None
     match_reason: str | None = None
+    # Phase 5.5 productization fields. Filled by the route layer via the
+    # rhyme_evidence_tagger; defaults exist only so the service layer can
+    # construct a candidate without knowing about UI framing.
+    id: str = ""
+    confidence: RhymeConfidence = "low"
+    evidence_tags: list[EvidenceTag] = []
 
 
-class RhymeMeta(BaseModel):
-    limit: int
-    mode: str
-    # Deprecated alongside the request flag; mirrored so Phase 1 clients see the
-    # same shape they expect. Only meaningful for English (mode="near").
-    include_near: bool
-    # New in Phase 5 — additive optional fields. ``target_type`` echoes the
-    # request; ``query_span`` carries the extracted phrase-ending text when
-    # the request used ``target_type="phrase_ending"``; ``capabilities``
-    # exposes per-feature availability so clients can hide controls for
-    # features the engine has not implemented for a given language.
-    target_type: RhymeTargetType = "word"
-    query_span: str | None = None
-    capabilities: dict[str, Capability] = {}
+class RhymeSummary(BaseModel):
+    family_counts: dict[str, int] = {}
+    returned: int = 0
+    requested_limit: int = 0
 
 
 class RhymeResponse(BaseModel):
-    word: str
-    normalized_word: str | None
+    query: str
+    normalized_query: str | None
     language: Language
+    target_type: RhymeTargetType
+    mode: str
     pronunciations_found: bool
+    summary: RhymeSummary
     rhymes: list[RhymeCandidate]
-    meta: RhymeMeta
+    capabilities: dict[str, Capability]
 
 
 class TokenAnalysis(BaseModel):
@@ -61,9 +63,6 @@ class TokenAnalysis(BaseModel):
     syllables: int
     pronunciation_found: bool
     source: TokenSource = "dictionary"
-    # True when the engine fell back to a non-dictionary heuristic for this
-    # token. Mirrors ``source == "heuristic"`` but is explicit in the contract
-    # so clients can surface uncertainty without coupling to source strings.
     low_confidence: bool = False
 
 

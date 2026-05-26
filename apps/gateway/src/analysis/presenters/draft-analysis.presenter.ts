@@ -2,11 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { AnalysisStatus } from '../../common/enums/analysis-status.enum';
 import { Language } from '../../common/enums/language.enum';
 import {
-  DraftAnalysisCapabilities,
   DraftAnalysisResponse,
   DraftAnalysisSection,
   DraftAnalysisSummary,
 } from '../../fastapi/dto/fastapi-responses';
+import {
+  CapabilitiesPayload,
+  CapabilityPresenter,
+} from './capability.presenter';
+import { InsightPayload, InsightPresenter } from './insight.presenter';
+
+export interface DraftAnalysisDetail {
+  sections: DraftAnalysisSection[];
+}
 
 export interface DraftAnalysisPayload {
   draft_id: string | null;
@@ -17,9 +25,9 @@ export interface DraftAnalysisPayload {
     language: Language;
     title: string | null;
     summary: DraftAnalysisSummary;
-    sections: DraftAnalysisSection[];
-    insights: unknown[];
-    capabilities: DraftAnalysisCapabilities;
+    detail: DraftAnalysisDetail;
+    insights: InsightPayload[];
+    capabilities: CapabilitiesPayload;
   };
   meta: {
     request_id?: string;
@@ -29,6 +37,11 @@ export interface DraftAnalysisPayload {
 
 @Injectable()
 export class DraftAnalysisPresenter {
+  constructor(
+    private readonly capabilities: CapabilityPresenter,
+    private readonly insights: InsightPresenter,
+  ) {}
+
   toClient(input: {
     draftId: string | null;
     revisionHash: string;
@@ -36,11 +49,11 @@ export class DraftAnalysisPresenter {
     latencyMs: number;
     requestId?: string;
   }): DraftAnalysisPayload {
-    const caps = input.upstream.capabilities;
-    const anyCapabilityEnabled = Object.values(caps).some(
-      (v) => v !== 'unsupported',
-    );
-    const status: AnalysisStatus = anyCapabilityEnabled ? 'fresh' : 'unsupported';
+    const status: AnalysisStatus = this.capabilities.anyEnabled(
+      input.upstream.capabilities,
+    )
+      ? 'fresh'
+      : 'unsupported';
     return {
       draft_id: input.draftId,
       revision_hash: input.revisionHash,
@@ -50,9 +63,9 @@ export class DraftAnalysisPresenter {
         language: input.upstream.language,
         title: input.upstream.title,
         summary: input.upstream.summary,
-        sections: input.upstream.sections,
-        insights: input.upstream.insights,
-        capabilities: caps,
+        detail: { sections: input.upstream.detail.sections },
+        insights: this.insights.toClientList(input.upstream.insights),
+        capabilities: this.capabilities.toClient(input.upstream.capabilities),
       },
       meta: {
         request_id: input.requestId,

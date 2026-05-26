@@ -1,3 +1,11 @@
+import {
+  AnchorScope,
+  CapabilityKey,
+  CapabilityReasonCode,
+  CapabilityStatus,
+  InsightConfidence,
+  InsightSeverity,
+} from '../../common/enums/capability.enum';
 import { Language } from '../../common/enums/language.enum';
 
 export interface TokenAnalysis {
@@ -50,22 +58,24 @@ export interface RhymeResponse {
   meta: RhymeMeta;
 }
 
-export type CapabilityLevel = 'full' | 'partial' | 'unsupported';
-
-export interface DraftAnalysisCapabilities {
-  rhyme_scheme: CapabilityLevel;
-  cadence_patterns: CapabilityLevel;
-  stress_hints: CapabilityLevel;
-  repetition: CapabilityLevel;
-  mixed_language: CapabilityLevel;
+export interface UpstreamCapability {
+  status: CapabilityStatus;
+  reason_code: CapabilityReasonCode | null;
 }
+
+export type DraftAnalysisCapabilities = Record<CapabilityKey, UpstreamCapability>;
 
 export interface DraftAnalysisSummary {
   section_count: number;
   line_count: number;
   total_syllables: number;
   notable_patterns: string[];
+  motifs?: string[];
+  insight_count?: number;
+  family_counts?: Record<string, number>;
 }
+
+export type UpstreamRhymeConfidence = 'full' | 'partial' | null;
 
 export interface DraftAnalysisSection {
   id: string;
@@ -74,18 +84,86 @@ export interface DraftAnalysisSection {
   line_end: number;
   line_count: number;
   rhyme_scheme: string | null;
-  rhyme_scheme_confidence: number | null;
+  rhyme_scheme_confidence: UpstreamRhymeConfidence;
   syllable_pattern: number[];
   syllable_variance: number;
   cadence_class: string;
   repetition_signals: unknown[];
 }
 
+export interface UpstreamInsightAnchor {
+  scope: AnchorScope;
+  section_id: string | null;
+  line_start: number | null;
+  line_end: number | null;
+}
+
+/**
+ * FastAPI emits a discriminated union of ~19 evidence variants (each with a
+ * `kind` literal). M0/M1 keep the union structural so the gateway can pass
+ * it through without locking down every variant — concrete typing lands in
+ * M2 as the client starts consuming specific variants.
+ */
+export interface UpstreamTypedEvidence {
+  kind: string;
+  [key: string]: unknown;
+}
+
+export interface UpstreamInsight {
+  id: string;
+  type: string;
+  scope: 'draft' | 'section';
+  target: string | null;
+  severity: InsightSeverity;
+  message: string;
+  evidence: UpstreamTypedEvidence | null;
+  anchor: UpstreamInsightAnchor | null;
+  confidence: InsightConfidence | null;
+  hook_context: boolean;
+}
+
+export interface DraftDetail {
+  sections: DraftAnalysisSection[];
+}
+
 export interface DraftAnalysisResponse {
   language: Language;
   title: string | null;
-  summary: DraftAnalysisSummary;
-  sections: DraftAnalysisSection[];
-  insights: unknown[];
   capabilities: DraftAnalysisCapabilities;
+  summary: DraftAnalysisSummary;
+  insights: UpstreamInsight[];
+  detail: DraftDetail;
+}
+
+export interface DraftRevisionUpstream {
+  revision_hash: string;
+  analysis: DraftAnalysisResponse;
+}
+
+export interface CompareSummaryUpstream {
+  motif_delta_count: number;
+  repetition_delta_count: number;
+  section_delta_count: number;
+  consistency_delta_count: number;
+  family_counts: Record<string, number>;
+  unmatched_previous_section_ids: string[];
+  unmatched_current_section_ids: string[];
+}
+
+export interface CompareCapabilitiesUpstream {
+  compare_motifs: UpstreamCapability;
+  compare_repetition: UpstreamCapability;
+  compare_sections: UpstreamCapability;
+  compare_consistency: UpstreamCapability;
+}
+
+export interface DraftCompareResponse {
+  analysis_id: string;
+  language: Language;
+  title: string | null;
+  previous: DraftRevisionUpstream;
+  current: DraftRevisionUpstream;
+  summary: CompareSummaryUpstream;
+  insights: UpstreamInsight[];
+  capabilities: CompareCapabilitiesUpstream;
 }

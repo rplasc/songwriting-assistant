@@ -20,9 +20,37 @@ export interface AnalyzeDraftSection {
   line_end: number;
 }
 
+export interface AnalyzeDraftUpstreamOptions {
+  include_semantic_repetition?: boolean;
+  include_motif_tracking?: boolean;
+  include_section_contrast?: boolean;
+  include_consistency_hints?: boolean;
+}
+
 export interface AnalyzeDraftRequest {
   content: string;
   language?: Language;
   title?: string;
   sections?: AnalyzeDraftSection[];
+  options?: AnalyzeDraftUpstreamOptions;
+}
+
+export interface DraftCompareUpstreamSide {
+  content: string;
+  sections?: AnalyzeDraftSection[];
+}
+
+export interface DraftCompareUpstreamOptions {
+  compare_motifs?: boolean;
+  compare_repetition?: boolean;
+  compare_sections?: boolean;
+  compare_consistency?: boolean;
+}
+
+export interface AnalyzeDraftCompareRequest {
+  language?: Language;
+  title?: string;
+  previous: DraftCompareUpstreamSide;
+  current: DraftCompareUpstreamSide;
+  options?: DraftCompareUpstreamOptions;
 }

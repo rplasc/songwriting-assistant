@@ -5,25 +5,45 @@ def test_rhymes_known_word(client: TestClient) -> None:
     resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 10})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["normalized_word"] == "fire"
+    assert body["query"] == "fire"
+    assert body["normalized_query"] == "fire"
     assert body["pronunciations_found"] is True
     assert len(body["rhymes"]) > 0
     assert all(r["word"] != "fire" for r in body["rhymes"])
-    assert body["meta"]["limit"] == 10
-    assert body["meta"]["mode"] == "perfect"
-    assert body["meta"]["include_near"] is False
-    assert body["meta"]["target_type"] == "word"
-    assert body["meta"]["query_span"] is None
-    assert body["meta"]["capabilities"]["multisyllabic"] == "full"
-    assert body["meta"]["capabilities"]["phrase_ending"] == "full"
+    assert body["target_type"] == "word"
+    assert body["mode"] == "perfect"
+    assert body["summary"]["requested_limit"] == 10
+    assert body["summary"]["returned"] == len(body["rhymes"])
+    assert body["capabilities"]["multisyllabic"]["status"] == "full"
+    assert body["capabilities"]["phrase_ending"]["status"] == "full"
     assert all(r["rhyme_type"] == "perfect" for r in body["rhymes"])
     assert all(0.0 <= r["score"] <= 1.0 for r in body["rhymes"])
+    # Phase 5.5: every candidate gets an id, confidence, and evidence_tags.
+    assert all(r["id"].startswith("rhy_") for r in body["rhymes"])
+    assert all(r["confidence"] in {"high", "medium", "low"} for r in body["rhymes"])
+    assert all(isinstance(r["evidence_tags"], list) for r in body["rhymes"])
     # Without include_metadata, match_reason should be omitted/null.
     assert all(r["match_reason"] is None for r in body["rhymes"])
 
 
+def test_rhymes_summary_family_counts_match_candidates(client: TestClient) -> None:
+    resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 10})
+    body = resp.json()
+    counts = body["summary"]["family_counts"]
+    families = [r["rhyme_family"] for r in body["rhymes"] if r["rhyme_family"]]
+    for fam in set(families):
+        assert counts.get(fam) == families.count(fam)
+
+
+def test_rhyme_candidate_id_is_stable(client: TestClient) -> None:
+    a = client.post("/v1/rhymes", json={"word": "fire", "limit": 5}).json()
+    b = client.post("/v1/rhymes", json={"word": "fire", "limit": 5}).json()
+    ids_a = [r["id"] for r in a["rhymes"]]
+    ids_b = [r["id"] for r in b["rhymes"]]
+    assert ids_a == ids_b
+
+
 def test_rhymes_unknown_word_with_no_vowel_returns_empty(client: TestClient) -> None:
-    """The heuristic fallback needs a vowel as anchor; without one, nothing to do."""
     resp = client.post("/v1/rhymes", json={"word": "qzqzqz"})
     assert resp.status_code == 200
     body = resp.json()
@@ -32,7 +52,6 @@ def test_rhymes_unknown_word_with_no_vowel_returns_empty(client: TestClient) -> 
 
 
 def test_rhymes_misspelled_word_returns_heuristic_family(client: TestClient) -> None:
-    """Misspellings should still produce suggestions via spelling-derived tail."""
     resp = client.post("/v1/rhymes", json={"word": "wundurful", "limit": 20})
     assert resp.status_code == 200
     body = resp.json()
@@ -42,7 +61,6 @@ def test_rhymes_misspelled_word_returns_heuristic_family(client: TestClient) -> 
 
 
 def test_rhymes_made_up_word_returns_heuristic_family(client: TestClient) -> None:
-    """Made-up but pronounceable words get fallback suggestions."""
     resp = client.post("/v1/rhymes", json={"word": "glimble", "limit": 20})
     assert resp.status_code == 200
     body = resp.json()
@@ -62,7 +80,7 @@ def test_rhymes_limit_is_clamped(client: TestClient) -> None:
     resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 9999})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["meta"]["limit"] == 25
+    assert body["summary"]["requested_limit"] == 25
     assert len(body["rhymes"]) <= 25
 
 
@@ -75,8 +93,7 @@ def test_rhymes_near_mode_returns_near_type(client: TestClient) -> None:
     resp = client.post("/v1/rhymes", json={"word": "cat", "mode": "near", "limit": 10})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["meta"]["mode"] == "near"
-    assert body["meta"]["include_near"] is True
+    assert body["mode"] == "near"
     assert all(r["rhyme_type"] == "near" for r in body["rhymes"])
     # Perfect rhymes (e.g. "hat", "bat") should not show up inside the near bucket.
     near_words = {r["word"] for r in body["rhymes"]}
@@ -85,7 +102,6 @@ def test_rhymes_near_mode_returns_near_type(client: TestClient) -> None:
 
 
 def test_rhymes_near_and_perfect_are_disjoint(client: TestClient) -> None:
-    # "fire" is monosyllabic — perfect key == family key, so this was always passing.
     perfect = client.post("/v1/rhymes", json={"word": "fire", "limit": 25}).json()
     near = client.post(
         "/v1/rhymes", json={"word": "fire", "mode": "near", "limit": 25}
@@ -96,9 +112,6 @@ def test_rhymes_near_and_perfect_are_disjoint(client: TestClient) -> None:
 
 
 def test_rhymes_near_and_perfect_are_disjoint_polysyllabic(client: TestClient) -> None:
-    # Polysyllabic words have a distinct family key (last vowel != last stressed vowel).
-    # Before the fix, family-tier words appeared in BOTH perfect-mode and near-mode
-    # results because near mode only subtracted perfect rhymes, not family rhymes.
     perfect = client.post("/v1/rhymes", json={"word": "running", "limit": 25}).json()
     near = client.post(
         "/v1/rhymes", json={"word": "running", "mode": "near", "limit": 25}
@@ -113,7 +126,7 @@ def test_rhymes_include_near_flag_is_legacy_alias(client: TestClient) -> None:
     resp = client.post("/v1/rhymes", json={"word": "cat", "include_near": True})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["meta"]["mode"] == "near"
+    assert body["mode"] == "near"
 
 
 def test_rhymes_include_metadata_adds_match_reason(client: TestClient) -> None:
@@ -127,7 +140,6 @@ def test_rhymes_include_metadata_adds_match_reason(client: TestClient) -> None:
 
 
 def test_rhymes_wonderful_falls_back_to_family_tier(client: TestClient) -> None:
-    """Dactylic words have no true perfect rhymes; family tier should fill in."""
     resp = client.post("/v1/rhymes", json={"word": "wonderful", "limit": 20})
     assert resp.status_code == 200
     body = resp.json()
@@ -135,17 +147,13 @@ def test_rhymes_wonderful_falls_back_to_family_tier(client: TestClient) -> None:
     assert len(body["rhymes"]) > 0
     types = {r["rhyme_type"] for r in body["rhymes"]}
     assert "family" in types
-    # Each candidate's tag is one of the known tiers.
     assert types.issubset({"perfect", "family", "near"})
 
 
 def test_rhymes_perfect_mode_keeps_perfect_tier_first(client: TestClient) -> None:
-    """When the word has plenty of true perfect rhymes, perfect should fill top slots."""
     resp = client.post("/v1/rhymes", json={"word": "cat", "limit": 5})
     body = resp.json()
     assert len(body["rhymes"]) > 0
-    # The highest-ranked candidate should be a perfect rhyme — perfect tier runs first
-    # and carries the highest base score.
     assert body["rhymes"][0]["rhyme_type"] == "perfect"
 
 
@@ -161,7 +169,6 @@ def test_rhymes_family_match_reason_when_metadata_requested(client: TestClient) 
 
 
 def test_rhymes_inflection_does_not_top_results(client: TestClient) -> None:
-    """An inflected form of the query (`runs` for `run`) should not lead the list."""
     resp = client.post("/v1/rhymes", json={"word": "run", "limit": 10})
     body = resp.json()
     words = [r["word"] for r in body["rhymes"]]
@@ -173,8 +180,6 @@ def test_rhymes_inflection_does_not_top_results(client: TestClient) -> None:
 
 
 def test_rhymes_every_candidate_carries_rhyme_family(client: TestClient) -> None:
-    """Phase 5 contract: every successful candidate has a non-null family
-    drawn from the published taxonomy."""
     resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 10})
     body = resp.json()
     assert body["rhymes"]
@@ -185,8 +190,6 @@ def test_rhymes_every_candidate_carries_rhyme_family(client: TestClient) -> None
 
 
 def test_rhymes_long_match_classifies_as_multisyllabic(client: TestClient) -> None:
-    """A dactylic query like 'wonderful' returns family-tier candidates
-    that should be labeled as multisyllabic family-wise."""
     resp = client.post("/v1/rhymes", json={"word": "wonderful", "limit": 20})
     body = resp.json()
     families = {r["rhyme_family"] for r in body["rhymes"]}
@@ -206,14 +209,18 @@ def test_rhymes_multisyllabic_mode_returns_only_multi_tier(client: TestClient) -
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["meta"]["mode"] == "multisyllabic"
+    assert body["mode"] == "multisyllabic"
     if body["rhymes"]:
         assert all(r["rhyme_type"] == "multisyllabic" for r in body["rhymes"])
         assert all(r["rhyme_family"] == "multisyllabic" for r in body["rhymes"])
+        # Phase 5.5: multisyllabic candidates carry the multisyllabic key tag.
+        assert all(
+            "multisyllabic_key_match" in r["evidence_tags"]
+            for r in body["rhymes"]
+        )
 
 
 def test_rhymes_multisyllabic_mode_empty_for_short_word(client: TestClient) -> None:
-    # "cat" has only one vowel in its stressed tail -> no multisyllabic key.
     resp = client.post(
         "/v1/rhymes",
         json={"word": "cat", "mode": "multisyllabic", "limit": 10},
@@ -230,15 +237,12 @@ def test_rhymes_phrase_ending_accepts_multi_token_input(client: TestClient) -> N
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["meta"]["target_type"] == "phrase_ending"
-    assert body["meta"]["query_span"] == "hold me"
-    # Phrase_ending falls through to the language default (perfect for
-    # English); callers opt into multisyllabic explicitly.
-    assert body["meta"]["mode"] == "perfect"
-    # The concatenated span phonemes anchor on the final stressed vowel,
-    # so "hold me" rhymes the way "me" would — many single-syllable
-    # candidates ending in /iː/.
+    assert body["target_type"] == "phrase_ending"
+    assert body["query"] == "hold me"
+    assert body["mode"] == "perfect"
     assert body["rhymes"]
+    # Phrase ending matches get the phrase_ending_match tag.
+    assert all("phrase_ending_match" in r["evidence_tags"] for r in body["rhymes"])
 
 
 def test_rhymes_phrase_ending_trims_leading_function_words(client: TestClient) -> None:
@@ -251,31 +255,26 @@ def test_rhymes_phrase_ending_trims_leading_function_words(client: TestClient) -
         },
     )
     body = resp.json()
-    # Span is the *trimmed* ending — "in" and "the" are leading function
-    # words and don't enter the phonetic lookup.
-    assert body["meta"]["query_span"] == "night"
-    assert body["normalized_word"] == "night"
+    assert body["normalized_query"] == "night"
 
 
 def test_rhymes_rejects_multi_word_for_word_target(client: TestClient) -> None:
-    # Existing rule: target_type="word" still rejects multi-token input.
     resp = client.post("/v1/rhymes", json={"word": "two words"})
     assert resp.status_code == 422
 
 
 def test_rhymes_capabilities_block_present(client: TestClient) -> None:
     resp = client.post("/v1/rhymes", json={"word": "fire"})
-    caps = resp.json()["meta"]["capabilities"]
-    assert caps["multisyllabic"] == "full"
-    assert caps["phrase_ending"] == "full"
+    caps = resp.json()["capabilities"]
+    assert caps["multisyllabic"]["status"] == "full"
+    assert caps["phrase_ending"]["status"] == "full"
+    assert caps["multisyllabic"]["reason_code"] is None
 
 
 # --- Phase 5 M2 ---
 
 
 def test_phrase_ending_excludes_all_span_tokens(client: TestClient) -> None:
-    """No span token may resurface as a candidate -- recommending the
-    user's own line ending back to them is editorially useless."""
     resp = client.post(
         "/v1/rhymes",
         json={"word": "walking away", "target_type": "phrase_ending", "limit": 10},
@@ -287,10 +286,6 @@ def test_phrase_ending_excludes_all_span_tokens(client: TestClient) -> None:
 
 
 def test_top_results_for_high_cluster_query_are_diversified(client: TestClient) -> None:
-    """A query like 'fire' has rich phonetic variety in its rhymes (wire,
-    higher, choir, buyer, liar, ...). The soft diversity pass should keep
-    the top-10 covering multiple 3-char suffix families, not collapsed
-    onto one."""
     resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 10})
     rhymes = resp.json()["rhymes"]
     assert rhymes

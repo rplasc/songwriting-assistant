@@ -16,5 +16,10 @@ class Settings(BaseSettings):
     # Trade-off: ~2-5% longer startup time.
     spanish_corpus_size: int = 150_000
 
+    # Phase 5.5 M3: gate the /v1/evaluation/regression-report endpoint.
+    # When False the route returns 404 so external clients can't depend
+    # on it. The CLI keeps working regardless.
+    expose_evaluation_endpoint: bool = True
+
 
 settings = Settings()

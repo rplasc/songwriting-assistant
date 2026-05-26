@@ -16,54 +16,29 @@ to be fragile or unrealistic, edit the case file rather than the test.
 
 from __future__ import annotations
 
-import json
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_GOLDEN_ROOT = _REPO_ROOT / "app" / "evaluation" / "golden_sets"
+from app.evaluation.cases_loader import LoadedCase, load_cases
 
-
-def _iter_case_files() -> Iterator[Path]:
-    if not _GOLDEN_ROOT.exists():
-        return
-    yield from _GOLDEN_ROOT.rglob("cases.json")
-
-
-def _load_cases() -> list[tuple[Path, dict[str, Any], dict[str, Any]]]:
-    out: list[tuple[Path, dict[str, Any], dict[str, Any]]] = []
-    for path in _iter_case_files():
-        data = json.loads(path.read_text(encoding="utf-8"))
-        # Skip non-rhyme bundles (e.g., M3 draft semantic golden sets).
-        if data.get("kind", "rhyme") != "rhyme":
-            continue
-        for case in data.get("cases", []):
-            out.append((path, data, case))
-    return out
-
-
-CASES = _load_cases()
+CASES: list[LoadedCase] = load_cases(kinds=["rhyme"])
 
 
 @pytest.mark.parametrize(
-    "case_path,bundle,case",
+    "loaded",
     CASES,
-    ids=[f"{p.parent.name}/{c['query']}" for (p, _, c) in CASES],
+    ids=[f"{c.bundle_path.parent.name}/{c.name}" for c in CASES],
 )
-def test_golden_case(
-    client: TestClient,
-    case_path: Path,
-    bundle: dict[str, Any],
-    case: dict[str, Any],
-) -> None:
+def test_golden_case(client: TestClient, loaded: LoadedCase) -> None:
+    case_path: Path = loaded.bundle_path
+    case: dict[str, Any] = loaded.payload
     payload: dict[str, Any] = {
         "word": case["query"],
-        "limit": bundle.get("limit", 10),
-        "language": case.get("language", "en"),
+        "limit": 10,
+        "language": loaded.language,
     }
     if "target_type" in case:
         payload["target_type"] = case["target_type"]
@@ -75,17 +50,27 @@ def test_golden_case(
     rhymes = body.get("rhymes", [])
     words = [r["word"] for r in rhymes]
 
-    # Span echo for phrase_ending cases.
+    # Span echo for phrase_ending cases. Phase 5.5: the request's
+    # ``word`` is echoed at top-level as ``query``; the trimmed span is
+    # reflected in ``normalized_query`` for phrase_ending.
     expected_span = case.get("expected_span")
     if expected_span is not None:
-        assert body["meta"]["query_span"] == expected_span, (
-            f"{case_path}: expected span {expected_span!r}, got "
-            f"{body['meta']['query_span']!r}"
+        # The expected_span is the trimmed phrase ending; assert it shows
+        # up as either the normalized query (post-trim) or the query.
+        echoed = body.get("normalized_query") or body.get("query")
+        assert expected_span in {body.get("normalized_query"), body.get("query")}, (
+            f"{case_path}: expected span {expected_span!r}, got {echoed!r}"
         )
 
     # Every candidate must carry a family.
     families = [r["rhyme_family"] for r in rhymes]
     assert None not in families, f"{case_path}: null rhyme_family in {words}"
+
+    # Phase 5.5: every candidate must also carry an id, confidence, and tags.
+    for r in rhymes:
+        assert r["id"].startswith("rhy_"), f"{case_path}: missing id on {r}"
+        assert r["confidence"] in {"high", "medium", "low"}
+        assert isinstance(r["evidence_tags"], list)
 
     # Forbidden words.
     for forbidden in case.get("must_not_include", []):

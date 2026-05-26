@@ -13,7 +13,7 @@ def test_default_language_is_english(client: TestClient) -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert body["language"] == "en"
-    assert body["meta"]["mode"] == "perfect"
+    assert body["mode"] == "perfect"
 
 
 def test_analyze_line_default_language_is_english(client: TestClient) -> None:

@@ -8,40 +8,23 @@ editorial signal that lemma quality or clustering thresholds drifted.
 
 from __future__ import annotations
 
-import json
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_GOLDEN_ROOT = _REPO_ROOT / "app" / "evaluation" / "golden_sets"
+from app.evaluation.cases_loader import load_cases
 
 
-def _iter_bundles() -> Iterator[tuple[Path, dict[str, Any]]]:
-    if not _GOLDEN_ROOT.exists():
-        return
-    for path in _GOLDEN_ROOT.rglob("cases.json"):
-        data = json.loads(path.read_text(encoding="utf-8"))
-        yield path, data
+def _as_pairs(kind: str) -> list[tuple[Path, dict[str, Any]]]:
+    return [(c.bundle_path, c.payload) for c in load_cases(kinds=[kind])]
 
 
-def _load_cases(kind: str) -> list[tuple[Path, dict[str, Any]]]:
-    out: list[tuple[Path, dict[str, Any]]] = []
-    for path, bundle in _iter_bundles():
-        if bundle.get("kind") != kind:
-            continue
-        for case in bundle.get("cases", []):
-            out.append((path, case))
-    return out
-
-
-_SEMANTIC = _load_cases("draft_semantic_repetition")
-_MOTIF = _load_cases("draft_motif_tracking")
-_CONTRAST = _load_cases("draft_section_contrast")
-_CONSISTENCY = _load_cases("draft_consistency_hints")
+_SEMANTIC = _as_pairs("draft_semantic_repetition")
+_MOTIF = _as_pairs("draft_motif_tracking")
+_CONTRAST = _as_pairs("draft_section_contrast")
+_CONSISTENCY = _as_pairs("draft_consistency_hints")
 
 
 @pytest.mark.parametrize(
@@ -60,7 +43,7 @@ def test_semantic_repetition_golden(
     resp = client.post("/v1/analyze-draft", json=payload)
     assert resp.status_code == 200, f"{case_path}: HTTP {resp.status_code}"
     body = resp.json()
-    assert body["capabilities"]["semantic_repetition"] == "full"
+    assert body["capabilities"]["semantic_repetition"]["status"] == "full"
 
     semantic = [i for i in body["insights"] if i["type"] == "semantic_repetition"]
     assert semantic, f"{case_path}: no semantic_repetition insight returned"
@@ -70,6 +53,7 @@ def test_semantic_repetition_golden(
         all_lemmas: set[str] = set()
         for ins in semantic:
             evidence = ins.get("evidence") or {}
+            assert evidence.get("kind") == "semantic_repetition"
             all_lemmas.update(evidence.get("lemmas", []))
         overlap = all_lemmas & expected
         assert overlap, (
@@ -93,7 +77,7 @@ def test_motif_tracking_golden(
     resp = client.post("/v1/analyze-draft", json=payload)
     assert resp.status_code == 200, f"{case_path}: HTTP {resp.status_code}"
     body = resp.json()
-    assert body["capabilities"]["motif_tracking"] == "full"
+    assert body["capabilities"]["motif_tracking"]["status"] == "full"
 
     motifs = set(body["summary"]["motifs"])
     expected = set(case.get("expected_motifs", []))
@@ -120,7 +104,7 @@ def test_section_contrast_golden(
     resp = client.post("/v1/analyze-draft", json=payload)
     assert resp.status_code == 200, f"{case_path}: HTTP {resp.status_code}"
     body = resp.json()
-    assert body["capabilities"]["section_contrast"] == "full"
+    assert body["capabilities"]["section_contrast"]["status"] == "full"
 
     contrasts = [i for i in body["insights"] if i["type"] == "section_contrast"]
     assert contrasts, f"{case_path}: no section_contrast insight returned"
@@ -151,7 +135,7 @@ def test_consistency_hints_golden(
     resp = client.post("/v1/analyze-draft", json=payload)
     assert resp.status_code == 200, f"{case_path}: HTTP {resp.status_code}"
     body = resp.json()
-    assert body["capabilities"]["consistency_hints"] in {"full", "partial"}
+    assert body["capabilities"]["consistency_hints"]["status"] in {"full", "partial"}
 
     expected_kind = case.get("expected_drift_kind")
     type_for_kind = {

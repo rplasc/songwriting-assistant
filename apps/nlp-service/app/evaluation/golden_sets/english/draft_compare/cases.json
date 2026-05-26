@@ -1,0 +1,126 @@
+{
+  "$schema_note": "Phase 5.5 M3 draft-compare golden set. Each case posts (previous, current, options) to /v1/analyze-draft-compare and asserts that insight types in the response intersect expected_insight_types_any_of and exclude expected_insight_types_must_not_include. expected_summary lets a case pin specific delta counts.",
+  "kind": "draft_compare",
+  "cases": [
+    {
+      "language": "en",
+      "name": "motif_swap_fire_to_rain",
+      "previous": {
+        "content": "[verse]\nThe fire on the hill is burning\nThe fire in my chest still calls\n\n[chorus]\nHold me in the midnight window\nHold me when the city glows"
+      },
+      "current": {
+        "content": "[verse]\nThe rain across the road is falling\nThe rain on every window calls\n\n[chorus]\nHold me in the midnight window\nHold me when the city glows"
+      },
+      "options": {
+        "compare_motifs": true,
+        "compare_repetition": true,
+        "compare_sections": true
+      },
+      "expected_insight_types_any_of": [
+        "motif_added",
+        "motif_removed",
+        "motif_strengthened",
+        "motif_weakened"
+      ],
+      "expected_insight_types_must_not_include": [],
+      "notes": "Swapping fire imagery for rain imagery should produce motif deltas."
+    },
+    {
+      "language": "en",
+      "name": "identical_drafts_no_deltas",
+      "previous": {
+        "content": "[verse]\nI hear your shadow in the hall\nI hear your footsteps on the floor"
+      },
+      "current": {
+        "content": "[verse]\nI hear your shadow in the hall\nI hear your footsteps on the floor"
+      },
+      "options": {
+        "compare_motifs": true,
+        "compare_repetition": true,
+        "compare_sections": true
+      },
+      "expected_insight_types_any_of": [],
+      "expected_insight_types_must_not_include": [
+        "motif_added",
+        "motif_removed",
+        "repetition_signal_added",
+        "repetition_signal_removed",
+        "section_rhyme_scheme_shift",
+        "section_cadence_shift",
+        "section_syllable_pattern_shift"
+      ],
+      "expected_summary": {
+        "motif_delta_count": 0,
+        "repetition_delta_count": 0,
+        "section_delta_count": 0,
+        "consistency_delta_count": 0
+      },
+      "notes": "Identical drafts must produce zero deltas across every family."
+    },
+    {
+      "language": "en",
+      "name": "repetition_signal_added_in_chorus",
+      "previous": {
+        "content": "[chorus]\nWe sing tonight\nWe dance below the moon"
+      },
+      "current": {
+        "content": "[chorus]\nWe sing tonight\nWe dance tonight"
+      },
+      "options": {
+        "compare_motifs": false,
+        "compare_repetition": true,
+        "compare_sections": true
+      },
+      "expected_insight_types_any_of": [
+        "repetition_signal_added"
+      ],
+      "expected_insight_types_must_not_include": [
+        "motif_added",
+        "motif_removed"
+      ],
+      "notes": "Adding a shared ending word ('tonight') should produce an ending-repeat signal added."
+    },
+    {
+      "language": "en",
+      "name": "structure_mismatch_unmatched_bridge",
+      "previous": {
+        "content": "[verse]\nI walk the road tonight\nI carry every light\n\n[chorus]\nHold me near\nHold me clear"
+      },
+      "current": {
+        "content": "[verse]\nI walk the road tonight\nI carry every light\n\n[bridge]\nA new step on the road\nA new line in the song\n\n[chorus]\nHold me near\nHold me clear"
+      },
+      "options": {
+        "compare_motifs": true,
+        "compare_repetition": true,
+        "compare_sections": true
+      },
+      "expected_insight_types_any_of": [],
+      "expected_insight_types_must_not_include": [],
+      "notes": "Inserting a bridge should land in unmatched_current_section_ids rather than produce shift insights across the verse/chorus pair. (No insight-type assertion; this case mainly guards against false positives.)"
+    },
+    {
+      "language": "en",
+      "name": "consistency_drift_resolved",
+      "previous": {
+        "content": "[verse]\nI walk alone tonight\nI hold my dreams in sight\nI never let them go\nI keep them safe and slow\n\n[chorus]\nYou take your time and shine\nYou give your heart for mine\nYou call across the night\nYou make the morning right"
+      },
+      "current": {
+        "content": "[verse]\nI walk alone tonight\nI hold my dreams in sight\nI never let them go\nI keep them safe and slow\n\n[chorus]\nI take my time and shine\nI give my heart for mine\nI call across the night\nI make the morning right"
+      },
+      "options": {
+        "compare_motifs": false,
+        "compare_repetition": false,
+        "compare_sections": false,
+        "compare_consistency": true
+      },
+      "expected_insight_types_any_of": [
+        "consistency_drift_resolved"
+      ],
+      "expected_insight_types_must_not_include": [
+        "motif_added",
+        "section_cadence_shift"
+      ],
+      "notes": "Previous draft has a clear I→You perspective flip; current keeps a single perspective."
+    }
+  ]
+}

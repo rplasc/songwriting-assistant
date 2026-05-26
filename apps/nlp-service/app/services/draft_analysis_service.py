@@ -1,12 +1,14 @@
 """Compose line-level primitives into draft-level analysis.
 
-Current Phase: section parsing, rhyme-scheme assignment,
-syllable-pattern cadence classification, and repetition detection.
-Stress-hint insights remain deferred.
+Phase 5.5: response shape is product-stable — each insight carries a
+deterministic id, an anchor, and typed evidence. Capabilities are
+``Capability`` models with explicit reason codes. Sections move under
+``detail`` so the top-level summary stays UI-friendly.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 
 from app.core.logging import get_logger, timed
@@ -25,12 +27,26 @@ from app.domain.draft_analysis.section_parser import (
 from app.domain.heuristic_g2p import heuristic_phoneme_tails
 from app.domain.languages.spanish.g2p import g2p as spanish_g2p
 from app.domain.languages.spanish.rhyme_rules import consonant_rhyme_key
+from app.domain.response_contracts.capability_reason_mapper import (
+    base_capabilities,
+    opt_in_capability,
+)
+from app.domain.response_contracts.evidence_anchor_builder import (
+    build_consistency_insight,
+    build_motif_insight,
+    build_repetition_ending_insight,
+    build_repetition_opening_insight,
+    build_section_contrast_insight,
+    build_semantic_repetition_insight,
+    build_syllable_variance_insight,
+    build_word_overuse_insight,
+)
 from app.domain.rhyme_rules import rhyme_key
 from app.models.token import Token
 from app.schemas.draft_analysis import (
-    Capabilities,
     DraftAnalysisRequest,
     DraftAnalysisResponse,
+    DraftDetail,
     DraftSummary,
     Insight,
     RepetitionSignal,
@@ -42,23 +58,6 @@ from app.services.language_router import LanguageContext
 
 _logger = get_logger("nlp.draft_analysis")
 
-
-_BASE_CAPABILITIES: dict[str, Capabilities] = {
-    "en": Capabilities(
-        rhyme_scheme="full",
-        cadence_patterns="full",
-        stress_hints="unsupported",
-        repetition="full",
-        mixed_language="unsupported",
-    ),
-    "es": Capabilities(
-        rhyme_scheme="full",
-        cadence_patterns="full",
-        stress_hints="unsupported",
-        repetition="full",
-        mixed_language="unsupported",
-    ),
-}
 
 # Chorus and hook labels where opening repetition is presumed intentional.
 _HOOK_LABELS: frozenset[str] = frozenset({"chorus", "hook", "refrain"})
@@ -77,6 +76,21 @@ class _SectionResult:
     notable: str | None
     token_lists: list[list[str]]
     token_objects: list[list[Token]]
+
+
+# Map an insight type to a coarse family bucket for the summary's
+# family_counts. UI uses these to stage complexity.
+_FAMILY_FOR_TYPE: dict[str, str] = {
+    "syllable_variance": "cadence",
+    "repetition_opening": "repetition",
+    "repetition_ending": "repetition",
+    "word_overuse": "repetition",
+    "semantic_repetition": "semantic",
+    "motif_concentration": "motif",
+    "section_contrast": "contrast",
+    "perspective_drift": "consistency",
+    "tense_drift": "consistency",
+}
 
 
 class DraftAnalysisService:
@@ -102,6 +116,8 @@ class DraftAnalysisService:
             chars=len(request.content),
         ):
             parsed = parse_sections(request.content, explicit)
+
+        sections_by_id = {s.id: s for s in parsed}
 
         section_payloads: list[SectionAnalysis] = []
         insights: list[Insight] = []
@@ -136,7 +152,7 @@ class DraftAnalysisService:
         ):
             insights.extend(self._build_overuse_insights(all_token_lists))
 
-        capabilities = _BASE_CAPABILITIES[request.language].model_copy()
+        capabilities = base_capabilities(request.language)
         motifs: list[str] = []
         hook_only_overuse: frozenset[str] = frozenset()
         opts = request.options
@@ -166,70 +182,34 @@ class DraftAnalysisService:
                         include_consistency_hints=wants_consistency,
                     )
                 if wants_semantic:
-                    capabilities.semantic_repetition = "full"
+                    capabilities.semantic_repetition = opt_in_capability("full")
                     for sem in nlp_result.semantic_repetition:
                         insights.append(
-                            Insight(
-                                type=sem.type,
-                                scope=sem.scope,
-                                target=sem.target,
-                                severity=sem.severity,
-                                message=sem.message,
-                                evidence=dict(sem.evidence),
-                                confidence=sem.confidence,
-                            )
+                            build_semantic_repetition_insight(sem, sections_by_id)
                         )
                 if wants_motif:
-                    capabilities.motif_tracking = "full"
+                    capabilities.motif_tracking = opt_in_capability("full")
                     motifs = list(nlp_result.motifs)
                     for mot in nlp_result.motif_insights:
                         insights.append(
-                            Insight(
-                                type=mot.type,
-                                scope=mot.scope,
-                                target=mot.target,
-                                severity=mot.severity,
-                                message=mot.message,
-                                evidence=dict(mot.evidence),
-                                confidence=mot.confidence,
-                            )
+                            build_motif_insight(mot, sections_by_id)
                         )
                 if wants_contrast:
-                    capabilities.section_contrast = "full"
+                    capabilities.section_contrast = opt_in_capability("full")
                     for con in nlp_result.section_contrast:
-                        insights.append(
-                            Insight(
-                                type=con.type,
-                                scope=con.scope,
-                                target=con.target,
-                                severity=con.severity,
-                                message=con.message,
-                                evidence=dict(con.evidence),
-                                confidence=con.confidence,
-                            )
-                        )
+                        insights.append(build_section_contrast_insight(con))
                 if wants_consistency:
-                    capabilities.consistency_hints = (
+                    capabilities.consistency_hints = opt_in_capability(
                         nlp_result.consistency_capability or "unsupported"
                     )
                     for cdr in nlp_result.consistency:
                         insights.append(
-                            Insight(
-                                type=cdr.type,
-                                scope=cdr.scope,
-                                target=cdr.target,
-                                severity=cdr.severity,
-                                message=cdr.message,
-                                evidence=dict(cdr.evidence),
-                                confidence=cdr.confidence,
-                            )
+                            build_consistency_insight(cdr, sections_by_id)
                         )
                 hook_only_overuse = nlp_result.hook_only_overuse_words
 
         # Final pass: demote intentional-repetition signals inside hook
-        # sections so the response speaks the writer's intent. Runs even
-        # when it isn't requested — hook context still applies to
-        # repetition_ending / word_overuse insights.
+        # sections so the response speaks the writer's intent.
         insights = demote_inside_hooks(insights, parsed, hook_only_overuse)
 
         return DraftAnalysisResponse(
@@ -237,10 +217,15 @@ class DraftAnalysisService:
             title=request.title,
             capabilities=capabilities,
             summary=self._build_summary(
-                section_payloads, total_lines, total_syllables, notable_patterns, motifs
+                section_payloads,
+                total_lines,
+                total_syllables,
+                notable_patterns,
+                motifs,
+                insights,
             ),
-            sections=section_payloads,
             insights=insights,
+            detail=DraftDetail(sections=section_payloads),
         )
 
     def _analyze_section(
@@ -288,16 +273,16 @@ class DraftAnalysisService:
         notable: str | None = None
         if section.lines:
             insights.append(
-                Insight(
-                    type="syllable_variance",
-                    scope="section",
-                    target=section.id,
+                build_syllable_variance_insight(
+                    section,
+                    variance=cadence.variance,
+                    cadence_class=cadence.cadence_class,
                     severity=cadence.severity,
                     message=cadence.message,
                 )
             )
             insights.extend(
-                _repetition_insights(section.id, section.label, rep_domain)
+                _repetition_insights(section, rep_domain)
             )
             if cadence.cadence_class == "consistent" and len(syllable_pattern) >= 2:
                 notable = _notable_consistency(section)
@@ -317,10 +302,9 @@ class DraftAnalysisService:
         for overuse in detect_draft_overuse(all_token_lists):
             severity = "high" if overuse.line_count >= _OVERUSE_HIGH else "medium"
             out.append(
-                Insight(
-                    type="word_overuse",
-                    scope="draft",
-                    target=None,
+                build_word_overuse_insight(
+                    word=overuse.word,
+                    line_count=overuse.line_count,
                     severity=severity,
                     message=(
                         f'"{overuse.word}" appears on {overuse.line_count} lines.'
@@ -335,14 +319,22 @@ class DraftAnalysisService:
         total_lines: int,
         total_syllables: int,
         notable_patterns: list[str],
-        motifs: list[str] | None = None,
+        motifs: list[str] | None,
+        insights: list[Insight],
     ) -> DraftSummary:
+        counts: Counter[str] = Counter()
+        for ins in insights:
+            family = _FAMILY_FOR_TYPE.get(ins.type)
+            if family:
+                counts[family] += 1
         return DraftSummary(
             section_count=len(section_payloads),
             line_count=total_lines,
             total_syllables=total_syllables,
             notable_patterns=notable_patterns,
             motifs=motifs or [],
+            insight_count=len(insights),
+            family_counts=dict(counts),
         )
 
     def _line_syllables(self, ctx: LanguageContext, tokens: list[Token]) -> int:
@@ -403,33 +395,29 @@ def _spanish_rhyme_key(normalized: str | None) -> str | None:
 
 
 def _repetition_insights(
-    section_id: str,
-    label: str | None,
+    section: ParsedSection,
     signals: list[DomainRepetitionSignal],
 ) -> list[Insight]:
     if not signals:
         return []
-    is_hook = label in _HOOK_LABELS
+    is_hook = section.label in _HOOK_LABELS
     out: list[Insight] = []
     for sig in signals:
         if sig.type == "opening_phrase_repeat":
-            # Anaphora in a chorus/hook label is almost always intentional.
             severity = "info" if is_hook else "low"
             out.append(
-                Insight(
-                    type="repetition_opening",
-                    scope="section",
-                    target=section_id,
+                build_repetition_opening_insight(
+                    section,
+                    phrase=sig.value,
                     severity=severity,
                     message=f'Lines open with "{sig.value}".',
                 )
             )
         elif sig.type == "ending_word_repeat":
             out.append(
-                Insight(
-                    type="repetition_ending",
-                    scope="section",
-                    target=section_id,
+                build_repetition_ending_insight(
+                    section,
+                    word=sig.value,
                     severity="info",
                     message=f'Multiple lines close with "{sig.value}".',
                 )

@@ -6,6 +6,12 @@ capability labels, insight types, or the function-word filter.
 For the API-level view, see [`draft-analysis.md`](./draft-analysis.md).
 For the bilingual capability contract, see [`bilingual.md`](./bilingual.md).
 
+**See also:**
+
+- [`limitation-codes.md`](./limitation-codes.md) — closed set of `CapabilityReasonCode` values and what each signals.
+- [`confidence-and-evidence.md`](./confidence-and-evidence.md) — how to interpret `Insight.confidence`, typed `evidence`, anchors, and rhyme-candidate `confidence` / `evidence_tags`.
+- [`evaluation.md`](./evaluation.md) — running the regression runner and the compare-path latency bench.
+
 ---
 
 ## 1. New insight types

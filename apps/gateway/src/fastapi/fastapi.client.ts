@@ -10,12 +10,14 @@ import {
 import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import {
+  AnalyzeDraftCompareRequest,
   AnalyzeDraftRequest,
   AnalyzeLineRequest,
   RhymesRequest,
 } from './dto/fastapi-requests';
 import {
   DraftAnalysisResponse,
+  DraftCompareResponse,
   LineAnalysisResponse,
   RhymeResponse,
 } from './dto/fastapi-responses';
@@ -53,6 +55,12 @@ export class FastapiClient {
 
   async analyzeDraft(req: AnalyzeDraftRequest): Promise<DraftAnalysisResponse> {
     return this.post<DraftAnalysisResponse>('/v1/analyze-draft', req);
+  }
+
+  async analyzeDraftCompare(
+    req: AnalyzeDraftCompareRequest,
+  ): Promise<DraftCompareResponse> {
+    return this.post<DraftCompareResponse>('/v1/analyze-draft-compare', req);
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {

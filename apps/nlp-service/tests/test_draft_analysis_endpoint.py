@@ -11,6 +11,10 @@ _DRAFT = (
 )
 
 
+def _cap(body: dict, name: str) -> dict:
+    return body["capabilities"][name]
+
+
 def test_analyze_draft_basic_with_inline_labels(client: TestClient) -> None:
     resp = client.post(
         "/v1/analyze-draft",
@@ -19,12 +23,12 @@ def test_analyze_draft_basic_with_inline_labels(client: TestClient) -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert body["language"] == "en"
-    assert body["capabilities"]["rhyme_scheme"] == "full"
-    assert body["capabilities"]["cadence_patterns"] == "full"
-    assert body["capabilities"]["repetition"] == "full"
-    assert body["capabilities"]["stress_hints"] == "unsupported"
+    assert _cap(body, "rhyme_scheme")["status"] == "full"
+    assert _cap(body, "cadence_patterns")["status"] == "full"
+    assert _cap(body, "repetition")["status"] == "full"
+    assert _cap(body, "stress_hints")["status"] == "unsupported"
 
-    sections = body["sections"]
+    sections = body["detail"]["sections"]
     assert len(sections) == 2
     labels = [s["label"] for s in sections]
     assert labels == [None, "chorus"]
@@ -36,7 +40,6 @@ def test_analyze_draft_basic_with_inline_labels(client: TestClient) -> None:
     assert chorus["rhyme_scheme"] in {"AA", "AB"}
     assert chorus["rhyme_scheme_confidence"] in {"full", "partial"}
 
-    # Chorus opens "Hold me..." on both lines — expect an opening_phrase_repeat signal.
     opening_sigs = [
         s for s in chorus["repetition_signals"] if s["type"] == "opening_phrase_repeat"
     ]
@@ -45,19 +48,33 @@ def test_analyze_draft_basic_with_inline_labels(client: TestClient) -> None:
 
     insight_types = {i["type"] for i in body["insights"]}
     assert "syllable_variance" in insight_types
-    # Opening repeat in a chorus should produce an info-severity repetition_opening insight.
     rep_insights = [i for i in body["insights"] if i["type"] == "repetition_opening"]
     assert len(rep_insights) >= 1
     chorus_rep = next(i for i in rep_insights if i["target"] == chorus["id"])
     assert chorus_rep["severity"] == "info"
+    # Phase 5.5: every insight has id, anchor, and typed evidence.
+    assert chorus_rep["id"].startswith("ins_")
+    assert chorus_rep["anchor"]["scope"] == "section"
+    assert chorus_rep["anchor"]["section_id"] == chorus["id"]
+    assert chorus_rep["evidence"]["kind"] == "repetition_opening"
 
     assert body["summary"]["section_count"] == 2
     assert body["summary"]["line_count"] == 4
+    assert body["summary"]["insight_count"] == len(body["insights"])
+    assert "repetition" in body["summary"]["family_counts"]
+
+
+def test_analyze_draft_insight_ids_are_stable(client: TestClient) -> None:
+    a = client.post(
+        "/v1/analyze-draft", json={"language": "en", "content": _DRAFT}
+    ).json()
+    b = client.post(
+        "/v1/analyze-draft", json={"language": "en", "content": _DRAFT}
+    ).json()
+    assert [i["id"] for i in a["insights"]] == [i["id"] for i in b["insights"]]
 
 
 def test_analyze_draft_explicit_sections_override_inline(client: TestClient) -> None:
-    # Tell the service the chorus is actually lines 1-2; inline [chorus] is
-    # ignored because explicit wins.
     resp = client.post(
         "/v1/analyze-draft",
         json={
@@ -71,9 +88,10 @@ def test_analyze_draft_explicit_sections_override_inline(client: TestClient) -> 
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert [s["id"] for s in body["sections"]] == ["v1", "c1"]
-    assert [s["label"] for s in body["sections"]] == ["verse", "chorus"]
-    chorus = body["sections"][1]
+    sections = body["detail"]["sections"]
+    assert [s["id"] for s in sections] == ["v1", "c1"]
+    assert [s["label"] for s in sections] == ["verse", "chorus"]
+    chorus = sections[1]
     assert chorus["line_start"] == 5 and chorus["line_end"] == 6
     assert len(chorus["syllable_pattern"]) == 2
 
@@ -99,9 +117,12 @@ def test_analyze_draft_without_options_keeps_phase4_shape(client: TestClient) ->
     )
     assert resp.status_code == 200
     body = resp.json()
-    # M3 capabilities default to unsupported when the caller hasn't opted in.
-    assert body["capabilities"]["semantic_repetition"] == "unsupported"
-    assert body["capabilities"]["motif_tracking"] == "unsupported"
+    sem = _cap(body, "semantic_repetition")
+    motif = _cap(body, "motif_tracking")
+    assert sem["status"] == "unsupported"
+    assert sem["reason_code"] == "option_not_requested"
+    assert motif["status"] == "unsupported"
+    assert motif["reason_code"] == "option_not_requested"
     assert body["summary"]["motifs"] == []
     types = {i["type"] for i in body["insights"]}
     assert "semantic_repetition" not in types
@@ -119,12 +140,15 @@ def test_analyze_draft_with_semantic_repetition_option(client: TestClient) -> No
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["capabilities"]["semantic_repetition"] == "full"
+    assert _cap(body, "semantic_repetition")["status"] == "full"
     semantic = [i for i in body["insights"] if i["type"] == "semantic_repetition"]
     assert semantic, "expected at least one semantic_repetition insight"
     insight = semantic[0]
     assert insight["confidence"] in {"low", "medium", "high"}
-    assert insight["evidence"] and "phrases" in insight["evidence"]
+    assert insight["evidence"]["kind"] == "semantic_repetition"
+    assert "phrases" in insight["evidence"]
+    assert "lemmas" in insight["evidence"]
+    assert insight["anchor"] is not None
 
 
 _SIMILAR_VERSES = (
@@ -150,10 +174,11 @@ def test_analyze_draft_with_section_contrast_option(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["capabilities"]["section_contrast"] == "full"
+    assert _cap(body, "section_contrast")["status"] == "full"
     contrasts = [i for i in body["insights"] if i["type"] == "section_contrast"]
     assert contrasts, "expected a section_contrast insight"
     assert contrasts[0]["evidence"]["contrast_kind"] == "over_similarity"
+    assert contrasts[0]["evidence"]["kind"] == "section_contrast"
 
 
 def test_analyze_draft_with_consistency_hints_option(client: TestClient) -> None:
@@ -167,9 +192,10 @@ def test_analyze_draft_with_consistency_hints_option(client: TestClient) -> None
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["capabilities"]["consistency_hints"] == "full"
+    assert _cap(body, "consistency_hints")["status"] == "full"
     drifts = [i for i in body["insights"] if i["type"] == "perspective_drift"]
     assert drifts, "expected a perspective_drift insight"
+    assert drifts[0]["evidence"]["kind"] == "perspective_drift"
 
 
 def test_analyze_draft_consistency_hints_spanish_is_partial(client: TestClient) -> None:
@@ -183,7 +209,9 @@ def test_analyze_draft_consistency_hints_spanish_is_partial(client: TestClient) 
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["capabilities"]["consistency_hints"] == "partial"
+    cap = _cap(body, "consistency_hints")
+    assert cap["status"] == "partial"
+    assert cap["reason_code"] == "language_partial_support"
 
 
 def test_default_request_keeps_m4_capabilities_unsupported(client: TestClient) -> None:
@@ -192,8 +220,8 @@ def test_default_request_keeps_m4_capabilities_unsupported(client: TestClient) -
         json={"language": "en", "content": _DRAFT},
     )
     body = resp.json()
-    assert body["capabilities"]["section_contrast"] == "unsupported"
-    assert body["capabilities"]["consistency_hints"] == "unsupported"
+    assert _cap(body, "section_contrast")["status"] == "unsupported"
+    assert _cap(body, "consistency_hints")["status"] == "unsupported"
     types = {i["type"] for i in body["insights"]}
     assert "section_contrast" not in types
     assert "perspective_drift" not in types
@@ -201,9 +229,6 @@ def test_default_request_keeps_m4_capabilities_unsupported(client: TestClient) -
 
 
 def test_chorus_repetition_ending_demoted_to_info(client: TestClient) -> None:
-    # Two chorus lines closing on "tonight" — Phase 4 emits repetition_ending
-    # at severity "info" already; the demotion pass keeps it at "info" but
-    # tags the evidence with hook_context.
     draft = (
         "[chorus]\nWe sing tonight\nWe dance tonight\n"
         "\n[verse]\nThe stars are bright\nThe river flows"
@@ -218,10 +243,12 @@ def test_chorus_repetition_ending_demoted_to_info(client: TestClient) -> None:
     ]
     assert rep_endings, "expected a repetition_ending insight in the chorus"
     chorus_id = next(
-        s["id"] for s in body["sections"] if s["label"] == "chorus"
+        s["id"] for s in body["detail"]["sections"] if s["label"] == "chorus"
     )
     chorus_rep = next(i for i in rep_endings if i["target"] == chorus_id)
-    assert chorus_rep["evidence"] == {"hook_context": True}
+    # Phase 5.5: hook_context moves out of evidence onto the insight itself.
+    assert chorus_rep["hook_context"] is True
+    assert chorus_rep["evidence"]["kind"] == "repetition_ending"
 
 
 def test_analyze_draft_with_motif_tracking_option(client: TestClient) -> None:
@@ -239,5 +266,5 @@ def test_analyze_draft_with_motif_tracking_option(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["capabilities"]["motif_tracking"] == "full"
+    assert _cap(body, "motif_tracking")["status"] == "full"
     assert "fire" in body["summary"]["motifs"]

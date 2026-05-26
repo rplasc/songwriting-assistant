@@ -19,11 +19,11 @@ def test_spanish_draft_with_labels(client: TestClient) -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert body["language"] == "es"
-    assert body["capabilities"]["cadence_patterns"] == "full"
-    assert body["capabilities"]["rhyme_scheme"] == "full"
-    assert body["capabilities"]["repetition"] == "full"
+    assert body["capabilities"]["cadence_patterns"]["status"] == "full"
+    assert body["capabilities"]["rhyme_scheme"]["status"] == "full"
+    assert body["capabilities"]["repetition"]["status"] == "full"
 
-    sections = body["sections"]
+    sections = body["detail"]["sections"]
     assert [s["label"] for s in sections] == ["verse", "chorus"]
 
     chorus = sections[1]
@@ -47,6 +47,6 @@ def test_spanish_draft_stanza_fallback(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["sections"]) == 2
-    assert all(s["label"] is None for s in body["sections"])
-    assert body["sections"][1]["rhyme_scheme"] == "AA"
+    assert len(body["detail"]["sections"]) == 2
+    assert all(s["label"] is None for s in body["detail"]["sections"])
+    assert body["detail"]["sections"][1]["rhyme_scheme"] == "AA"

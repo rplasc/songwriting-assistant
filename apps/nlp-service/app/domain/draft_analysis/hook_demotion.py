@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from app.domain.draft_analysis.section_parser import ParsedSection
 from app.schemas.draft_analysis import Insight
+from app.schemas.evidence import WordOveruseEvidence
 
 _HOOK_LABELS: frozenset[str] = frozenset({"chorus", "hook", "refrain"})
 _DEMOTABLE_TYPES: frozenset[str] = frozenset(
@@ -48,32 +49,23 @@ def demote_inside_hooks(
         if insight.scope == "section" and insight.target in hook_ids:
             should_demote = True
         elif insight.type == "word_overuse" and insight.scope == "draft":
-            word = _extract_overuse_word(insight.message)
+            word = (
+                insight.evidence.word
+                if isinstance(insight.evidence, WordOveruseEvidence)
+                else None
+            )
             if word and word in hook_words:
                 should_demote = True
         if not should_demote:
             out.append(insight)
             continue
         new_severity = _SEVERITY_DEMOTION.get(insight.severity, insight.severity)
-        evidence = dict(insight.evidence) if insight.evidence else {}
-        evidence["hook_context"] = True
         out.append(
             insight.model_copy(
-                update={"severity": new_severity, "evidence": evidence}
+                update={"severity": new_severity, "hook_context": True}
             )
         )
     return out
-
-
-def _extract_overuse_word(message: str) -> str | None:
-    # word_overuse messages have the shape: "\"word\" appears on N lines."
-    if not message or '"' not in message:
-        return None
-    first = message.find('"')
-    second = message.find('"', first + 1)
-    if first < 0 or second < 0:
-        return None
-    return message[first + 1 : second]
 
 
 __all__ = ["demote_inside_hooks"]

@@ -10,9 +10,12 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import type { AnalysisMode } from '../../common/enums/analysis-mode.enum';
+import { SUPPORTED_ANALYSIS_MODES } from '../../common/enums/analysis-mode.enum';
 import type { Language } from '../../common/enums/language.enum';
 import { SUPPORTED_LANGUAGES } from '../../common/enums/language.enum';
 import { DraftSectionInputDto } from '../../drafts/dto/draft-section.dto';
+import { AnalyzeDraftOptionsDto } from './analyze-draft-options.dto';
 
 export class AnalyzeDraftDto {
   @IsOptional()
@@ -44,4 +47,13 @@ export class AnalyzeDraftDto {
   @IsOptional()
   @IsBoolean()
   forceRefresh?: boolean;
+
+  @IsOptional()
+  @IsIn(SUPPORTED_ANALYSIS_MODES)
+  analysisMode?: AnalysisMode;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AnalyzeDraftOptionsDto)
+  options?: AnalyzeDraftOptionsDto;
 }

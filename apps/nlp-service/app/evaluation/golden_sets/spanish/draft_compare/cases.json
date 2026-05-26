@@ -1,0 +1,58 @@
+{
+  "$schema_note": "Phase 5.5 M3 draft-compare golden set (Spanish). Same schema as the English bundle.",
+  "kind": "draft_compare",
+  "cases": [
+    {
+      "language": "es",
+      "name": "motif_swap_fuego_lluvia",
+      "previous": {
+        "content": "[verso]\nEl fuego en la colina arde\nEl fuego en mi pecho llama\nEl fuego en la noche brilla\n\n[coro]\nVen conmigo al fuego\nVen conmigo a respirar"
+      },
+      "current": {
+        "content": "[verso]\nLa lluvia en la colina cae\nLa lluvia en mi pecho llama\nLa lluvia en la noche brilla\n\n[coro]\nVen conmigo a la lluvia\nVen conmigo a respirar"
+      },
+      "options": {
+        "compare_motifs": true,
+        "compare_repetition": true,
+        "compare_sections": true
+      },
+      "expected_insight_types_any_of": [
+        "motif_added",
+        "motif_removed",
+        "motif_strengthened",
+        "motif_weakened"
+      ],
+      "expected_insight_types_must_not_include": [],
+      "notes": "Cambiar el motivo 'fuego' por 'lluvia' debe producir deltas de motivos."
+    },
+    {
+      "language": "es",
+      "name": "identical_no_deltas",
+      "previous": {
+        "content": "[verso]\nyo te quiero más que ayer\ny mañana te querré"
+      },
+      "current": {
+        "content": "[verso]\nyo te quiero más que ayer\ny mañana te querré"
+      },
+      "options": {
+        "compare_motifs": true,
+        "compare_repetition": true,
+        "compare_sections": true
+      },
+      "expected_insight_types_any_of": [],
+      "expected_insight_types_must_not_include": [
+        "motif_added",
+        "motif_removed",
+        "repetition_signal_added",
+        "section_rhyme_scheme_shift"
+      ],
+      "expected_summary": {
+        "motif_delta_count": 0,
+        "repetition_delta_count": 0,
+        "section_delta_count": 0,
+        "consistency_delta_count": 0
+      },
+      "notes": "Borradores idénticos no deben generar deltas."
+    }
+  ]
+}

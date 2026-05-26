@@ -12,6 +12,11 @@ import { Socket } from 'socket.io';
 import { AnalyzeLineDto } from './dto/analyze-line.dto';
 import { EditorService } from './editor.service';
 
+/**
+ * Line-level live analysis only. Draft-level review
+ * (`/v1/editor/analyze-draft`, `/v1/editor/analyze-draft-compare`) is
+ * HTTP-only by design — heavyweight review flows never share this transport.
+ */
 @WebSocketGateway({
   namespace: '/editor',
   cors: { origin: process.env.CORS_ORIGIN ?? '*' },

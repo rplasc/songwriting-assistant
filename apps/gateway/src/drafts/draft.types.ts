@@ -1,3 +1,4 @@
+import { AnalysisStatus } from '../common/enums/analysis-status.enum';
 import { Language } from '../common/enums/language.enum';
 
 export interface DraftSection {
@@ -16,4 +17,11 @@ export interface Draft {
   version: number;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Phase 5.5 snapshot provenance. Always null in M0/M1 — persistence will
+   * land in M2 once compare flows need it.
+   */
+  lastAnalyzedAt?: string | null;
+  lastAnalysisStatus?: AnalysisStatus | null;
+  latestAnalyzedRevisionHash?: string | null;
 }

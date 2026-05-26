@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { performance } from 'perf_hooks';
+import { AnalysisMode } from '../common/enums/analysis-mode.enum';
 import { Language } from '../common/enums/language.enum';
 import { DraftsService } from '../drafts/drafts.service';
+import { SnapshotStore } from '../drafts/snapshot.store';
 import { FastapiClient } from '../fastapi/fastapi.client';
+import { AnalyzeDraftOptionsDto } from './dto/analyze-draft-options.dto';
 import { DraftAnalysisRequestMapper } from './mappers/draft-analysis-request.mapper';
 import {
   DraftAnalysisPayload,
@@ -21,6 +24,8 @@ export interface AnalyzeDraftOptions {
     lineEnd: number;
   }>;
   forceRefresh?: boolean;
+  analysisMode?: AnalysisMode;
+  options?: AnalyzeDraftOptionsDto;
 }
 
 @Injectable()
@@ -28,6 +33,7 @@ export class AnalysisService {
   constructor(
     private readonly fastapi: FastapiClient,
     private readonly drafts: DraftsService,
+    private readonly snapshots: SnapshotStore,
     private readonly mapper: DraftAnalysisRequestMapper,
     private readonly presenter: DraftAnalysisPresenter,
   ) {}
@@ -41,6 +47,8 @@ export class AnalysisService {
     const resolved = this.mapper.resolve({
       content: opts.content,
       language: opts.language,
+      analysisMode: opts.analysisMode,
+      options: opts.options,
       inlineSections: opts.inlineSections,
       storedSections,
     });
@@ -54,14 +62,34 @@ export class AnalysisService {
         resolved.upstreamSections.length > 0
           ? resolved.upstreamSections
           : undefined,
+      options: resolved.upstreamOptions,
     });
 
-    return this.presenter.toClient({
+    const payload = this.presenter.toClient({
       draftId: opts.draftId ?? null,
       revisionHash: resolved.revisionHash,
       upstream,
       latencyMs: performance.now() - t0,
       requestId: opts.requestId,
     });
+
+    // Snapshot + provenance only make sense when the draft has a stable id.
+    if (opts.draftId) {
+      this.snapshots.put(opts.draftId, {
+        revisionHash: resolved.revisionHash,
+        analyzedAt: payload.analyzed_at,
+        content: opts.content,
+        sections: resolved.sections,
+        analysisStatus: payload.analysis_status,
+        capabilities: upstream.capabilities,
+      });
+      this.drafts.recordAnalysis(opts.draftId, {
+        lastAnalyzedAt: payload.analyzed_at,
+        lastAnalysisStatus: payload.analysis_status,
+        latestAnalyzedRevisionHash: resolved.revisionHash,
+      });
+    }
+
+    return payload;
   }
 }

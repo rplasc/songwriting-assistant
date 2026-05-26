@@ -6,13 +6,11 @@ import { AnalyzeDraftDto } from './analyze-draft.dto';
 async function validateDto(payload: unknown): Promise<string[]> {
   const dto = plainToInstance(AnalyzeDraftDto, payload);
   const errors = await validate(dto);
-  return errors.flatMap((e) =>
-    Object.keys(e.constraints ?? {}).concat(
-      (e.children ?? []).flatMap((c) =>
-        (c.children ?? []).flatMap((g) => Object.keys(g.constraints ?? {})),
-      ),
-    ),
-  );
+  const collect = (nodes: typeof errors): string[] =>
+    nodes.flatMap((n) =>
+      Object.keys(n.constraints ?? {}).concat(collect(n.children ?? [])),
+    );
+  return collect(errors);
 }
 
 describe('AnalyzeDraftDto', () => {
@@ -42,5 +40,29 @@ describe('AnalyzeDraftDto', () => {
   it('rejects non-UUID draftId', async () => {
     const errors = await validateDto({ content: 'x', draftId: 'not-a-uuid' });
     expect(errors).toContain('isUuid');
+  });
+
+  it('rejects unknown analysisMode', async () => {
+    const errors = await validateDto({ content: 'x', analysisMode: 'bogus' });
+    expect(errors).toContain('isIn');
+  });
+
+  it('accepts revision_review analysisMode with options', async () => {
+    expect(
+      await validateDto({
+        content: 'x',
+        analysisMode: 'revision_review',
+        options: { includeSemanticRepetition: true },
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects non-boolean nested option values', async () => {
+    const errors = await validateDto({
+      content: 'x',
+      analysisMode: 'revision_review',
+      options: { includeMotifTracking: 'yes' },
+    });
+    expect(errors).toContain('isBoolean');
   });
 });

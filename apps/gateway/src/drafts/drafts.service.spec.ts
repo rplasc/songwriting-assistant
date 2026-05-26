@@ -4,12 +4,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DraftsService } from './drafts.service';
+import { SnapshotStore } from './snapshot.store';
 
 describe('DraftsService', () => {
   let service: DraftsService;
+  let snapshots: SnapshotStore;
 
   beforeEach(() => {
-    service = new DraftsService();
+    snapshots = new SnapshotStore();
+    service = new DraftsService(snapshots);
   });
 
   it('creates a draft with provided title and content', () => {

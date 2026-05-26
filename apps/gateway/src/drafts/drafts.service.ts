@@ -6,8 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { AnalysisStatus } from '../common/enums/analysis-status.enum';
 import { DEFAULT_LANGUAGE, Language } from '../common/enums/language.enum';
 import { Draft, DraftSection } from './draft.types';
+import { SnapshotStore } from './snapshot.store';
 
 const DEFAULT_TITLE = 'Untitled Draft';
 
@@ -41,10 +43,18 @@ export interface OperationContext {
   requestId?: string;
 }
 
+export interface AnalysisProvenanceInput {
+  lastAnalyzedAt: string;
+  lastAnalysisStatus: AnalysisStatus;
+  latestAnalyzedRevisionHash: string;
+}
+
 @Injectable()
 export class DraftsService {
   private readonly logger = new Logger(DraftsService.name);
   private readonly drafts = new Map<string, Draft>();
+
+  constructor(private readonly snapshots: SnapshotStore) {}
 
   create(input: CreateDraftInput, ctx: OperationContext = {}): Draft {
     const now = new Date().toISOString();
@@ -135,9 +145,26 @@ export class DraftsService {
       });
     }
     this.drafts.delete(id);
+    this.snapshots.clear(id);
     this.logOp('draft.remove', ctx, {
       draftId: id,
       version: existing.version,
+    });
+  }
+
+  /**
+   * Records the most recent analysis provenance on the stored draft.
+   * Does not bump version — provenance is not user-edited content.
+   * No-op if the draft has been removed in the meantime.
+   */
+  recordAnalysis(id: string, prov: AnalysisProvenanceInput): void {
+    const existing = this.drafts.get(id);
+    if (!existing) return;
+    this.drafts.set(id, {
+      ...existing,
+      lastAnalyzedAt: prov.lastAnalyzedAt,
+      lastAnalysisStatus: prov.lastAnalysisStatus,
+      latestAnalyzedRevisionHash: prov.latestAnalyzedRevisionHash,
     });
   }
 

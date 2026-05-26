@@ -3,7 +3,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 
-from app.api.routes import analysis, draft_analysis, health, rhymes
+from app.api.routes import (
+    analysis,
+    draft_analysis,
+    draft_compare,
+    evaluation,
+    health,
+    rhymes,
+)
 from app.core.config import settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger, timed
@@ -12,7 +19,9 @@ from app.domain.languages.spanish import SpanishEngine
 from app.repositories.cmudict_repository import CmuDictRepository
 from app.repositories.spanish_corpus import SpanishCorpus
 from app.services.draft_analysis_service import DraftAnalysisService
+from app.services.draft_compare_service import DraftCompareService
 from app.services.draft_nlp_service import DraftNlpService
+from app.services.evaluation_report_service import EvaluationReportService
 from app.services.language_router import LanguageContext, LanguageRouter
 from app.services.pronunciation_service import PronunciationService
 from app.services.rhyme_index import RhymeIndex, warm_frequency_cache
@@ -83,7 +92,15 @@ async def lifespan(app: FastAPI):
     with timed(logger, "startup.build_draft_nlp"):
         nlp_service = DraftNlpService()
     app.state.draft_nlp_service = nlp_service
-    app.state.draft_analysis_service = DraftAnalysisService(nlp_service=nlp_service)
+    analysis_service = DraftAnalysisService(nlp_service=nlp_service)
+    app.state.draft_analysis_service = analysis_service
+    compare_service = DraftCompareService(analysis_service=analysis_service)
+    app.state.draft_compare_service = compare_service
+    app.state.evaluation_report_service = EvaluationReportService(
+        language_router=router,
+        draft_analysis_service=analysis_service,
+        draft_compare_service=compare_service,
+    )
 
     # Legacy single-language attributes preserved so any external callers or
     # tests reaching into ``app.state`` directly continue to work. New code
@@ -112,6 +129,8 @@ def create_app() -> FastAPI:
     app.include_router(rhymes.router)
     app.include_router(analysis.router)
     app.include_router(draft_analysis.router)
+    app.include_router(draft_compare.router)
+    app.include_router(evaluation.router)
     return app
 
 

@@ -1,9 +1,37 @@
 import { AnalysisService } from './analysis.service';
 import { DraftAnalysisRequestMapper } from './mappers/draft-analysis-request.mapper';
+import { AnalysisAnchorPresenter } from './presenters/analysis-anchor.presenter';
+import { CapabilityPresenter } from './presenters/capability.presenter';
 import { DraftAnalysisPresenter } from './presenters/draft-analysis.presenter';
+import { InsightPresenter } from './presenters/insight.presenter';
 import { DraftsService } from '../drafts/drafts.service';
+import { SnapshotStore } from '../drafts/snapshot.store';
 import { FastapiClient } from '../fastapi/fastapi.client';
-import { DraftAnalysisResponse } from '../fastapi/dto/fastapi-responses';
+import {
+  DraftAnalysisCapabilities,
+  DraftAnalysisResponse,
+} from '../fastapi/dto/fastapi-responses';
+
+function caps(
+  overrides: Partial<DraftAnalysisCapabilities> = {},
+): DraftAnalysisCapabilities {
+  const cap = (status: 'full' | 'partial' | 'unsupported') => ({
+    status,
+    reason_code: status === 'unsupported' ? 'language_unsupported' : null,
+  });
+  return {
+    rhyme_scheme: cap('full'),
+    cadence_patterns: cap('full'),
+    stress_hints: cap('unsupported'),
+    repetition: cap('full'),
+    mixed_language: cap('unsupported'),
+    semantic_repetition: cap('unsupported'),
+    motif_tracking: cap('unsupported'),
+    section_contrast: cap('unsupported'),
+    consistency_hints: cap('unsupported'),
+    ...overrides,
+  };
+}
 
 function upstreamFixture(
   overrides: Partial<DraftAnalysisResponse> = {},
@@ -17,22 +45,24 @@ function upstreamFixture(
       total_syllables: 10,
       notable_patterns: [],
     },
-    sections: [],
+    detail: { sections: [] },
     insights: [],
-    capabilities: {
-      rhyme_scheme: 'full',
-      cadence_patterns: 'full',
-      stress_hints: 'unsupported',
-      repetition: 'full',
-      mixed_language: 'unsupported',
-    },
+    capabilities: caps(),
     ...overrides,
   };
+}
+
+function buildPresenter(): DraftAnalysisPresenter {
+  return new DraftAnalysisPresenter(
+    new CapabilityPresenter(),
+    new InsightPresenter(new AnalysisAnchorPresenter()),
+  );
 }
 
 describe('AnalysisService', () => {
   let fastapi: jest.Mocked<FastapiClient>;
   let drafts: jest.Mocked<DraftsService>;
+  let snapshots: SnapshotStore;
   let service: AnalysisService;
 
   beforeEach(() => {
@@ -41,12 +71,15 @@ describe('AnalysisService', () => {
     } as unknown as jest.Mocked<FastapiClient>;
     drafts = {
       findById: jest.fn(),
+      recordAnalysis: jest.fn(),
     } as unknown as jest.Mocked<DraftsService>;
+    snapshots = new SnapshotStore();
     service = new AnalysisService(
       fastapi,
       drafts,
+      snapshots,
       new DraftAnalysisRequestMapper(),
-      new DraftAnalysisPresenter(),
+      buildPresenter(),
     );
   });
 
@@ -75,6 +108,7 @@ describe('AnalysisService', () => {
       sections: [
         { id: 'sec-x', label: 'chorus', lineStart: 1, lineEnd: 2 },
       ],
+      version: 1,
       createdAt: 'x',
       updatedAt: 'x',
     });
@@ -114,13 +148,11 @@ describe('AnalysisService', () => {
   it('marks analysis_status unsupported when all capabilities are unsupported', async () => {
     fastapi.analyzeDraft.mockResolvedValue(
       upstreamFixture({
-        capabilities: {
-          rhyme_scheme: 'unsupported',
-          cadence_patterns: 'unsupported',
-          stress_hints: 'unsupported',
-          repetition: 'unsupported',
-          mixed_language: 'unsupported',
-        },
+        capabilities: caps({
+          rhyme_scheme: { status: 'unsupported', reason_code: 'language_unsupported' },
+          cadence_patterns: { status: 'unsupported', reason_code: 'language_unsupported' },
+          repetition: { status: 'unsupported', reason_code: 'language_unsupported' },
+        }),
       }),
     );
     const out = await service.analyzeDraft({ content: 'x' });
@@ -130,13 +162,11 @@ describe('AnalysisService', () => {
   it('marks analysis_status fresh when at least one capability is not unsupported', async () => {
     fastapi.analyzeDraft.mockResolvedValue(
       upstreamFixture({
-        capabilities: {
-          rhyme_scheme: 'unsupported',
-          cadence_patterns: 'unsupported',
-          stress_hints: 'unsupported',
-          repetition: 'partial',
-          mixed_language: 'unsupported',
-        },
+        capabilities: caps({
+          rhyme_scheme: { status: 'unsupported', reason_code: 'language_unsupported' },
+          cadence_patterns: { status: 'unsupported', reason_code: 'language_unsupported' },
+          repetition: { status: 'partial', reason_code: 'insufficient_lines' },
+        }),
       }),
     );
     const out = await service.analyzeDraft({ content: 'x' });
@@ -159,5 +189,62 @@ describe('AnalysisService', () => {
     const callArg = fastapi.analyzeDraft.mock.calls[0][0];
     expect(callArg).not.toHaveProperty('force_refresh');
     expect(callArg).not.toHaveProperty('revision_hash');
+  });
+
+  it('forwards options in snake_case when analysisMode is revision_review', async () => {
+    fastapi.analyzeDraft.mockResolvedValue(upstreamFixture());
+    await service.analyzeDraft({
+      content: 'x',
+      analysisMode: 'revision_review',
+      options: {
+        includeSemanticRepetition: true,
+        includeMotifTracking: false,
+      },
+    });
+    const callArg = fastapi.analyzeDraft.mock.calls[0][0];
+    expect(callArg.options).toEqual({
+      include_semantic_repetition: true,
+      include_motif_tracking: false,
+    });
+  });
+
+  it('drops options when analysisMode is standard (default)', async () => {
+    fastapi.analyzeDraft.mockResolvedValue(upstreamFixture());
+    await service.analyzeDraft({
+      content: 'x',
+      options: { includeSemanticRepetition: true },
+    });
+    expect(fastapi.analyzeDraft.mock.calls[0][0].options).toBeUndefined();
+  });
+
+  it('writes a snapshot and records analysis provenance when draftId is present', async () => {
+    drafts.findById.mockReturnValue({
+      id: 'd1',
+      title: 't',
+      content: 'lyrics',
+      language: 'en',
+      version: 1,
+      createdAt: 'x',
+      updatedAt: 'x',
+    });
+    fastapi.analyzeDraft.mockResolvedValue(upstreamFixture());
+    const out = await service.analyzeDraft({
+      draftId: 'd1',
+      content: 'lyrics',
+    });
+    expect(drafts.recordAnalysis).toHaveBeenCalledWith('d1', {
+      lastAnalyzedAt: out.analyzed_at,
+      lastAnalysisStatus: out.analysis_status,
+      latestAnalyzedRevisionHash: out.revision_hash,
+    });
+    expect(snapshots.find('d1', out.revision_hash)).not.toBeNull();
+  });
+
+  it('does not write snapshots or provenance for anonymous (no draftId) analyses', async () => {
+    fastapi.analyzeDraft.mockResolvedValue(upstreamFixture());
+    const out = await service.analyzeDraft({ content: 'lyrics' });
+    expect(drafts.recordAnalysis).not.toHaveBeenCalled();
+    // SnapshotStore is keyed by draftId; with none provided, nothing stored.
+    expect(snapshots.find('', out.revision_hash)).toBeNull();
   });
 });

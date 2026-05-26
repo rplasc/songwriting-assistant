@@ -6,7 +6,7 @@ def test_spanish_default_mode_is_consonant(client: TestClient) -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert body["language"] == "es"
-    assert body["meta"]["mode"] == "consonant"
+    assert body["mode"] == "consonant"
     assert body["pronunciations_found"] is True
     assert len(body["rhymes"]) > 0
     types = {r["rhyme_type"] for r in body["rhymes"]}
@@ -33,7 +33,7 @@ def test_spanish_assonant_mode_returns_assonant_type(client: TestClient) -> None
         "/v1/rhymes",
         json={"word": "corazón", "language": "es", "mode": "assonant", "limit": 25},
     ).json()
-    assert assonant["meta"]["mode"] == "assonant"
+    assert assonant["mode"] == "assonant"
     assert all(r["rhyme_type"] == "assonant" for r in assonant["rhymes"])
     assert len(assonant["rhymes"]) > 0
 
@@ -86,7 +86,7 @@ def test_normalized_word_round_trips(client: TestClient) -> None:
         json={"word": "CORAZÓN", "language": "es"},
     )
     body = resp.json()
-    assert body["normalized_word"] == "corazón"
+    assert body["normalized_query"] == "corazón"
 
 
 # --- Phase 5 M1 ---
@@ -116,7 +116,7 @@ def test_spanish_multisyllabic_mode_returns_multi_tier(client: TestClient) -> No
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["meta"]["mode"] == "multisyllabic"
+    assert body["mode"] == "multisyllabic"
     if body["rhymes"]:
         assert all(r["rhyme_type"] == "multisyllabic" for r in body["rhymes"])
         assert all(r["rhyme_family"] == "multisyllabic" for r in body["rhymes"])
@@ -134,14 +134,13 @@ def test_spanish_phrase_ending_trims_leading_article(client: TestClient) -> None
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["meta"]["target_type"] == "phrase_ending"
+    assert body["target_type"] == "phrase_ending"
     # Span is the *trimmed* ending; "en" and "la" are leading function words.
-    assert body["meta"]["query_span"] == "noche"
-    assert body["normalized_word"] == "noche"
+    assert body["normalized_query"] == "noche"
 
 
 def test_spanish_capabilities_block_present(client: TestClient) -> None:
     resp = client.post("/v1/rhymes", json={"word": "corazón", "language": "es"})
-    caps = resp.json()["meta"]["capabilities"]
-    assert caps["multisyllabic"] == "full"
-    assert caps["phrase_ending"] == "full"
+    caps = resp.json()["capabilities"]
+    assert caps["multisyllabic"]["status"] == "full"
+    assert caps["phrase_ending"]["status"] == "full"

@@ -18,6 +18,8 @@ interface RhymePanelProps {
   rhymeMode?: ClientRhymeMode;
   language?: Language;
   onRequestModeChange?: (mode: ClientRhymeMode) => void;
+  onOpenExplorer?: () => void;
+  explorerOpen?: boolean;
 }
 
 const RHYME_DEGREE: Record<string, string> = {
@@ -53,12 +55,19 @@ const FOR_COPY: Record<Language, string> = {
   es: "para",
 };
 
+const EXPLORE_COPY: Record<Language, string> = {
+  en: "Explore deeper",
+  es: "Explorar más",
+};
+
 export function RhymePanel({
   status,
   result,
   rhymeMode = DEFAULT_RHYME_MODE,
   language = DEFAULT_LANGUAGE,
   onRequestModeChange,
+  onOpenExplorer,
+  explorerOpen = false,
 }: RhymePanelProps) {
   const isLoading = status === "loading";
   const target = result?.targetWord ?? null;
@@ -82,11 +91,22 @@ export function RhymePanel({
         >
           Rhymes
         </h2>
-        {isLoading && (
-          <span aria-live="polite" className="text-[10px] text-muted-foreground/70 italic">
-            {FINDING_COPY[activeLanguage]}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {isLoading && (
+            <span aria-live="polite" className="text-[10px] text-muted-foreground/70 italic">
+              {FINDING_COPY[activeLanguage]}
+            </span>
+          )}
+          {hasRhymes && onOpenExplorer && !explorerOpen && (
+            <button
+              type="button"
+              onClick={onOpenExplorer}
+              className="rounded-sm text-[10px] uppercase tracking-widest text-accent underline decoration-accent/30 decoration-dotted underline-offset-[3px] transition-colors duration-150 ease-out hover:decoration-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            >
+              {EXPLORE_COPY[activeLanguage]}
+            </button>
+          )}
+        </div>
       </header>
 
       {!hasRhymes ? (

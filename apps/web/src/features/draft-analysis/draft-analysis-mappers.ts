@@ -1,11 +1,38 @@
 import { coerceLanguage } from "@/features/language/language-types";
 import type {
+  AnchorScope,
   CapabilityLevel,
   DraftAnalysis,
   DraftAnalysisCapabilities,
   DraftAnalysisSectionResult,
   DraftAnalysisSummary,
+  DraftInsight,
+  InsightAnchor,
+  InsightConfidence,
+  InsightEvidence,
+  InsightScope,
+  InsightSeverity,
 } from "./draft-analysis-types";
+
+interface ServerInsightAnchor {
+  scope: AnchorScope;
+  section_id: string | null;
+  line_start: number | null;
+  line_end: number | null;
+}
+
+interface ServerInsight {
+  id: string;
+  type: string;
+  scope: InsightScope;
+  target: string | null;
+  severity: InsightSeverity;
+  message: string;
+  evidence: (InsightEvidence & { kind: string }) | null;
+  anchor: ServerInsightAnchor | null;
+  confidence: InsightConfidence | null;
+  hook_context: boolean;
+}
 
 interface ServerCapabilities {
   rhyme_scheme?: string;
@@ -46,7 +73,7 @@ export interface ServerDraftAnalysisPayload {
     title: string | null;
     summary: ServerSummary;
     sections: ServerSection[];
-    insights: unknown[];
+    insights: ServerInsight[];
     capabilities: ServerCapabilities;
   };
   meta: {
@@ -87,6 +114,31 @@ function toSummary(s: ServerSummary | undefined): DraftAnalysisSummary {
   };
 }
 
+function toAnchor(a: ServerInsightAnchor | null): InsightAnchor | null {
+  if (!a) return null;
+  return {
+    scope: a.scope,
+    sectionId: a.section_id,
+    lineStart: a.line_start,
+    lineEnd: a.line_end,
+  };
+}
+
+export function toInsight(s: ServerInsight): DraftInsight {
+  return {
+    id: s.id,
+    type: s.type,
+    scope: s.scope,
+    target: s.target,
+    severity: s.severity,
+    message: s.message,
+    evidence: s.evidence ?? null,
+    anchor: toAnchor(s.anchor),
+    confidence: s.confidence,
+    hookContext: s.hook_context,
+  };
+}
+
 function toSection(s: ServerSection): DraftAnalysisSectionResult {
   return {
     id: s.id,
@@ -115,6 +167,7 @@ export function toDraftAnalysis(
     title: payload.analysis?.title ?? null,
     summary: toSummary(payload.analysis?.summary),
     sections: (payload.analysis?.sections ?? []).map(toSection),
+    insights: (payload.analysis?.insights ?? []).map(toInsight),
     capabilities: toCapabilities(payload.analysis?.capabilities ?? {}),
     analyzedAt: payload.analyzed_at,
     latencyMs: payload.meta?.latency_ms ?? 0,

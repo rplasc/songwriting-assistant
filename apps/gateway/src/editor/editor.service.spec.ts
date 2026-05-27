@@ -132,4 +132,132 @@ describe('EditorService', () => {
       language: 'en',
     });
   });
+
+  describe('exploreRhymes', () => {
+    function setupExplore(upstream?: Partial<{
+      rhymes: Array<Record<string, unknown>>;
+      capabilities: Record<string, unknown>;
+      summary: Record<string, unknown>;
+      mode: string;
+      target_type: string;
+      language: 'en' | 'es';
+    }>) {
+      const getRhymes = jest.fn().mockResolvedValue({
+        query: 'hollow',
+        normalized_query: 'hollow',
+        language: upstream?.language ?? 'en',
+        target_type: upstream?.target_type ?? 'word',
+        mode: upstream?.mode ?? 'multisyllabic',
+        pronunciations_found: true,
+        summary: upstream?.summary ?? {
+          family_counts: { multisyllabic: 2 },
+          returned: 2,
+          requested_limit: 20,
+        },
+        rhymes: upstream?.rhymes ?? [
+          {
+            word: 'shadow',
+            syllables: 2,
+            rhyme_type: 'multisyllabic',
+            score: 0.92,
+            rhyme_family: 'multisyllabic',
+            id: 'r1',
+            confidence: 'high',
+            evidence_tags: ['multisyllabic_key_match'],
+            matched_span: 'ow',
+            match_reason: 'shared stressed ending',
+          },
+        ],
+        capabilities: upstream?.capabilities ?? {
+          multisyllabic: { status: 'full', reason_code: null },
+        },
+      });
+      const fastapi = {
+        analyzeLine: jest.fn(),
+        getRhymes,
+      } as unknown as FastapiClient;
+      const service = new EditorService(
+        fastapi,
+        new EditorResponsePresenter(),
+        new LanguageRequestMapper(),
+      );
+      return { service, getRhymes };
+    }
+
+    it('forwards target_type=phrase_ending and mode=multisyllabic to FastAPI', async () => {
+      const { service, getRhymes } = setupExplore();
+      const out = await service.exploreRhymes('let it all go hollow', {
+        targetType: 'phrase_ending',
+        mode: 'multisyllabic',
+        language: 'en',
+        limit: 10,
+      });
+      expect(getRhymes).toHaveBeenCalledWith({
+        word: 'let it all go hollow',
+        mode: 'multisyllabic',
+        language: 'en',
+        target_type: 'phrase_ending',
+        limit: 10,
+      });
+      expect(out.items[0]).toMatchObject({
+        word: 'shadow',
+        confidence: 'high',
+        rhyme_family: 'multisyllabic',
+        evidence_tags: ['multisyllabic_key_match'],
+        matched_span: 'ow',
+      });
+    });
+
+    it('defaults to target_type=word and language-appropriate mode', async () => {
+      const { service, getRhymes } = setupExplore();
+      await service.exploreRhymes('hollow');
+      expect(getRhymes).toHaveBeenCalledWith({
+        word: 'hollow',
+        mode: 'perfect',
+        language: 'en',
+        target_type: 'word',
+        limit: undefined,
+      });
+    });
+
+    it('defaults Spanish requests to mode=consonant', async () => {
+      const { service, getRhymes } = setupExplore({ language: 'es' });
+      await service.exploreRhymes('corazón', { language: 'es' });
+      expect(getRhymes).toHaveBeenCalledWith({
+        word: 'corazón',
+        mode: 'consonant',
+        language: 'es',
+        target_type: 'word',
+        limit: undefined,
+      });
+    });
+
+    it('propagates multisyllabic capability through the presenter', async () => {
+      const { service } = setupExplore({
+        capabilities: {
+          multisyllabic: {
+            status: 'partial',
+            reason_code: 'language_partial_support',
+          },
+        },
+      });
+      const out = await service.exploreRhymes('corazón', {
+        language: 'es',
+        mode: 'multisyllabic',
+      });
+      expect(out.capabilities.multisyllabic).toEqual({
+        status: 'partial',
+        reason_code: 'language_partial_support',
+      });
+    });
+
+    it('echoes the upstream resolved mode (FastAPI may coerce)', async () => {
+      const { service } = setupExplore({ mode: 'multisyllabic' });
+      const out = await service.exploreRhymes('hollow', {
+        mode: 'perfect',
+        targetType: 'phrase_ending',
+      });
+      expect(out.mode).toBe('multisyllabic');
+    });
+  });
 });

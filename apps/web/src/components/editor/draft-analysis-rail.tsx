@@ -16,10 +16,16 @@ import type {
   DraftAnalysis,
   DraftAnalysisStatus,
 } from "@/features/draft-analysis/draft-analysis-types";
+import type {
+  DraftCompareResult,
+  DraftCompareStatus,
+} from "@/features/draft-compare/draft-compare-types";
 import type { Language } from "@/features/language/language-types";
 import type { StanzaRange } from "@/features/structure/structure-types";
 import { AnalysisFreshnessBadge } from "./analysis-freshness-badge";
+import { CompareSummaryCard } from "./compare-summary-card";
 import { DraftAnalysisSummary } from "./draft-analysis-summary";
+import { RevisionInsightList } from "./revision-insight-list";
 import { SectionAnalysisList } from "./section-analysis-list";
 import { SectionLabelMenu } from "./section-label-menu";
 
@@ -36,6 +42,14 @@ interface Props {
   onClearLabel: (range: StanzaRange) => void;
   onRefresh: () => void;
   onJump: (lineStart: number, lineEnd: number) => void;
+  compareStatus: DraftCompareStatus;
+  compareResult: DraftCompareResult | null;
+  compareError: string | null;
+  baselineSet: boolean;
+  baselineMatchesCurrent: boolean;
+  onSetBaseline: () => void;
+  onClearBaseline: () => void;
+  onCompare: () => void;
 }
 
 export function DraftAnalysisRail({
@@ -49,6 +63,14 @@ export function DraftAnalysisRail({
   onClearLabel,
   onRefresh,
   onJump,
+  compareStatus,
+  compareResult,
+  compareError,
+  baselineSet,
+  baselineMatchesCurrent,
+  onSetBaseline,
+  onClearBaseline,
+  onCompare,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const isFirstRender = useRef(true);
@@ -132,6 +154,35 @@ export function DraftAnalysisRail({
           {analysis ? (
             <>
               <DraftAnalysisSummary analysis={analysis} language={language} />
+              <CompareSummaryCard
+                language={language}
+                status={compareStatus}
+                result={compareResult}
+                error={compareError}
+                baselineSet={baselineSet}
+                baselineMatchesCurrent={baselineMatchesCurrent}
+                onSetBaseline={onSetBaseline}
+                onClearBaseline={onClearBaseline}
+                onCompare={onCompare}
+              />
+              {/*
+                With a fresh compare result, the compare-insights list is the
+                actionable surface — the current-draft list duplicates context
+                and crowds the rail. Show one or the other, never both.
+              */}
+              {compareResult && compareResult.insights.length > 0 ? (
+                <RevisionInsightList
+                  insights={compareResult.insights}
+                  language={language}
+                  onJump={onJump}
+                />
+              ) : analysis.insights.length > 0 ? (
+                <RevisionInsightList
+                  insights={analysis.insights}
+                  language={language}
+                  onJump={onJump}
+                />
+              ) : null}
               <SectionAnalysisList
                 sections={analysis.sections}
                 language={language}

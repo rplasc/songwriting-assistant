@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useEditorAnalysis } from "@/features/analysis/use-editor-analysis";
 import {
   DEFAULT_RHYME_MODE,
@@ -16,11 +23,13 @@ import { useLyricEditor } from "@/features/editor/tiptap/use-lyric-editor";
 import { jumpToLine } from "@/features/editor/tiptap/jump-to-line";
 import { useDraftSections } from "@/features/structure/use-draft-sections";
 import { useDraftAnalysis } from "@/features/draft-analysis/use-draft-analysis";
+import { useDraftCompare } from "@/features/draft-compare/use-draft-compare";
 import { EditorHeader } from "./editor-header";
 import { EditorLayout } from "./editor-layout";
 import { LyricEditor } from "./lyric-editor";
 import { RhymePanel } from "./rhyme-panel";
 import { SyllablePanel } from "./syllable-panel";
+import { AdvancedRhymeExplorer } from "./advanced-rhyme-explorer";
 import { DraftAnalysisRail } from "./draft-analysis-rail";
 import { EditorNotice, NoticeAction } from "./editor-notice";
 
@@ -33,6 +42,7 @@ const CONTENT_WARN_AT = Math.floor(CONTENT_CEILING * 0.9);
 
 export function LyricEditorShell() {
   const { editor, activeLine, content } = useLyricEditor();
+  const [explorerOpen, setExplorerOpen] = useState(false);
 
   const rhymeMode = useSyncExternalStore(
     subscribeToRhymeMode,
@@ -92,6 +102,65 @@ export function LyricEditorShell() {
     language,
     sections,
   });
+
+  // Baseline is a stored revision hash; the gateway's SnapshotStore retains
+  // the analysis payload behind that hash for the comparison call. Tag the
+  // saved hash with its draftId so a draft switch implicitly invalidates the
+  // baseline without needing an effect (snapshot hashes are draft-scoped on
+  // the gateway).
+  const [baseline, setBaseline] = useState<{
+    draftId: string;
+    revisionHash: string;
+  } | null>(null);
+  const baselineRevisionHash =
+    baseline && baseline.draftId === currentDraftId
+      ? baseline.revisionHash
+      : null;
+  const currentRevisionHash = analysis?.revisionHash ?? null;
+  const baselineSet = baselineRevisionHash !== null;
+  const baselineMatchesCurrent =
+    baselineSet && baselineRevisionHash === currentRevisionHash;
+
+  const {
+    status: compareStatus,
+    result: compareResult,
+    error: compareError,
+    run: runCompare,
+    reset: resetCompare,
+  } = useDraftCompare({
+    draftId: currentDraftId,
+    baseRevisionHash: baselineRevisionHash,
+    targetRevisionHash: currentRevisionHash,
+    language,
+  });
+
+  // If the user switches drafts, drop any compare result associated with the
+  // old draft. The baseline itself stays tagged with its draftId so it's
+  // naturally inert once the draft no longer matches. React state-during-
+  // render handles draft switch without an effect's commit-phase delay.
+  const [trackedDraftId, setTrackedDraftId] = useState(currentDraftId);
+  if (trackedDraftId !== currentDraftId) {
+    setTrackedDraftId(currentDraftId);
+    resetCompare();
+  }
+
+  const handleSetBaseline = useCallback(() => {
+    if (currentDraftId && currentRevisionHash) {
+      setBaseline({
+        draftId: currentDraftId,
+        revisionHash: currentRevisionHash,
+      });
+    }
+  }, [currentDraftId, currentRevisionHash]);
+
+  const handleClearBaseline = useCallback(() => {
+    setBaseline(null);
+    resetCompare();
+  }, [resetCompare]);
+
+  const handleCompare = useCallback(() => {
+    void runCompare();
+  }, [runCompare]);
 
   const saveNowRef = useRef(saveNow);
   useEffect(() => {
@@ -239,7 +308,17 @@ export function LyricEditorShell() {
               rhymeMode={rhymeMode}
               language={language}
               onRequestModeChange={handleRhymeModeChange}
+              onOpenExplorer={() => setExplorerOpen(true)}
+              explorerOpen={explorerOpen}
             />
+            {explorerOpen && (
+              <AdvancedRhymeExplorer
+                activeLine={activeLine}
+                language={language}
+                enabled={explorerOpen}
+                onClose={() => setExplorerOpen(false)}
+              />
+            )}
           </>
         }
         rail={
@@ -254,6 +333,14 @@ export function LyricEditorShell() {
             onClearLabel={handleClearLabel}
             onRefresh={() => void refreshAnalysis()}
             onJump={handleJump}
+            compareStatus={compareStatus}
+            compareResult={compareResult}
+            compareError={compareError}
+            baselineSet={baselineSet}
+            baselineMatchesCurrent={baselineMatchesCurrent}
+            onSetBaseline={handleSetBaseline}
+            onClearBaseline={handleClearBaseline}
+            onCompare={handleCompare}
           />
         }
       />

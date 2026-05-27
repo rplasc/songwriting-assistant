@@ -1,7 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { Language, RhymeMode } from '../../common/enums/language.enum';
 import {
+  CapabilityReasonCode,
+  CapabilityStatus,
+} from '../../common/enums/capability.enum';
+import {
+  AdvancedRhymeMode,
+  Language,
+  RhymeMode,
+  RhymeTargetType,
+} from '../../common/enums/language.enum';
+import {
+  EvidenceTag,
   LineAnalysisResponse,
+  RhymeConfidence,
+  RhymeFamily,
   RhymeResponse,
 } from '../../fastapi/dto/fastapi-responses';
 
@@ -21,6 +33,50 @@ export interface EditorAnalysisPayload {
     request_id?: string;
     latency_ms: number;
   };
+}
+
+export interface ExploreRhymeItem {
+  id: string;
+  word: string;
+  syllables: number;
+  rhyme_type: string;
+  rhyme_family: RhymeFamily | null;
+  confidence: RhymeConfidence;
+  evidence_tags: EvidenceTag[];
+  matched_span: string | null;
+  match_reason: string | null;
+  score: number;
+}
+
+export interface ExploreRhymesPayload {
+  query: string;
+  target_type: RhymeTargetType;
+  mode: AdvancedRhymeMode;
+  language: Language;
+  pronunciations_found: boolean;
+  items: ExploreRhymeItem[];
+  summary: {
+    family_counts: Record<string, number>;
+    returned: number;
+    requested_limit: number;
+  };
+  capabilities: {
+    multisyllabic: {
+      status: CapabilityStatus;
+      reason_code: CapabilityReasonCode | null;
+    };
+  };
+  meta: {
+    request_id?: string;
+    latency_ms: number;
+  };
+}
+
+interface ExploreContext {
+  query: string;
+  targetType: RhymeTargetType;
+  mode: AdvancedRhymeMode;
+  language: Language;
 }
 
 @Injectable()
@@ -55,6 +111,53 @@ export class EditorResponsePresenter {
             syllables: r.syllables,
             type: r.rhyme_type,
           })) ?? [],
+      },
+      meta: {
+        request_id: requestId,
+        latency_ms: Math.round(latencyMs),
+      },
+    };
+  }
+
+  toExplorePayload(
+    upstream: RhymeResponse,
+    context: ExploreContext,
+    latencyMs: number,
+    requestId?: string,
+  ): ExploreRhymesPayload {
+    const multi = upstream.capabilities?.multisyllabic;
+    return {
+      query: upstream.query ?? context.query,
+      // Echo the resolved values FastAPI applied so the client can react to
+      // mode coercion (e.g. phrase-ending auto-upgrade to multisyllabic).
+      target_type: upstream.target_type ?? context.targetType,
+      mode: (upstream.mode as AdvancedRhymeMode | undefined) ?? context.mode,
+      language: upstream.language ?? context.language,
+      pronunciations_found: upstream.pronunciations_found,
+      items: (upstream.rhymes ?? []).map((r, i) => ({
+        // FastAPI is supposed to assign an id; preserve any client-visible
+        // ordering when it doesn't so React keys stay stable across reorders.
+        id: r.id && r.id.length > 0 ? r.id : `${r.word}-${i}`,
+        word: r.word,
+        syllables: r.syllables,
+        rhyme_type: r.rhyme_type,
+        rhyme_family: r.rhyme_family ?? null,
+        confidence: r.confidence ?? 'low',
+        evidence_tags: r.evidence_tags ?? [],
+        matched_span: r.matched_span ?? null,
+        match_reason: r.match_reason ?? null,
+        score: r.score,
+      })),
+      summary: {
+        family_counts: upstream.summary?.family_counts ?? {},
+        returned: upstream.summary?.returned ?? (upstream.rhymes?.length ?? 0),
+        requested_limit: upstream.summary?.requested_limit ?? 0,
+      },
+      capabilities: {
+        multisyllabic: {
+          status: multi?.status ?? 'full',
+          reason_code: multi?.reason_code ?? null,
+        },
       },
       meta: {
         request_id: requestId,

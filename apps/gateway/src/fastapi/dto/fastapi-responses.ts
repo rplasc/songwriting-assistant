@@ -6,7 +6,29 @@ import {
   InsightConfidence,
   InsightSeverity,
 } from '../../common/enums/capability.enum';
-import { Language } from '../../common/enums/language.enum';
+import { Language, RhymeTargetType } from '../../common/enums/language.enum';
+
+export const RHYME_FAMILIES = [
+  'perfect',
+  'multisyllabic',
+  'near',
+  'assonant',
+  'consonant',
+] as const;
+export type RhymeFamily = (typeof RHYME_FAMILIES)[number];
+
+export const RHYME_CONFIDENCES = ['high', 'medium', 'low'] as const;
+export type RhymeConfidence = (typeof RHYME_CONFIDENCES)[number];
+
+export const EVIDENCE_TAGS = [
+  'shared_stressed_ending',
+  'shared_vowel_pattern',
+  'shared_consonant_tail',
+  'phrase_ending_match',
+  'heuristic_fallback',
+  'multisyllabic_key_match',
+] as const;
+export type EvidenceTag = (typeof EVIDENCE_TAGS)[number];
 
 export interface TokenAnalysis {
   text: string;
@@ -41,6 +63,13 @@ export interface RhymeCandidate {
   rhyme_type: string;
   score: number;
   match_reason?: string | null;
+  // Phase 5.5 productization fields. Older callers (the default WS analyze
+  // path) ignore them; the explore path forwards them to the client.
+  rhyme_family?: RhymeFamily | null;
+  matched_span?: string | null;
+  id?: string;
+  confidence?: RhymeConfidence;
+  evidence_tags?: EvidenceTag[];
 }
 
 export interface RhymeMeta {
@@ -49,13 +78,34 @@ export interface RhymeMeta {
   include_near: boolean;
 }
 
+export interface RhymeSummary {
+  family_counts: Record<string, number>;
+  returned: number;
+  requested_limit: number;
+}
+
+export interface UpstreamRhymeCapabilities {
+  // FastAPI returns a dict keyed by capability name; multisyllabic is the
+  // one Phase 5.5 cares about, others may appear later.
+  multisyllabic?: UpstreamCapability;
+  [key: string]: UpstreamCapability | undefined;
+}
+
 export interface RhymeResponse {
-  word: string;
-  normalized_word: string | null;
+  // Legacy fields kept for the existing WS path. The explore path also
+  // returns `query`, `target_type`, `summary`, and `capabilities`.
+  word?: string;
+  normalized_word?: string | null;
+  query?: string;
+  normalized_query?: string | null;
   language: Language;
+  target_type?: RhymeTargetType;
+  mode?: string;
   pronunciations_found: boolean;
   rhymes: RhymeCandidate[];
-  meta: RhymeMeta;
+  meta?: RhymeMeta;
+  summary?: RhymeSummary;
+  capabilities?: UpstreamRhymeCapabilities;
 }
 
 export interface UpstreamCapability {

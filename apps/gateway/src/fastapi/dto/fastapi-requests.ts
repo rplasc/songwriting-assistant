@@ -1,4 +1,9 @@
-import { Language, RhymeMode } from '../../common/enums/language.enum';
+import {
+  AdvancedRhymeMode,
+  Language,
+  RhymeMode,
+  RhymeTargetType,
+} from '../../common/enums/language.enum';
 
 export interface AnalyzeLineRequest {
   line: string;
@@ -10,7 +15,9 @@ export interface RhymesRequest {
   limit?: number;
   language?: Language;
   /** Field name matches the FastAPI schema. */
-  mode?: RhymeMode;
+  mode?: RhymeMode | AdvancedRhymeMode;
+  /** Phase 5.5: select phrase-ending vs single-word matching. */
+  target_type?: RhymeTargetType;
 }
 
 export interface AnalyzeDraftSection {

@@ -24,6 +24,7 @@ from app.services.draft_nlp_service import DraftNlpService
 from app.services.evaluation_report_service import EvaluationReportService
 from app.services.language_router import LanguageContext, LanguageRouter
 from app.services.pronunciation_service import PronunciationService
+from app.services.response_cache import ResponseCache
 from app.services.rhyme_index import RhymeIndex, warm_frequency_cache
 from app.services.rhyme_service import RhymeService
 from app.services.syllable_service import SyllableService
@@ -111,11 +112,28 @@ async def lifespan(app: FastAPI):
     app.state.syllable_service = en_ctx.syllable_service
     app.state.rhyme_service = en_ctx.rhyme_service
 
+    if settings.cache_enabled:
+        try:
+            response_cache = ResponseCache.connect(
+                settings.cache_redis_url,
+                ttl_seconds=settings.cache_ttl_seconds,
+            )
+        except Exception as exc:
+            logger.warning(
+                "startup.cache_init_failed",
+                extra={"extras": {"error": repr(exc)}},
+            )
+            response_cache = ResponseCache.disabled()
+    else:
+        response_cache = ResponseCache.disabled()
+    app.state.response_cache = response_cache
+
     logger.info(
         "startup.ready",
         extra={"extras": {"app": settings.app_name, "languages": list(router.supported)}},
     )
     yield
+    await response_cache.close()
 
 
 def create_app() -> FastAPI:

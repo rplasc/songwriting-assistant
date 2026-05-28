@@ -28,6 +28,8 @@ Browser (Next.js)  →  Gateway (NestJS)  →  NLP Service (FastAPI)
 - **Rhyme suggestions** — perfect/near for English, consonant/assonant for Spanish, ranked by frequency and labeled
 - **Rhyme-mode toggle** — switch between strict and loose matching from the editor header
 - **Draft analysis** — on-demand structural review of the full draft: rhyme scheme, cadence patterns, and repetition signals per section
+- **Draft compare** — delta analysis between two versions of a draft, surfacing changes in motifs, repetition, section structure, and consistency
+- **Response caching** — repeat draft analyses are served from a Redis cache, reducing latency on iterative edits (opt-in via `NLP_CACHE_ENABLED`)
 - **Real-time WebSocket transport** — analysis updates as you write, with HTTP fallback available
 - **Stale-response protection** — only the result for the line you're currently on is shown
 - **Error resilience** — transport failures surface a quiet status message without breaking the editor
@@ -75,6 +77,10 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+To enable the Redis response cache, set `NLP_CACHE_ENABLED=true` before starting
+the service (requires Redis on `localhost:6379` by default). See
+[`apps/nlp-service/README.md`](apps/nlp-service/README.md) for all cache options.
+
 ### 2. Gateway (Node.js / NestJS)
 
 ```bash
@@ -101,6 +107,6 @@ Open `http://localhost:3001` and start writing.
 | --- | --- |
 | Editor UI | Next.js 16, React 19, TipTap, Tailwind v4 |
 | Gateway | NestJS, Socket.IO |
-| NLP engine | FastAPI; CMU Pronouncing Dictionary (English) + rule-based phonology and corpus (Spanish) |
+| NLP engine | FastAPI; CMU Pronouncing Dictionary (English) + rule-based phonology and corpus (Spanish); optional Redis response cache |
 | Font | IBM Plex Sans |
 | Tests | Vitest + React Testing Library (web), Jest (gateway), Pytest (NLP) |

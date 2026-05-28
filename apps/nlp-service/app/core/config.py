@@ -21,5 +21,14 @@ class Settings(BaseSettings):
     # on it. The CLI keeps working regardless.
     expose_evaluation_endpoint: bool = True
 
+    # Redis-backed response cache for /v1/analyze-draft and
+    # /v1/analyze-draft-compare. Off by default so local dev and CI don't
+    # require Redis; flip on per environment via NLP_CACHE_ENABLED=true.
+    # Bump cache_key_prefix to invalidate everything after analysis changes.
+    cache_enabled: bool = False
+    cache_redis_url: str = "redis://localhost:6379/0"
+    cache_ttl_seconds: int = 3600
+    cache_key_prefix: str = "nlp:v1"
+
 
 settings = Settings()

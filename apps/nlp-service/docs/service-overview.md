@@ -195,6 +195,54 @@ bundle would either require duplicating it or creating an awkward cross-bundle r
 
 ---
 
+---
+
+## 11. Redis response cache for draft endpoints
+
+**Decision:** `/v1/analyze-draft` and `/v1/analyze-draft-compare` support an
+opt-in Redis cache implemented in
+[`app/services/response_cache.py`](../app/services/response_cache.py). It is
+off by default (`NLP_CACHE_ENABLED=false`) and degrades gracefully — if Redis
+is unavailable the service computes a fresh response and logs a warning.
+
+**Reasoning:**
+
+Users iterate on the same song draft many times during an editing session. The
+NestJS gateway calls these endpoints on every save and on every explicit
+"analyze" action, so the same or near-identical content is re-analysed
+frequently. The full draft pipeline (tokenize → syllables → rhyme keys →
+lemmatize → cluster → motif/contrast/drift) has measurable latency that grows
+with draft length. A content-addressed response cache (keyed on `sha256` of the
+canonical JSON payload) turns repeat calls into a single Redis read, which is
+typically under 2 ms.
+
+Cache keys use `orjson.OPT_SORT_KEYS` serialisation so equivalent payloads with
+different field ordering hash identically. Bumping `NLP_CACHE_KEY_PREFIX` (e.g.
+`nlp:v1` → `nlp:v2`) invalidates all entries globally when analysis logic
+changes.
+
+**Tradeoffs:**
+
+- **Opt-in by design.** Local dev and CI work without Redis. This adds one
+  environment variable to set in production but keeps the default path simple.
+- **Per-process, not shared.** Each NLP worker instance holds its own Redis
+  connection. If multiple workers run behind a load balancer, they share the
+  same Redis keyspace and warm each other's cache — no extra work needed.
+- **Short socket timeouts (250 ms).** If Redis is slow, the service falls through
+  to computation rather than stalling the request. Latency with a degraded Redis
+  is therefore bounded at `250 ms overhead + normal compute time`.
+- **No cache invalidation beyond TTL.** Entries expire after `NLP_CACHE_TTL_SECONDS`
+  (default 1 hour). If the analysis logic changes mid-session, users with entries
+  in the cache will receive stale results until TTL expires or the prefix is
+  bumped. This is acceptable for the current use case — analysis logic changes
+  only on deploy.
+- **No stampede protection.** Multiple concurrent requests for the same uncached
+  key will all compute simultaneously and race to write the result. The last
+  writer wins; the cost is a small number of redundant computations on first
+  access. A single-flight layer could be added if this becomes a bottleneck.
+
+---
+
 ## Further reading
 
 - [`bilingual.md`](./bilingual.md) — the cross-cutting language contract: what is shared, what is per-language, what FastAPI guarantees the gateway.

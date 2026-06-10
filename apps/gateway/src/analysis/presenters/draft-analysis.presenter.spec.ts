@@ -129,6 +129,57 @@ describe('DraftAnalysisPresenter', () => {
     expect(typeof out.analyzed_at).toBe('string');
   });
 
+  it('defaults inner_rhymes to an empty array when upstream omits it', () => {
+    const out = presenter.toClient({
+      draftId: 'd1',
+      revisionHash: 'h',
+      upstream: upstream(),
+      latencyMs: 1,
+    });
+    expect(out.analysis.inner_rhymes).toEqual([]);
+  });
+
+  it('passes inner-rhyme groups through from upstream', () => {
+    const out = presenter.toClient({
+      draftId: 'd1',
+      revisionHash: 'h',
+      upstream: upstream({
+        inner_rhymes: [
+          {
+            id: 'irh_abc123',
+            rhyme_type: 'perfect',
+            confidence: 'high',
+            rhyme_key: 'AE1_T',
+            occurrences: [
+              {
+                line_index: 1,
+                word_index: 1,
+                char_start: 4,
+                char_end: 7,
+                text: 'cat',
+                normalized: 'cat',
+              },
+              {
+                line_index: 2,
+                word_index: 3,
+                char_start: 11,
+                char_end: 14,
+                text: 'mat',
+                normalized: 'mat',
+              },
+            ],
+          },
+        ],
+      }),
+      latencyMs: 1,
+    });
+    expect(out.analysis.inner_rhymes).toHaveLength(1);
+    expect(out.analysis.inner_rhymes[0].rhyme_type).toBe('perfect');
+    expect(
+      out.analysis.inner_rhymes[0].occurrences.map((o) => o.line_index),
+    ).toEqual([1, 2]);
+  });
+
   it('sets analysis_status to unsupported when all capabilities are unsupported', () => {
     const allUnsupported = caps({
       rhyme_scheme: { status: 'unsupported', reason_code: 'language_unsupported' },

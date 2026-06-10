@@ -20,8 +20,8 @@ uvicorn app.main:app --reload --port 8000
 | --- | --- | --- |
 | GET | `/healthz` | Health check |
 | POST | `/v1/rhymes` | Rhyme suggestions for a word |
-| POST | `/v1/analyze-line` | Syllable analysis for a single line |
-| POST | `/v1/analyze-draft` | Structural analysis for a full draft |
+| POST | `/v1/analyze-line` | Syllable analysis for a single line, plus same-line `inner_rhymes` groups |
+| POST | `/v1/analyze-draft` | Structural analysis for a full draft, plus draft-wide `inner_rhymes` groups |
 | POST | `/v1/analyze-draft-compare` | Delta analysis between two draft versions |
 
 ```powershell
@@ -113,3 +113,4 @@ docker run --rm -p 8000:8000 `
 - [`docs/spanish-pipeline.md`](docs/spanish-pipeline.md) — Spanish-specific implementation
 - [`docs/taxonomy.md`](docs/taxonomy.md) — Rhyme taxonomy and phrase-ending rules
 - [`docs/draft_intelligence.md`](docs/draft_intelligence.md) — threshold reference: clustering, motifs, contrast, consistency hints
+- [`docs/inner-rhyme-detection.md`](docs/inner-rhyme-detection.md) — word-level rhyme grouping (`inner_rhymes`) for `/v1/analyze-line` and `/v1/analyze-draft`

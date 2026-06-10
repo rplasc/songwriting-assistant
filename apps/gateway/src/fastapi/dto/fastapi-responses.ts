@@ -39,6 +39,26 @@ export interface TokenAnalysis {
   low_confidence?: boolean;
 }
 
+export const INNER_RHYME_TYPES = ['perfect', 'near'] as const;
+export type InnerRhymeType = (typeof INNER_RHYME_TYPES)[number];
+
+export interface InnerRhymeOccurrence {
+  line_index: number;
+  word_index: number;
+  char_start: number;
+  char_end: number;
+  text: string;
+  normalized: string;
+}
+
+export interface InnerRhymeGroup {
+  id: string;
+  rhyme_type: InnerRhymeType;
+  confidence: RhymeConfidence;
+  rhyme_key: string;
+  occurrences: InnerRhymeOccurrence[];
+}
+
 export interface LastWord {
   text: string;
   normalized: string;
@@ -55,6 +75,7 @@ export interface LineAnalysisResponse {
   total_syllables: number;
   tokens: TokenAnalysis[];
   last_word: LastWord | null;
+  inner_rhymes?: InnerRhymeGroup[];
 }
 
 export interface RhymeCandidate {
@@ -183,6 +204,7 @@ export interface DraftAnalysisResponse {
   summary: DraftAnalysisSummary;
   insights: UpstreamInsight[];
   detail: DraftDetail;
+  inner_rhymes?: InnerRhymeGroup[];
 }
 
 export interface DraftRevisionUpstream {

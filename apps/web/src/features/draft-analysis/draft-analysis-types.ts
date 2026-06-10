@@ -1,4 +1,7 @@
 import type { Language } from "@/features/language/language-types";
+import type { InnerRhymeGroup } from "@/features/analysis/analysis-types";
+
+export type { InnerRhymeGroup } from "@/features/analysis/analysis-types";
 
 export type CapabilityLevel = "full" | "partial" | "unsupported";
 
@@ -79,6 +82,7 @@ export interface DraftAnalysis {
   summary: DraftAnalysisSummary;
   sections: DraftAnalysisSectionResult[];
   insights: DraftInsight[];
+  innerRhymes: InnerRhymeGroup[];
   capabilities: DraftAnalysisCapabilities;
   analyzedAt: string;
   latencyMs: number;

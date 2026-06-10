@@ -41,3 +41,27 @@ def test_analyze_line_unknown_word_has_count(client: TestClient) -> None:
     assert body["total_syllables"] >= 1
     assert body["tokens"][0]["pronunciation_found"] is False
     assert body["tokens"][0]["source"] == "heuristic"
+
+
+def test_analyze_line_detects_inner_rhymes(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/analyze-line", json={"line": "the cat sat on the mat"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    groups = body["inner_rhymes"]
+    assert len(groups) >= 1
+    perfect = next(g for g in groups if g["rhyme_type"] == "perfect")
+    words = {o["normalized"] for o in perfect["occurrences"]}
+    assert {"cat", "sat", "mat"} <= words
+    # occurrences carry positions for UI highlighting
+    for occ in perfect["occurrences"]:
+        assert occ["line_index"] == 0
+        assert occ["char_end"] > occ["char_start"]
+        assert occ["word_index"] >= 0
+
+
+def test_analyze_line_no_inner_rhymes_when_none(client: TestClient) -> None:
+    resp = client.post("/v1/analyze-line", json={"line": "hello world today"})
+    assert resp.status_code == 200
+    assert resp.json()["inner_rhymes"] == []

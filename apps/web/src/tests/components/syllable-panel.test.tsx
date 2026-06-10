@@ -14,6 +14,7 @@ const RESULT: AnalysisResult = {
   ],
   targetWord: "eyes",
   rhymes: [],
+  innerRhymes: [],
   rhymeMode: "perfect",
   lowConfidence: false,
   latencyMs: 30,

@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Request
 
 from app.core.logging import get_logger, timed
+from app.domain.rhyme.inner_rhyme_rules import (
+    find_inner_rhyme_groups,
+    phonemes_for_context,
+)
 from app.schemas.requests import LineAnalysisRequest
 from app.schemas.responses import LastWord, LineAnalysisResponse, TokenAnalysis
 from app.services.language_router import LanguageRouter
@@ -56,6 +60,12 @@ def post_analyze_line(
             low_confidence=not found,
         )
 
+    inner_rhymes = find_inner_rhyme_groups(
+        [(0, tokens)],
+        phonemes_for_context(ctx, {}),
+        payload.language,
+    )
+
     normalized_line = " ".join(t.normalized for t in tokens)
     return LineAnalysisResponse(
         line=payload.line,
@@ -64,4 +74,5 @@ def post_analyze_line(
         total_syllables=total,
         tokens=token_payloads,
         last_word=last_word,
+        inner_rhymes=inner_rhymes,
     )

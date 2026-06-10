@@ -5,6 +5,7 @@ import {
   DraftAnalysisResponse,
   DraftAnalysisSection,
   DraftAnalysisSummary,
+  InnerRhymeGroup,
 } from '../../fastapi/dto/fastapi-responses';
 import {
   CapabilitiesPayload,
@@ -28,6 +29,7 @@ export interface DraftAnalysisPayload {
     detail: DraftAnalysisDetail;
     insights: InsightPayload[];
     capabilities: CapabilitiesPayload;
+    inner_rhymes: InnerRhymeGroup[];
   };
   meta: {
     request_id?: string;
@@ -66,6 +68,7 @@ export class DraftAnalysisPresenter {
         detail: { sections: input.upstream.detail.sections },
         insights: this.insights.toClientList(input.upstream.insights),
         capabilities: this.capabilities.toClient(input.upstream.capabilities),
+        inner_rhymes: input.upstream.inner_rhymes ?? [],
       },
       meta: {
         request_id: input.requestId,

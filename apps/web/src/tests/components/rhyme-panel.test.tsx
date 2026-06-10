@@ -13,6 +13,7 @@ const RESULT_WITH_RHYMES: AnalysisResult = {
     { word: "skies", syllables: 1, type: "perfect" },
     { word: "rise", syllables: 1, type: "near" },
   ],
+  innerRhymes: [],
   rhymeMode: "perfect",
   lowConfidence: false,
   latencyMs: 20,

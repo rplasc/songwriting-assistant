@@ -83,6 +83,49 @@ describe("toDraftAnalysis", () => {
     expect(result.capabilities.stressHints).toBe("full");
   });
 
+  it("maps inner-rhyme groups (and defaults to empty when absent)", () => {
+    expect(toDraftAnalysis(BASE).innerRhymes).toEqual([]);
+
+    const withInner: ServerDraftAnalysisPayload = {
+      ...BASE,
+      analysis: {
+        ...BASE.analysis,
+        inner_rhymes: [
+          {
+            id: "irh_x",
+            rhyme_type: "near",
+            confidence: "medium",
+            rhyme_key: "AE_stop",
+            occurrences: [
+              {
+                line_index: 1,
+                word_index: 1,
+                char_start: 4,
+                char_end: 7,
+                text: "cat",
+                normalized: "cat",
+              },
+              {
+                line_index: 2,
+                word_index: 0,
+                char_start: 0,
+                char_end: 3,
+                text: "cad",
+                normalized: "cad",
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const result = toDraftAnalysis(withInner);
+    expect(result.innerRhymes).toHaveLength(1);
+    expect(result.innerRhymes[0].rhymeType).toBe("near");
+    expect(result.innerRhymes[0].occurrences.map((o) => o.lineIndex)).toEqual([
+      1, 2,
+    ]);
+  });
+
   it("defaults missing summary fields to zero", () => {
     const payload = {
       ...BASE,

@@ -57,6 +57,36 @@ class RhymeResponse(BaseModel):
     capabilities: dict[str, Capability]
 
 
+class RhymeOccurrence(BaseModel):
+    """One rhyming word's position, so the UI can highlight it.
+
+    ``line_index`` is 1-based and global within a draft; the single-line
+    endpoint emits 0 since there is only one line. ``word_index`` is the
+    0-based position of the word within its line, and ``char_start``/
+    ``char_end`` are offsets into that line (``char_end`` exclusive).
+    """
+
+    line_index: int
+    word_index: int
+    char_start: int
+    char_end: int
+    text: str
+    normalized: str
+
+
+class InnerRhymeGroup(BaseModel):
+    """A set of words that rhyme with each other, anywhere in the text.
+
+    Covers interior and ending words alike, on the same line or across lines.
+    """
+
+    id: str
+    rhyme_type: Literal["perfect", "near"]
+    confidence: RhymeConfidence
+    rhyme_key: str
+    occurrences: list[RhymeOccurrence]
+
+
 class TokenAnalysis(BaseModel):
     text: str
     normalized: str
@@ -82,6 +112,7 @@ class LineAnalysisResponse(BaseModel):
     total_syllables: int
     tokens: list[TokenAnalysis]
     last_word: LastWord | None
+    inner_rhymes: list[InnerRhymeGroup] = []
 
 
 class ErrorDetail(BaseModel):

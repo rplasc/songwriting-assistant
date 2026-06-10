@@ -34,6 +34,16 @@ to preserve back-compat for clients that already render the tier label.
 The mapping is in
 [`app/domain/rhyme/rhyme_family.py`](../app/domain/rhyme/rhyme_family.py).
 
+### A third, narrower `rhyme_type`: inner-rhyme groups
+
+`inner_rhymes[].rhyme_type` (on `LineAnalysisResponse` and
+`DraftAnalysisResponse`) is a closed `"perfect" | "near"` enum — a different,
+smaller vocabulary from both `RhymeCandidate.rhyme_type` (tiers, above) and
+`rhyme_family`. It reuses the same key functions (`rhyme_key`/`consonant_rhyme_key`
+for "perfect", `near_rhyme_key`/`assonant_rhyme_key` for "near") but describes
+*groups of words within the input*, not *candidate words from the corpus*.
+See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md).
+
 ## 2. Phrase-ending extraction
 
 Phrase-ending lookups (`target_type: "phrase_ending"`) run a deterministic

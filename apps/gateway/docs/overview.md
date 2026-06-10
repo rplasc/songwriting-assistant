@@ -59,6 +59,8 @@ The HTTP controller and WebSocket gateway both delegate to `EditorService.analyz
 
 A dedicated `EditorResponsePresenter` translates FastAPI's internal field names (`total_syllables`, `rhyme_type`) into the stable UI contract (`syllables.total`, `type`), and echoes the resolved `language` and `mode` back to the client so the editor doesn't have to remember what it asked for. This insulates the frontend from FastAPI implementation details and means FastAPI's schema can evolve without breaking the client.
 
+`inner_rhymes` — FastAPI's word-level rhyme groups (perfect/near, with line/word/char positions for highlighting) — is one of the few fields passed through verbatim rather than reshaped. Both `EditorResponsePresenter` (from `/v1/analyze-line`) and `DraftAnalysisPresenter` (from `/v1/analyze-draft`) default it to `[]` if FastAPI omits it, but otherwise forward the array as-is, snake_case included, matching how `sections` is handled for draft analysis. See `apps/nlp-service/docs/inner-rhyme-detection.md` for the field shapes.
+
 ### Socket.IO over raw ws
 
 The WebSocket gateway uses Socket.IO via `@nestjs/platform-socket.io`. Socket.IO provides named events, namespaces, and automatic reconnection, which map directly to the `editor.analyze` / `editor.analysis` / `editor.error` event model. Raw `ws` would have required a hand-rolled message envelope. The tradeoff is that Socket.IO clients must be used on the frontend; plain `WebSocket` browser clients are not compatible without the polling fallback.

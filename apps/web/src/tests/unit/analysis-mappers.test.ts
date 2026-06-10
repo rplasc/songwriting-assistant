@@ -39,6 +39,55 @@ describe("toAnalysisResult", () => {
     expect(result.requestId).toBe("req-1");
   });
 
+  it("maps inner-rhyme groups to camelCase with positions", () => {
+    const payload: ServerAnalysisPayload = {
+      ...BASE_PAYLOAD,
+      inner_rhymes: [
+        {
+          id: "irh_abc123",
+          rhyme_type: "perfect",
+          confidence: "high",
+          rhyme_key: "AE1_T",
+          occurrences: [
+            {
+              line_index: 0,
+              word_index: 1,
+              char_start: 4,
+              char_end: 7,
+              text: "cat",
+              normalized: "cat",
+            },
+            {
+              line_index: 0,
+              word_index: 2,
+              char_start: 8,
+              char_end: 11,
+              text: "sat",
+              normalized: "sat",
+            },
+          ],
+        },
+      ],
+    };
+    const result = toAnalysisResult(payload);
+    expect(result.innerRhymes).toHaveLength(1);
+    const group = result.innerRhymes[0];
+    expect(group.rhymeType).toBe("perfect");
+    expect(group.rhymeKey).toBe("AE1_T");
+    expect(group.occurrences[0]).toEqual({
+      lineIndex: 0,
+      wordIndex: 1,
+      charStart: 4,
+      charEnd: 7,
+      text: "cat",
+      normalized: "cat",
+    });
+  });
+
+  it("defaults innerRhymes to an empty array when absent", () => {
+    expect(toAnalysisResult(BASE_PAYLOAD).innerRhymes).toEqual([]);
+  });
+
   it("handles a null target_word by setting targetWord to null", () => {
     const payload: ServerAnalysisPayload = {
       ...BASE_PAYLOAD,

@@ -1,4 +1,6 @@
 import { coerceLanguage } from "@/features/language/language-types";
+import { toInnerRhymeGroups } from "@/features/analysis/analysis-mappers";
+import type { ServerInnerRhymeGroup } from "@/features/analysis/analysis-types";
 import type {
   AnchorScope,
   CapabilityLevel,
@@ -74,6 +76,7 @@ export interface ServerDraftAnalysisPayload {
     summary: ServerSummary;
     sections: ServerSection[];
     insights: ServerInsight[];
+    inner_rhymes?: ServerInnerRhymeGroup[];
     capabilities: ServerCapabilities;
   };
   meta: {
@@ -168,6 +171,7 @@ export function toDraftAnalysis(
     summary: toSummary(payload.analysis?.summary),
     sections: (payload.analysis?.sections ?? []).map(toSection),
     insights: (payload.analysis?.insights ?? []).map(toInsight),
+    innerRhymes: toInnerRhymeGroups(payload.analysis?.inner_rhymes),
     capabilities: toCapabilities(payload.analysis?.capabilities ?? {}),
     analyzedAt: payload.analyzed_at,
     latencyMs: payload.meta?.latency_ms ?? 0,

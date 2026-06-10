@@ -58,8 +58,47 @@ describe('EditorResponsePresenter', () => {
         mode: 'perfect',
         items: [{ word: 'skies', syllables: 1, type: 'perfect' }],
       },
+      inner_rhymes: [],
       meta: { request_id: 'req-1', latency_ms: 13 },
     });
+  });
+
+  it('passes inner-rhyme groups through from the line response', () => {
+    const withInner: LineAnalysisResponse = {
+      ...lineResp,
+      inner_rhymes: [
+        {
+          id: 'irh_abc123',
+          rhyme_type: 'perfect',
+          confidence: 'high',
+          rhyme_key: 'AE1_T',
+          occurrences: [
+            {
+              line_index: 0,
+              word_index: 1,
+              char_start: 4,
+              char_end: 7,
+              text: 'cat',
+              normalized: 'cat',
+            },
+            {
+              line_index: 0,
+              word_index: 2,
+              char_start: 8,
+              char_end: 11,
+              text: 'sat',
+              normalized: 'sat',
+            },
+          ],
+        },
+      ],
+    };
+    const out = presenter.toClient(withInner, null, 1, 'perfect', 'en');
+    expect(out.inner_rhymes).toHaveLength(1);
+    expect(out.inner_rhymes[0].occurrences.map((o) => o.normalized)).toEqual([
+      'cat',
+      'sat',
+    ]);
   });
 
   it('echoes the FastAPI-resolved mode when present', () => {

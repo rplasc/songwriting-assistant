@@ -15,6 +15,9 @@ of explicitly labelled sections. It returns a `DraftAnalysisResponse` containing
 - **`summary`** — total line count, syllable count, and notable patterns rolled up across all sections.
 - **`sections`** — per-section breakdown: rhyme scheme, syllable pattern, cadence class, and repetition signals.
 - **`insights`** — actionable observations with severity levels (`info`, `low`, `medium`, `high`).
+- **`inner_rhymes`** — word-level rhyme groups (perfect/near) with line/word/char
+  positions, for highlighting rhymes anywhere in the draft, not just line endings.
+  See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md).
 
 ---
 
@@ -420,6 +423,36 @@ because original repetition insights on chorus sections benefit from the same co
 - Draft-scoped `word_overuse` demotion requires checking where the word appears across
   all sections. This reuses `LemmaLocation` data already built during the pass; if
   it is not requested, the word_overuse demotion is skipped for the draft scope.
+
+---
+
+## 13. Inner rhyme detection runs once, after sections, over the whole draft
+
+**Decision:** While each section is analyzed, the service also collects
+`(global_line_index, tokens)` for every line, using the same
+`section.line_start + offset` numbering as `SectionAnalysis.line_start` /
+`line_end`. After the per-section loop, `find_inner_rhyme_groups` runs once
+over the entire collected list and the result is attached as the top-level
+`inner_rhymes` field.
+
+**Reasoning:**
+
+Internal rhyme isn't bound by section: a word in a verse can rhyme with a
+word in the chorus. Running the detector once over the whole draft (rather
+than per-section) lets groups span section boundaries, and doing it after the
+per-section loop means it can reuse the already-tokenized, already-positioned
+`Token` lists without re-tokenizing.
+
+**Tradeoffs:**
+
+- The detector needs its own phoneme cache (`dict[str, tuple[str, ...] |
+  None]`), separate from the per-request rhyme-key cache described in §3 —
+  the rhyme-key cache stores derived keys, not raw phonemes, so it can't be
+  reused directly.
+- `inner_rhymes` is always computed and always present (`[]` when nothing
+  qualifies) — unlike the semantic features in §6, there is no opt-in flag or
+  capability gate. See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md)
+  for the full grouping algorithm, confidence mapping, and ID scheme.
 
 ---
 

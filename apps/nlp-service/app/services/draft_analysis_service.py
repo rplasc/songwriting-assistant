@@ -41,6 +41,10 @@ from app.domain.response_contracts.evidence_anchor_builder import (
     build_syllable_variance_insight,
     build_word_overuse_insight,
 )
+from app.domain.rhyme.inner_rhyme_rules import (
+    find_inner_rhyme_groups,
+    phonemes_for_context,
+)
 from app.domain.rhyme_rules import rhyme_key
 from app.models.token import Token
 from app.schemas.draft_analysis import (
@@ -126,6 +130,8 @@ class DraftAnalysisService:
         total_syllables = 0
         all_token_lists: list[list[str]] = []
         section_tokens: dict[str, list[list[Token]]] = {}
+        # (global 1-based line number, tokens) for inner-rhyme detection.
+        inner_rhyme_lines: list[tuple[int, list[Token]]] = []
         rhyme_cache: RhymeCache = {}
 
         with timed(
@@ -144,6 +150,10 @@ class DraftAnalysisService:
                 total_syllables += sum(result.payload.syllable_pattern)
                 all_token_lists.extend(result.token_lists)
                 section_tokens[section.id] = result.token_objects
+                for offset, line_tokens in enumerate(result.token_objects):
+                    inner_rhyme_lines.append(
+                        (section.line_start + offset, line_tokens)
+                    )
 
         with timed(
             _logger,
@@ -212,6 +222,18 @@ class DraftAnalysisService:
         # sections so the response speaks the writer's intent.
         insights = demote_inside_hooks(insights, parsed, hook_only_overuse)
 
+        with timed(
+            _logger,
+            "analyze_draft.inner_rhymes",
+            lines=len(inner_rhyme_lines),
+        ):
+            phoneme_cache: dict[str, tuple[str, ...] | None] = {}
+            inner_rhymes = find_inner_rhyme_groups(
+                inner_rhyme_lines,
+                phonemes_for_context(context, phoneme_cache),
+                request.language,
+            )
+
         return DraftAnalysisResponse(
             language=request.language,
             title=request.title,
@@ -226,6 +248,7 @@ class DraftAnalysisService:
             ),
             insights=insights,
             detail=DraftDetail(sections=section_payloads),
+            inner_rhymes=inner_rhymes,
         )
 
     def _analyze_section(

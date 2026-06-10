@@ -22,6 +22,7 @@ from app.domain.languages.spanish.rhyme_rules import (
 from app.domain.languages.spanish.stress import stress_signature as _es_stress_signature
 from app.domain.languages.spanish.syllabification import syllabify
 from app.domain.rhyme.multisyllabic_rules import multisyllabic_rhyme_key
+from app.domain.tokenization import iter_word_spans
 from app.models.token import Token
 
 if TYPE_CHECKING:
@@ -37,15 +38,24 @@ _SPANISH_WORD_RE = re.compile(r"^[a-záéíóúñü][a-záéíóúñü']*[a-zá�
 
 def _spanish_tokenize_line(line: str) -> list[Token]:
     """Whitespace split + Spanish normalize. Mirrors the English shape so the
-    SyllableService can count tokens uniformly."""
+    SyllableService can count tokens uniformly. Word index and character offsets
+    are populated for inner-rhyme highlighting."""
     if not line:
         return []
     out: list[Token] = []
-    for raw in line.split():
+    for raw, char_start, char_end in iter_word_spans(line):
         norm = normalize_word(raw)
         if norm is None:
             continue
-        out.append(Token(text=raw, normalized=norm))
+        out.append(
+            Token(
+                text=raw,
+                normalized=norm,
+                index=len(out),
+                char_start=char_start,
+                char_end=char_end,
+            )
+        )
     return out
 
 

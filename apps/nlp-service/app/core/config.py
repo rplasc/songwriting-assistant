@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     cache_enabled: bool = False
     cache_redis_url: str = "redis://localhost:6379/0"
     cache_ttl_seconds: int = 3600
-    cache_key_prefix: str = "nlp:v1"
+    cache_key_prefix: str = "nlp:v2"
 
 
 settings = Settings()

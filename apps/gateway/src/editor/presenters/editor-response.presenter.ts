@@ -11,6 +11,7 @@ import {
 } from '../../common/enums/language.enum';
 import {
   EvidenceTag,
+  InnerRhymeGroup,
   LineAnalysisResponse,
   RhymeConfidence,
   RhymeFamily,
@@ -29,6 +30,7 @@ export interface EditorAnalysisPayload {
     mode: RhymeMode;
     items: { word: string; syllables: number; type: string }[];
   };
+  inner_rhymes: InnerRhymeGroup[];
   meta: {
     request_id?: string;
     latency_ms: number;
@@ -112,6 +114,7 @@ export class EditorResponsePresenter {
             type: r.rhyme_type,
           })) ?? [],
       },
+      inner_rhymes: line.inner_rhymes ?? [],
       meta: {
         request_id: requestId,
         latency_ms: Math.round(latencyMs),

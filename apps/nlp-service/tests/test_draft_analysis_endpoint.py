@@ -268,3 +268,24 @@ def test_analyze_draft_with_motif_tracking_option(client: TestClient) -> None:
     body = resp.json()
     assert _cap(body, "motif_tracking")["status"] == "full"
     assert "fire" in body["summary"]["motifs"]
+
+
+def test_analyze_draft_detects_cross_line_inner_rhymes(client: TestClient) -> None:
+    draft = "the cat sat down\non a soft green mat"
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={"language": "en", "content": draft},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    groups = body["inner_rhymes"]
+    assert len(groups) >= 1
+    # cat (line 1) and mat (line 2) share a perfect rhyme across lines.
+    perfect = next(g for g in groups if g["rhyme_type"] == "perfect")
+    by_line = {(o["line_index"], o["normalized"]) for o in perfect["occurrences"]}
+    assert (1, "cat") in by_line
+    assert (2, "mat") in by_line
+    # line numbers are 1-based and global; positions are present.
+    for occ in perfect["occurrences"]:
+        assert occ["line_index"] >= 1
+        assert occ["char_end"] > occ["char_start"]

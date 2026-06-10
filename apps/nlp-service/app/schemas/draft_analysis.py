@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.schemas.anchors import InsightAnchor
 from app.schemas.capability import Capabilities
 from app.schemas.evidence import TypedEvidence
+from app.schemas.responses import InnerRhymeGroup
 
 Language = Literal["en", "es"]
 CadenceClass = Literal["consistent", "mixed", "varied"]
@@ -108,3 +109,4 @@ class DraftAnalysisResponse(BaseModel):
     summary: DraftSummary
     insights: list[Insight]
     detail: DraftDetail
+    inner_rhymes: list[InnerRhymeGroup] = []

@@ -249,3 +249,4 @@ changes.
 - [`language-routing.md`](./language-routing.md) — how the `LanguageRouter` dispatches each request to the right engine.
 - [`spanish-pipeline.md`](./spanish-pipeline.md) — Spanish-specific decisions: rule-based G2P, syllabification, stress, the synthesized corpus, and the consonant/assonant rhyme definitions.
 - [`draft-analysis.md`](./draft-analysis.md) — design decisions for `POST /v1/analyze-draft`: section parsing, rhyme scheme assignment, cadence classification, and repetition detection.
+- [`inner-rhyme-detection.md`](./inner-rhyme-detection.md) — word-level rhyme grouping (`inner_rhymes`) returned by `POST /v1/analyze-line` and `POST /v1/analyze-draft`.

@@ -97,5 +97,24 @@ confidence" or "include exploratory matches") rather than hide
 low-confidence rhymes entirely — exploratory hits are often the most
 useful.
 
+## `InnerRhymeGroup.confidence`
+
+`inner_rhymes[].confidence` (on `LineAnalysisResponse` and
+`DraftAnalysisResponse`) uses the same `"high" | "medium"` scale as
+`RhymeCandidate.confidence`, but the mapping is simpler because there is no
+heuristic-fallback or family-tier case at the group level:
+
+- **high** — `rhyme_type="perfect"`. The group's words share a perfect
+  rhyme key (`shared_stressed_ending`-equivalent).
+- **medium** — `rhyme_type="near"`. The group's words share only the
+  near/slant key (`shared_vowel_pattern`-equivalent), and none of their
+  occurrences were already claimed by a perfect group.
+
+There is no `low` tier for inner-rhyme groups — anything weaker than the
+near/slant key is not surfaced as a group at all. See
+[`inner-rhyme-detection.md`](./inner-rhyme-detection.md) for the full
+grouping algorithm.
+
 See also: [limitation-codes.md](./limitation-codes.md),
-[draft_intelligence.md](./draft_intelligence.md).
+[draft_intelligence.md](./draft_intelligence.md),
+[inner-rhyme-detection.md](./inner-rhyme-detection.md).

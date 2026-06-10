@@ -31,37 +31,32 @@ export function LanguageSelector({ value, onChange }: LanguageSelectorProps) {
       role="radiogroup"
       aria-label="Draft language"
       onKeyDown={handleKeyDown}
-      className="flex items-baseline text-[12px] tracking-wide text-muted-foreground"
+      className="inline-flex items-center rounded-full border border-border bg-surface-muted p-0.5 font-mono text-[10px] uppercase tracking-[0.18em]"
     >
       {LANGUAGE_OPTIONS.map((option, index) => {
         const active = option.value === value;
         return (
-          <span key={option.value} className="flex items-baseline">
-            {index > 0 ? (
-              <span aria-hidden className="px-2 text-muted-foreground/40">
-                ·
-              </span>
-            ) : null}
-            <button
-              ref={(el) => {
-                refs.current[index] = el;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              tabIndex={active ? 0 : -1}
-              onClick={() => onChange(option.value)}
-              className={cn(
-                "rounded-sm px-0.5 transition-colors duration-150 ease-out",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
-                active
-                  ? "italic text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {option.nativeLabel}
-            </button>
-          </span>
+          <button
+            key={option.value}
+            ref={(el) => {
+              refs.current[index] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={active ? 0 : -1}
+            title={option.nativeLabel}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-full px-3 py-1 transition-colors duration-150 ease-out",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+              active
+                ? "bg-accent/85 font-medium text-surface"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {option.value.toUpperCase()}
+          </button>
         );
       })}
     </div>

@@ -4,10 +4,13 @@ import { useEditor, type Editor } from "@tiptap/react";
 import { useEffect, useState } from "react";
 import { lyricEditorExtensions } from "./editor-extensions";
 import { getEditorText } from "./editor-lines";
+import { lineAtSelection } from "./line-descriptors";
 
 export interface LyricEditorState {
   editor: Editor | null;
   activeLine: string;
+  /** 1-based paragraph number of the caret line. */
+  activeLineNumber: number;
   content: string;
 }
 
@@ -20,6 +23,7 @@ function readActiveLine(editor: Editor): string {
 
 export function useLyricEditor(): LyricEditorState {
   const [activeLine, setActiveLine] = useState<string>("");
+  const [activeLineNumber, setActiveLineNumber] = useState<number>(1);
   const [content, setContent] = useState<string>("");
 
   const editor = useEditor({
@@ -37,6 +41,7 @@ export function useLyricEditor(): LyricEditorState {
     },
     onTransaction({ editor: instance }) {
       setActiveLine(readActiveLine(instance));
+      setActiveLineNumber(lineAtSelection(instance.state));
     },
     onUpdate({ editor: instance }) {
       setContent(getEditorText(instance));
@@ -50,9 +55,10 @@ export function useLyricEditor(): LyricEditorState {
     if (editor) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- seeding state from the editor instance when it mounts
       setActiveLine(readActiveLine(editor));
+      setActiveLineNumber(lineAtSelection(editor.state));
       setContent(getEditorText(editor));
     }
   }, [editor]);
 
-  return { editor, activeLine, content };
+  return { editor, activeLine, activeLineNumber, content };
 }

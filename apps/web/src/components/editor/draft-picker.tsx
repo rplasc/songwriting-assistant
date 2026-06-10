@@ -101,7 +101,7 @@ export function DraftPicker({
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] font-medium tracking-wide text-foreground",
+          "inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-foreground",
           "transition-colors duration-150 ease-out",
           "hover:border-accent/50 hover:bg-accent-muted/50 hover:text-accent",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:border-accent/50",

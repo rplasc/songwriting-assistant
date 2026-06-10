@@ -22,7 +22,6 @@ function makeAnalysisResponse(opts: { status?: string } = {}) {
           total_syllables: 16,
           notable_patterns: [],
         },
-        sections: [],
         insights: [],
         capabilities: {
           rhyme_scheme: "full",
@@ -55,7 +54,6 @@ describe("useDraftAnalysis", () => {
         draftId: null,
         content: "",
         language: "en",
-        sections: [],
       }),
     );
     expect(result.current.status).toBe("idle");
@@ -70,11 +68,11 @@ describe("useDraftAnalysis", () => {
         draftId: "d1",
         content: SAMPLE_CONTENT,
         language: "en",
-        sections: [],
       }),
     );
     await waitFor(() => expect(result.current.status).toBe("fresh"));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.analyzedContent).toBe(SAMPLE_CONTENT);
   });
 
   it("transitions fresh → stale when content changes after analysis", async () => {
@@ -86,7 +84,6 @@ describe("useDraftAnalysis", () => {
           draftId: "d1",
           content,
           language: "en",
-          sections: [],
         }),
       { initialProps: { content: SAMPLE_CONTENT } },
     );
@@ -107,7 +104,6 @@ describe("useDraftAnalysis", () => {
         draftId: "d2",
         content: SAMPLE_CONTENT,
         language: "en",
-        sections: [],
       }),
     );
     await waitFor(() => expect(result.current.status).toBe("unsupported"));
@@ -122,7 +118,6 @@ describe("useDraftAnalysis", () => {
         draftId: "d3",
         content: SAMPLE_CONTENT,
         language: "en",
-        sections: [],
       }),
     );
     await waitFor(() => expect(result.current.status).toBe("error"));
@@ -137,7 +132,6 @@ describe("useDraftAnalysis", () => {
         draftId: "d4",
         content: SAMPLE_CONTENT,
         language: "en",
-        sections: [],
       }),
     );
     await waitFor(() => expect(result.current.status).toBe("fresh"));

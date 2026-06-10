@@ -18,6 +18,16 @@
   --success: #5f7a3a;   /* sage-olive ink */
   --warn:    #b07a1f;   /* slightly cooler than accent, for "needs saving" */
   --danger:  #9a3b2a;   /* warm rust */
+
+  /* Notebook rule — softer than --border; sits under every lyric line. */
+  --notebook-line: #e9e4d8;
+
+  /* Rhyme-group underline inks. Cycled g0..g4; must read on parchment. */
+  --rhyme-1: #b3582f;   /* rust */
+  --rhyme-2: #3f6796;   /* slate blue */
+  --rhyme-3: #5f7a3a;   /* sage */
+  --rhyme-4: #8b4f86;   /* plum */
+  --rhyme-5: #a16207;   /* ochre */
 }
 
 @theme inline {
@@ -32,7 +42,10 @@
   --color-success: var(--success);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
+  --color-notebook-line: var(--notebook-line);
   --font-sans: var(--font-plex-sans);
+  --font-serif: var(--font-plex-serif);
+  --font-mono: var(--font-plex-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -48,6 +61,12 @@
     --success: #8aa863;
     --warn: #d49a3e;
     --danger: #c25f4b;
+    --notebook-line: #2b2922;
+    --rhyme-1: #d98a5f;
+    --rhyme-2: #7da3cc;
+    --rhyme-3: #a3bd7e;
+    --rhyme-4: #c08bbb;
+    --rhyme-5: #d49a3e;
   }
 }
 
@@ -59,13 +78,14 @@ body {
     "Segoe UI", Roboto, sans-serif;
 }
 
-/* ── TipTap editor surface ────────────────────────── */
+/* ── TipTap editor surface — studio notebook ──────── */
 
 .tiptap {
   outline: none;
   min-height: 22rem;
+  font-family: var(--font-plex-serif), Georgia, serif;
   font-size: 1.0625rem;
-  line-height: 1.8;
+  line-height: 1.9;
   letter-spacing: 0.01em;
   white-space: pre-wrap;
 }
@@ -77,10 +97,75 @@ body {
   }
 }
 
+/* Every paragraph is a notebook line: soft rule below, syllable count at
+   the right edge, room reserved so text never collides with the count. */
 .tiptap p {
+  position: relative;
   margin: 0;
-  padding-bottom: 0.15em; /* slight inter-line breathing */
+  padding: 0.4em 3.25rem 0.4em 0;
+  border-bottom: 1px solid var(--notebook-line);
 }
+
+.tiptap p[data-syllables]::after {
+  content: attr(data-syllables);
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.55em;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+}
+
+/* Accent tick marking the line the caret is on. */
+.tiptap p.line-active::before {
+  content: "";
+  position: absolute;
+  right: 2.25rem;
+  top: 0.6em;
+  bottom: 0.6em;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.tiptap p.line-active[data-syllables]::after {
+  color: var(--accent);
+}
+
+/* `[Chorus]` lines render as small-caps margin labels with a trailing rule.
+   Flex keeps the rule on the same baseline; if a browser misbehaves with
+   flex on an editable <p>, fall back to a background-gradient rule. */
+.tiptap p.line-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  border-bottom: none;
+  padding: 1.2em 0 0.15em 0;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.tiptap p.line-section-label::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.tiptap .bracket-dim {
+  opacity: 0.35;
+}
+
+/* Inner-rhyme group underlines — inks cycled per group. */
+.tiptap .rhyme-g0 { text-decoration: underline solid var(--rhyme-1) 1.5px; text-underline-offset: 4px; }
+.tiptap .rhyme-g1 { text-decoration: underline solid var(--rhyme-2) 1.5px; text-underline-offset: 4px; }
+.tiptap .rhyme-g2 { text-decoration: underline solid var(--rhyme-3) 1.5px; text-underline-offset: 4px; }
+.tiptap .rhyme-g3 { text-decoration: underline solid var(--rhyme-4) 1.5px; text-underline-offset: 4px; }
+.tiptap .rhyme-g4 { text-decoration: underline solid var(--rhyme-5) 1.5px; text-underline-offset: 4px; }
 
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

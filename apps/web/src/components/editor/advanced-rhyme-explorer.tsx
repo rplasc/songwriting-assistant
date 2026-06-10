@@ -11,7 +11,6 @@ import {
   ADVANCED_RHYME_TARGET_TYPES,
   type AdvancedRhymeItem,
   type AdvancedRhymeMode,
-  type AdvancedRhymeTargetType,
   type RhymeConfidence,
 } from "@/features/advanced-rhyme/advanced-rhyme-types";
 import {

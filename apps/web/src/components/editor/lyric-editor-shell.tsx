@@ -16,21 +16,24 @@ import {
   writeStoredRhymeMode,
   type ClientRhymeMode,
 } from "@/features/analysis/rhyme-modes";
+import { buildLineNotes } from "@/features/analysis/line-notes";
+import { useLineSyllables } from "@/features/analysis/use-line-syllables";
 import { useDraftSaving } from "@/features/drafts/use-draft-saving";
 import { useDraftLanguage } from "@/features/language/use-draft-language";
 import type { Language } from "@/features/language/language-types";
 import { useLyricEditor } from "@/features/editor/tiptap/use-lyric-editor";
 import { jumpToLine } from "@/features/editor/tiptap/jump-to-line";
-import { useDraftSections } from "@/features/structure/use-draft-sections";
+import { insertSectionLabel } from "@/features/editor/tiptap/insert-section-label";
+import { setInnerRhymes } from "@/features/editor/tiptap/inner-rhyme-extension";
 import { useDraftAnalysis } from "@/features/draft-analysis/use-draft-analysis";
 import { useDraftCompare } from "@/features/draft-compare/use-draft-compare";
-import { EditorHeader } from "./editor-header";
-import { EditorLayout } from "./editor-layout";
+import { NotebookHeader } from "./notebook-header";
+import { NotebookLayout } from "./notebook-layout";
 import { LyricEditor } from "./lyric-editor";
-import { RhymePanel } from "./rhyme-panel";
-import { SyllablePanel } from "./syllable-panel";
 import { AdvancedRhymeExplorer } from "./advanced-rhyme-explorer";
-import { DraftAnalysisRail } from "./draft-analysis-rail";
+import { MarginRail } from "./margin-rail";
+import { RhymeSuggestionStrip } from "./rhyme-suggestion-strip";
+import { EditorStatusStrip } from "./editor-status-strip";
 import { EditorNotice, NoticeAction } from "./editor-notice";
 
 const getServerRhymeMode = () => DEFAULT_RHYME_MODE;
@@ -40,9 +43,37 @@ const getServerRhymeMode = () => DEFAULT_RHYME_MODE;
 const CONTENT_CEILING = 10_000;
 const CONTENT_WARN_AT = Math.floor(CONTENT_CEILING * 0.9);
 
+const RAIL_STORAGE_KEY = "songwriting-assistant.margin-rail.collapsed";
+
 export function LyricEditorShell() {
-  const { editor, activeLine, content } = useLyricEditor();
+  const { editor, activeLine, activeLineNumber, content } = useLyricEditor();
   const [explorerOpen, setExplorerOpen] = useState(false);
+
+  // Rail visibility — read the persisted preference after mount to avoid a
+  // server/client hydration mismatch, then persist on change.
+  const [railOpen, setRailOpen] = useState(true);
+  const isFirstRailRender = useRef(true);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(RAIL_STORAGE_KEY) === "1") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- seeding from localStorage post-mount to avoid a hydration mismatch
+        setRailOpen(false);
+      }
+    } catch {
+      // localStorage unavailable — ignore.
+    }
+  }, []);
+  useEffect(() => {
+    if (isFirstRailRender.current) {
+      isFirstRailRender.current = false;
+      return;
+    }
+    try {
+      window.localStorage.setItem(RAIL_STORAGE_KEY, railOpen ? "0" : "1");
+    } catch {
+      // localStorage unavailable — ignore.
+    }
+  }, [railOpen]);
 
   const rhymeMode = useSyncExternalStore(
     subscribeToRhymeMode,
@@ -63,17 +94,6 @@ export function LyricEditorShell() {
   );
 
   const {
-    stanzas,
-    sections,
-    labelFor,
-    assignLabel,
-    clearLabel,
-    resetFromDraft,
-    droppedLabelCount,
-    acknowledgeDroppedLabels,
-  } = useDraftSections(editor);
-
-  const {
     status: saveStatus,
     lastSavedAt,
     currentDraftId,
@@ -84,24 +104,41 @@ export function LyricEditorShell() {
     deleteDraft,
   } = useDraftSaving(editor, {
     language,
-    sections,
     onDraftLoaded: (draft) => {
       setLanguage(draft.language);
-      resetFromDraft(draft.sections);
     },
   });
 
   const {
     status: analysisStatus,
     analysis,
+    analyzedContent,
     error: analysisError,
     refresh: refreshAnalysis,
   } = useDraftAnalysis({
     draftId: currentDraftId,
     content,
     language,
-    sections,
   });
+
+  // ── Editor decorations ────────────────────────────────────────────────
+  // Per-line syllable counts: draft analysis backfills every line, the live
+  // WS result keeps the caret line instant.
+  useLineSyllables({
+    editor,
+    analysis,
+    analyzedContent,
+    liveResult: result,
+  });
+
+  // Inner-rhyme underlines from the latest full-draft analysis.
+  useEffect(() => {
+    if (!editor || !analysis || analyzedContent === null) return;
+    setInnerRhymes(editor, {
+      groups: analysis.innerRhymes,
+      sourceLines: analyzedContent.split("\n"),
+    });
+  }, [editor, analysis, analyzedContent]);
 
   // Baseline is a stored revision hash; the gateway's SnapshotStore retains
   // the analysis payload behind that hash for the comparison call. Tag the
@@ -178,31 +215,42 @@ export function LyricEditorShell() {
     [language, setLanguage, currentDraftId, editor],
   );
 
-  const handleAssignLabel = useCallback(
-    (range: { lineStart: number; lineEnd: number }, label: string) => {
-      assignLabel(range, label);
-      if (currentDraftId) {
-        queueMicrotask(() => void saveNowRef.current());
-      }
-    },
-    [assignLabel, currentDraftId],
-  );
-
-  const handleClearLabel = useCallback(
-    (range: { lineStart: number; lineEnd: number }) => {
-      clearLabel(range);
-      if (currentDraftId) {
-        queueMicrotask(() => void saveNowRef.current());
-      }
-    },
-    [clearLabel, currentDraftId],
-  );
-
   const handleJump = useCallback(
     (lineStart: number) => {
       if (editor) jumpToLine(editor, lineStart);
     },
     [editor],
+  );
+
+  const handleInsertWord = useCallback(
+    (word: string) => {
+      if (!editor) return;
+      const needsSpace = /\S$/.test(activeLine);
+      editor
+        .chain()
+        .focus()
+        .insertContent(needsSpace ? ` ${word}` : word)
+        .run();
+    },
+    [editor, activeLine],
+  );
+
+  const handleInsertSection = useCallback(
+    (label: string) => {
+      if (editor) insertSectionLabel(editor, label);
+    },
+    [editor],
+  );
+
+  const lineNotes = useMemo(
+    () =>
+      buildLineNotes({
+        result,
+        analysis,
+        activeLineNumber,
+        language,
+      }),
+    [result, analysis, activeLineNumber, language],
   );
 
   // `content` is the editor's plain text; sized-against-the-DTO check is
@@ -220,15 +268,15 @@ export function LyricEditorShell() {
   }, [saveNow]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <EditorHeader
+    <div className="flex flex-col gap-5">
+      <NotebookHeader
+        content={content}
         rhymeMode={rhymeMode}
         onRhymeModeChange={handleRhymeModeChange}
         language={language}
         onLanguageChange={handleLanguageChange}
         saveStatus={saveStatus}
         lastSavedAt={lastSavedAt}
-        onSave={() => void saveNow()}
         drafts={recentDrafts}
         currentDraftId={currentDraftId}
         onSelectDraft={(id) => void loadDraft(id)}
@@ -237,7 +285,6 @@ export function LyricEditorShell() {
       />
       {(saveStatus === "conflict" ||
         saveStatus === "error" ||
-        droppedLabelCount > 0 ||
         nearCeiling) && (
         <div className="flex flex-col gap-1.5">
           {saveStatus === "conflict" && (
@@ -263,22 +310,6 @@ export function LyricEditorShell() {
               The last few keystrokes didn&rsquo;t reach the page.
             </EditorNotice>
           )}
-          {droppedLabelCount > 0 && (
-            <EditorNotice
-              tone="warn"
-              lead={`${droppedLabelCount} label${droppedLabelCount === 1 ? "" : "s"} lost ${droppedLabelCount === 1 ? "its" : "their"} stanza.`}
-              actions={
-                <NoticeAction
-                  emphasis="subtle"
-                  onClick={acknowledgeDroppedLabels}
-                >
-                  Dismiss
-                </NoticeAction>
-              }
-            >
-              Pin them again from the gutter when the lines settle.
-            </EditorNotice>
-          )}
           {nearCeiling && (
             <EditorNotice tone="warn" lead="Getting full.">
               <span className="tabular-nums">
@@ -293,24 +324,11 @@ export function LyricEditorShell() {
           )}
         </div>
       )}
-      <EditorLayout
-        editor={<LyricEditor editor={editor} />}
-        panels={
+      <NotebookLayout
+        railOpen={railOpen}
+        main={
           <>
-            <SyllablePanel
-              status={status}
-              result={result}
-              language={language}
-            />
-            <RhymePanel
-              status={status}
-              result={result}
-              rhymeMode={rhymeMode}
-              language={language}
-              onRequestModeChange={handleRhymeModeChange}
-              onOpenExplorer={() => setExplorerOpen(true)}
-              explorerOpen={explorerOpen}
-            />
+            <LyricEditor editor={editor} />
             {explorerOpen && (
               <AdvancedRhymeExplorer
                 activeLine={activeLine}
@@ -319,20 +337,38 @@ export function LyricEditorShell() {
                 onClose={() => setExplorerOpen(false)}
               />
             )}
+            <RhymeSuggestionStrip
+              status={status}
+              result={result}
+              rhymeMode={rhymeMode}
+              language={language}
+              onRequestModeChange={handleRhymeModeChange}
+              onInsertWord={handleInsertWord}
+              onOpenExplorer={() => setExplorerOpen(true)}
+              explorerOpen={explorerOpen}
+            />
+            <EditorStatusStrip
+              railOpen={railOpen}
+              rhymeGroupCount={analysis?.innerRhymes.length ?? 0}
+              offline={status === "error"}
+              language={language}
+            />
           </>
         }
         rail={
-          <DraftAnalysisRail
+          <MarginRail
+            open={railOpen}
+            onToggle={() => setRailOpen((v) => !v)}
+            language={language}
+            lineStatus={status}
+            lineResult={result}
+            lineNotes={lineNotes}
             status={analysisStatus}
             analysis={analysis}
             error={analysisError}
-            language={language}
-            stanzas={stanzas}
-            labelFor={labelFor}
-            onAssignLabel={handleAssignLabel}
-            onClearLabel={handleClearLabel}
             onRefresh={() => void refreshAnalysis()}
             onJump={handleJump}
+            onInsertSection={handleInsertSection}
             compareStatus={compareStatus}
             compareResult={compareResult}
             compareError={compareError}

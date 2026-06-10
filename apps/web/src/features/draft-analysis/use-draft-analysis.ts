@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Language } from "@/features/language/language-types";
-import type { DraftSection } from "@/features/structure/structure-types";
 import {
   analyzeDraft,
   DraftAnalysisRequestError,
@@ -14,32 +13,30 @@ import type {
 
 const MIN_CONTENT_CHARS = 20;
 const MIN_CONTENT_LINES = 2;
+const STALE_REFRESH_IDLE_MS = 4000;
 
 export interface UseDraftAnalysisInput {
   draftId: string | null;
   content: string;
   language: Language;
-  sections: DraftSection[];
 }
 
 export interface UseDraftAnalysisReturn {
   status: DraftAnalysisStatus;
   analysis: DraftAnalysis | null;
+  /**
+   * The exact editor text the current `analysis` was computed from. Lets
+   * consumers (decorations, pattern mappers) verify line-level freshness.
+   */
+  analyzedContent: string | null;
   error: string | null;
   isLoading: boolean;
   /** Manually request a refresh; bypasses the min-content gate. */
   refresh: () => Promise<void>;
 }
 
-function makeRevisionKey(
-  content: string,
-  sections: DraftSection[],
-  language: Language,
-): string {
-  const sectionKey = sections
-    .map((s) => `${s.lineStart}:${s.lineEnd}:${s.label}`)
-    .join("|");
-  return `${language}::${sectionKey}::${content}`;
+function makeRevisionKey(content: string, language: Language): string {
+  return `${language}::${content}`;
 }
 
 function hasEnoughContent(content: string): boolean {
@@ -54,9 +51,10 @@ function hasEnoughContent(content: string): boolean {
 export function useDraftAnalysis(
   input: UseDraftAnalysisInput,
 ): UseDraftAnalysisReturn {
-  const { draftId, content, language, sections } = input;
+  const { draftId, content, language } = input;
   const [status, setStatus] = useState<DraftAnalysisStatus>("idle");
   const [analysis, setAnalysis] = useState<DraftAnalysis | null>(null);
+  const [analyzedContent, setAnalyzedContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const inFlightRef = useRef<AbortController | null>(null);
@@ -64,8 +62,8 @@ export function useDraftAnalysis(
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string | null>(null);
 
   const currentKey = useMemo(
-    () => makeRevisionKey(content, sections, language),
-    [content, sections, language],
+    () => makeRevisionKey(content, language),
+    [content, language],
   );
 
   // Keep latest values in refs so a manual refresh always uses fresh data
@@ -73,13 +71,11 @@ export function useDraftAnalysis(
   const draftIdRef = useRef(draftId);
   const contentRef = useRef(content);
   const languageRef = useRef(language);
-  const sectionsRef = useRef(sections);
   useEffect(() => {
     draftIdRef.current = draftId;
     contentRef.current = content;
     languageRef.current = language;
-    sectionsRef.current = sections;
-  }, [draftId, content, language, sections]);
+  }, [draftId, content, language]);
 
   const run = useCallback(async (force: boolean) => {
     const liveContent = contentRef.current;
@@ -96,24 +92,20 @@ export function useDraftAnalysis(
     inFlightRef.current = controller;
     setStatus("loading");
     setError(null);
-    const keyAtRequest = makeRevisionKey(
-      liveContent,
-      sectionsRef.current,
-      languageRef.current,
-    );
+    const keyAtRequest = makeRevisionKey(liveContent, languageRef.current);
     try {
       const result = await analyzeDraft(
         {
           draftId: draftIdRef.current,
           content: liveContent,
           language: languageRef.current,
-          sections: sectionsRef.current,
           forceRefresh: force,
         },
         { signal: controller.signal },
       );
       setLastAnalyzedKey(keyAtRequest);
       setAnalysis(result);
+      setAnalyzedContent(liveContent);
       setStatus(result.serverStatus === "unsupported" ? "unsupported" : "fresh");
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
@@ -163,6 +155,18 @@ export function useDraftAnalysis(
     return status;
   }, [status, lastAnalyzedKey, currentKey]);
 
+  // Gentle self-heal: when a fresh result goes stale, re-analyze after the
+  // user pauses typing. The timer resets on every content change, so it only
+  // fires after a true idle window; abort logic in `run` keeps one in flight.
+  useEffect(() => {
+    if (effectiveStatus !== "stale") return;
+    if (!hasEnoughContent(content)) return;
+    const t = setTimeout(() => {
+      void run(false);
+    }, STALE_REFRESH_IDLE_MS);
+    return () => clearTimeout(t);
+  }, [effectiveStatus, content, run]);
+
   const refresh = useCallback(async () => {
     await run(true);
   }, [run]);
@@ -170,6 +174,7 @@ export function useDraftAnalysis(
   return {
     status: effectiveStatus,
     analysis,
+    analyzedContent,
     error,
     isLoading: status === "loading",
     refresh,

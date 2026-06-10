@@ -8,8 +8,58 @@ import type {
 type Bilingual = Record<Language, string>;
 
 export const RAIL_TITLE: Bilingual = {
-  en: "Draft review",
-  es: "Revisión del borrador",
+  en: "In the margin",
+  es: "Al margen",
+};
+
+export const LINE_TAB_LABEL: Bilingual = {
+  en: "Line",
+  es: "Línea",
+};
+
+export const STRUCTURE_TAB_LABEL: Bilingual = {
+  en: "Structure",
+  es: "Estructura",
+};
+
+export const INSIGHTS_TAB_LABEL: Bilingual = {
+  en: "Insights",
+  es: "Hallazgos",
+};
+
+export const AT_A_GLANCE_HEADING: Bilingual = {
+  en: "At a glance",
+  es: "De un vistazo",
+};
+
+export const LINE_NOTE_HEADING: Bilingual = {
+  en: "A note on this line",
+  es: "Una nota sobre esta línea",
+};
+
+export const SYLLABLES_ON_LINE_LABEL: Bilingual = {
+  en: "syllables on this line",
+  es: "sílabas en esta línea",
+};
+
+export const SCHEME_LABEL: Bilingual = {
+  en: "Scheme",
+  es: "Esquema",
+};
+
+export const FIND_WEAK_LINE_LABEL: Bilingual = {
+  en: "Find a line that's not pulling weight →",
+  es: "Encuentra una línea que no aporta →",
+};
+
+export const ADD_SECTION_LABEL: Bilingual = {
+  en: "+ Section",
+  es: "+ Sección",
+};
+
+export const NO_LINE_COPY: Bilingual = {
+  en: "Put the caret on a line to see its counts.",
+  es: "Coloca el cursor en una línea para ver sus cuentas.",
 };
 
 export const REFRESH_LABEL: Bilingual = {

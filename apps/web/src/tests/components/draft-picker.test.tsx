@@ -71,7 +71,7 @@ describe("DraftPicker", () => {
     expect(onNew).toHaveBeenCalledTimes(1);
   });
 
-  it("fires onDelete with the draft id when the trash button is clicked", async () => {
+  it("fires onDelete with the draft id after the discard confirmation", async () => {
     const onDelete = vi.fn();
     const onSelect = vi.fn();
     render(
@@ -87,6 +87,9 @@ describe("DraftPicker", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /delete draft “first lines”/i }),
     );
+    // Two-step flow: the trash icon only arms the row; discard commits.
+    expect(onDelete).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /discard/i }));
     expect(onDelete).toHaveBeenCalledWith("a");
     expect(onSelect).not.toHaveBeenCalled();
   });

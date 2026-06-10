@@ -20,12 +20,18 @@ describe("SaveStatusIndicator", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/saving/i);
   });
 
-  it("shows a relative timestamp once saved", () => {
+  it("shows 'a moment ago' right after saving", () => {
     const now = new Date();
     const tenSecondsAgo = new Date(now.getTime() - 10_000);
     render(<SaveStatusIndicator status="saved" lastSavedAt={tenSecondsAgo} />);
-    expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
-    expect(screen.getByRole("status").textContent).toMatch(/\d+s ago/);
+    expect(screen.getByRole("status")).toHaveTextContent(/saved a moment ago/i);
+  });
+
+  it("shows minutes once the save is older than a minute", () => {
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60_000);
+    render(<SaveStatusIndicator status="saved" lastSavedAt={fiveMinutesAgo} />);
+    expect(screen.getByRole("status").textContent).toMatch(/\d+m ago/);
   });
 
   it("shows the offline copy when the gateway is unreachable", () => {

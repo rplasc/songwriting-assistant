@@ -8,7 +8,7 @@ interface LyricEditorProps {
 
 export function LyricEditor({ editor }: LyricEditorProps) {
   return (
-    <div className="min-h-96 rounded-md border border-border bg-surface px-6 py-5 shadow-[0_1px_3px_0_rgb(0,0,0,0.04)] transition-shadow duration-200 focus-within:border-accent/60 focus-within:shadow-[0_1px_3px_0_rgb(0,0,0,0.04),0_0_0_3px_oklch(from_var(--accent)_l_c_h_/_0.12)]">
+    <div className="min-h-96 rounded-sm bg-surface px-6 py-6 shadow-[0_1px_3px_0_rgb(0,0,0,0.05),0_10px_30px_-16px_rgb(0,0,0,0.12)] transition-shadow duration-200 focus-within:shadow-[0_1px_3px_0_rgb(0,0,0,0.06),0_10px_30px_-14px_rgb(0,0,0,0.16)] sm:px-10 sm:py-8">
       <EditorContent editor={editor} />
     </div>
   );

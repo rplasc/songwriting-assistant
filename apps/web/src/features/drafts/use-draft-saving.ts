@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import type { Language } from "@/features/language/language-types";
-import type { DraftSection } from "@/features/structure/structure-types";
 import {
   createDraft,
   deleteDraft as deleteDraftRequest,
@@ -19,10 +18,10 @@ import {
   getCurrentDraftId as readCurrentId,
 } from "./drafts-local-index";
 import type { Draft, DraftSummary, SaveStatus } from "./drafts-types";
+import { deriveTitle, DEFAULT_TITLE } from "./derive-title";
 import { getEditorText } from "@/features/editor/tiptap/editor-lines";
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
-const DEFAULT_TITLE = "Untitled Draft";
 
 // Bounded retry budget for network-class failures. The client stays in
 // "offline" between attempts and transitions to "error" after exhausting
@@ -51,7 +50,6 @@ function parseStoredContent(raw: string): string {
 
 export interface UseDraftSavingOptions {
   language: Language;
-  sections?: DraftSection[];
   onDraftLoaded?: (draft: Draft) => void;
 }
 
@@ -65,15 +63,6 @@ export interface UseDraftSavingReturn {
   loadDraft: (id: string) => Promise<void>;
   newDraft: () => void;
   deleteDraft: (id: string) => Promise<void>;
-}
-
-function deriveTitle(content: string): string {
-  const firstLine = content
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .find((l) => l.length > 0);
-  if (!firstLine) return DEFAULT_TITLE;
-  return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
 }
 
 function summarize(draft: Draft): DraftSummary {
@@ -119,7 +108,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 export function useDraftSaving(
   editor: Editor | null,
-  { language, sections, onDraftLoaded }: UseDraftSavingOptions,
+  { language, onDraftLoaded }: UseDraftSavingOptions,
 ): UseDraftSavingReturn {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -136,7 +125,6 @@ export function useDraftSaving(
   const currentDraftLanguageRef = useRef<Language | null>(null);
   const currentVersionRef = useRef<number | null>(null);
   const languageRef = useRef<Language>(language);
-  const sectionsRef = useRef<DraftSection[]>(sections ?? []);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef<AbortController | null>(null);
   const suppressDirtyRef = useRef(false);
@@ -185,9 +173,8 @@ export function useDraftSaving(
         const patch: {
           content: string;
           language?: Language;
-          sections?: DraftSection[];
           expectedVersion?: number;
-        } = { content, sections: sectionsRef.current };
+        } = { content };
         if (
           currentDraftLanguageRef.current &&
           currentDraftLanguageRef.current !== targetLanguage
@@ -206,7 +193,6 @@ export function useDraftSaving(
           content,
           title: deriveTitle(text),
           language: targetLanguage,
-          sections: sectionsRef.current,
         },
         { signal: controller.signal },
       );
@@ -275,10 +261,6 @@ export function useDraftSaving(
   useEffect(() => {
     languageRef.current = language;
   }, [language]);
-
-  useEffect(() => {
-    sectionsRef.current = sections ?? [];
-  }, [sections]);
 
   useEffect(() => {
     if (!editor) return;

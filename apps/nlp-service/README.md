@@ -76,7 +76,7 @@ The cache is **off by default** so local dev and CI don't require Redis.
 
 Cache keys are content-addressed (`sha256` of the canonical JSON payload), so
 any payload change automatically results in a cache miss. If Redis is
-unreachable the service logs a warning and computes a fresh response — the cache
+unreachable the service logs a warning and computes a fresh response. The cache
 is purely a performance optimisation and never a hard dependency.
 
 ```powershell
@@ -108,7 +108,7 @@ docker run --rm -p 8000:8000 `
 
 - [`docs/service-overview.md`](docs/service-overview.md) — design decisions and tradeoffs
 - [`docs/draft-analysis.md`](docs/draft-analysis.md) — draft analysis feature design
-- [`docs/bilingual.md`](docs/bilingual.md) — cross-language architectural contract, including M3/M4 capability levels
+- [`docs/bilingual.md`](docs/bilingual.md) — cross-language architectural contract, including per-feature capability levels
 - [`docs/language-routing.md`](docs/language-routing.md) — request routing
 - [`docs/spanish-pipeline.md`](docs/spanish-pipeline.md) — Spanish-specific implementation
 - [`docs/taxonomy.md`](docs/taxonomy.md) — Rhyme taxonomy and phrase-ending rules

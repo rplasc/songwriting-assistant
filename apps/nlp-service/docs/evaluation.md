@@ -1,6 +1,6 @@
 # Evaluation and bench
 
-Phase 5.5 M3 ships an in-process regression runner and a compare-path
+This module ships an in-process regression runner and a compare-path
 latency bench. Both share the same service code that backs the
 `/v1/evaluation/regression-report` HTTP endpoint, so reports are
 identical regardless of how you invoke them.
@@ -41,7 +41,7 @@ POST /v1/evaluation/regression-report
 
 The endpoint is gated by `settings.expose_evaluation_endpoint`
 (`NLP_EXPOSE_EVALUATION_ENDPOINT` env var; default `True`). Set it to
-`False` in environments where the route shouldn't be reachable — the
+`False` in environments where the route shouldn't be reachable. The
 service returns `404` and the CLI keeps working.
 
 ### Report shape
@@ -57,7 +57,7 @@ service returns `404` and the CLI keeps working.
 }
 ```
 
-`CaseResult.failures` are short, human-readable assertion strings —
+`CaseResult.failures` are short, human-readable assertion strings,
 the same ones the pytest suites would print on failure.
 
 ## Compare-path latency bench
@@ -69,7 +69,7 @@ python -m app.evaluation.bench_compare \
     [--bundle short|medium|long]
 ```
 
-- Calls `DraftCompareService.compare()` in-process — no HTTP loopback.
+- Calls `DraftCompareService.compare()` in-process, with no HTTP loopback.
 - One warm-up call before timing starts.
 - Prints `p50/p95/max/avg ms` plus a CSV-friendly row for piping into
   spreadsheets. No assertions; this tool is for measurement, not gating.
@@ -78,7 +78,7 @@ python -m app.evaluation.bench_compare \
 
 On a developer laptop the medium bundle should land in roughly **5–15 ms
 p50**. Numbers vary across machines, so the bench prints them rather
-than asserting them — treat large deltas across runs as an investigation
+than asserting them. Treat large deltas across runs as an investigation
 signal, not a regression.
 
 ## Inducing a regression deliberately
@@ -92,7 +92,7 @@ To confirm the runner catches breakage:
 3. Re-run `python -m app.evaluation.run_regression --kinds draft_motif_tracking`.
 4. The case should fail and the CLI should exit `1`. The same edit
    makes `pytest tests/test_phase5_draft_golden_sets.py` fail
-   identically — both consumers share `case_runners.py`'s logic.
+   identically: both consumers share `case_runners.py`'s logic.
 
 Revert the edit when done.
 

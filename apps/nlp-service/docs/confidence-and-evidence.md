@@ -32,7 +32,7 @@ chorus.
 `evidence` is a `TypedEvidence` value discriminated by `kind`. Every
 variant lives in [app/schemas/evidence.py](../app/schemas/evidence.py).
 Consumers should branch on `kind` and read the fields they need
-directly — no string parsing of `message`.
+directly, with no string parsing of `message`.
 
 Stable variants by family:
 
@@ -69,7 +69,7 @@ the section's bounds so the UI can highlight the affected lines.
 
 A boolean flag set by the hook-demotion pass. When `true`, the insight
 fired inside a chorus/hook/refrain where repetition is presumed
-intentional — render with softer copy or hide. The flag lives on the
+intentional. Render with softer copy or hide in that case. The flag lives on the
 insight itself, not in `evidence`.
 
 ## `RhymeCandidate.confidence` and `evidence_tags`
@@ -94,7 +94,7 @@ Confidence layers on top:
 
 UIs should let the user dial in the floor (e.g., "only show high
 confidence" or "include exploratory matches") rather than hide
-low-confidence rhymes entirely — exploratory hits are often the most
+low-confidence rhymes entirely; exploratory hits are often the most
 useful.
 
 ## `InnerRhymeGroup.confidence`
@@ -110,7 +110,7 @@ heuristic-fallback or family-tier case at the group level:
   near/slant key (`shared_vowel_pattern`-equivalent), and none of their
   occurrences were already claimed by a perfect group.
 
-There is no `low` tier for inner-rhyme groups — anything weaker than the
+There is no `low` tier for inner-rhyme groups: anything weaker than the
 near/slant key is not surfaced as a group at all. See
 [`inner-rhyme-detection.md`](./inner-rhyme-detection.md) for the full
 grouping algorithm.

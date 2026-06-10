@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document records the significant design decisions that shape the FastAPI rhyme and syllable engine. The original decisions from the English-only build still hold — they are recorded here as they apply across both languages. Spanish-specific and routing-specific decisions are split into their own files and linked at the end.
+This document records the significant design decisions that shape the FastAPI rhyme and syllable engine. The original decisions from the English-only build still hold; they are recorded here as they apply across both languages. Spanish-specific and routing-specific decisions are split into their own files and linked at the end.
 
 ---
 
@@ -16,7 +16,7 @@ Branching on language inside the shared services would have meant `if code == "e
 
 **Tradeoffs:**
 
-- Adding a language is a real change — a new engine module, a new repository, a new context registration in the lifespan. There is no "configuration toggle" path.
+- Adding a language is a real change: a new engine module, a new repository, a new context registration in the lifespan. There is no "configuration toggle" path.
 - Two engines mean two indexes in memory. Memory grows linearly with supported languages. Currently ~80 MB for English + ~25 MB for Spanish; acceptable for the foreseeable future.
 
 See [`language-routing.md`](./language-routing.md) for how requests flow through the router.
@@ -57,11 +57,11 @@ Building the full reverse index takes a few seconds per language on a typical la
 
 ## 4. Rhyme key definitions are engine-owned
 
-**Decision:** Each engine declares its own `key_specs` — named slots (`perfect`, `near`, `consonant`, `assonant`) whose key functions take a phoneme sequence and return a string. The `RhymeIndex` builds one bucket per slot per word.
+**Decision:** Each engine declares its own `key_specs`: named slots (`perfect`, `near`, `consonant`, `assonant`) whose key functions take a phoneme sequence and return a string. The `RhymeIndex` builds one bucket per slot per word.
 
 **Reasoning:**
 
-The English notion of a perfect rhyme (ARPABET phonemes from the last stressed vowel) and the Spanish notion of a consonant rhyme (graphemic ending from the stressed vowel) are linguistically distinct — they should be defined where the linguistics live, not in shared infrastructure. The slot-name → match-reason mapping lives on the engine for the same reason.
+The English notion of a perfect rhyme (ARPABET phonemes from the last stressed vowel) and the Spanish notion of a consonant rhyme (graphemic ending from the stressed vowel) are linguistically distinct; they should be defined where the linguistics live, not in shared infrastructure. The slot-name → match-reason mapping lives on the engine for the same reason.
 
 **Tradeoffs:**
 
@@ -78,7 +78,7 @@ See [`spanish-pipeline.md`](./spanish-pipeline.md) for the Spanish key definitio
 
 **Reasoning:**
 
-Frequency is provided by `wordfreq` for both languages, which gives reasonably "common-feeling" words ahead of obscure ones without requiring a custom corpus. Within a frequency tie, alphabetical ordering makes the output stable across identical requests — useful for debugging and for any downstream UI that caches results.
+Frequency is provided by `wordfreq` for both languages, which gives reasonably "common-feeling" words ahead of obscure ones without requiring a custom corpus. Within a frequency tie, alphabetical ordering makes the output stable across identical requests, which is useful for debugging and for any downstream UI that caches results.
 
 **Tradeoffs:**
 
@@ -89,13 +89,13 @@ Frequency is provided by `wordfreq` for both languages, which gives reasonably "
 
 ## 6. Heuristic syllable fallback for unknown English words
 
-**Decision:** When an English word is absent from the CMU dict, syllable count falls back to a vowel-group heuristic. Spanish does not need a fallback — Spanish syllabification is rule-based and exact.
+**Decision:** When an English word is absent from the CMU dict, syllable count falls back to a vowel-group heuristic. Spanish does not need a fallback: Spanish syllabification is rule-based and exact.
 
 **Reasoning:**
 
-For English, returning 0 or an error for unknown words would degrade the line-analysis endpoint for any line containing a proper noun, neologism, or typo. A rough count is almost always more useful than a hard failure — the songwriter can see that the total is approximate and adjust.
+For English, returning 0 or an error for unknown words would degrade the line-analysis endpoint for any line containing a proper noun, neologism, or typo. A rough count is almost always more useful than a hard failure; the songwriter can see that the total is approximate and adjust.
 
-For Spanish, the syllabification rule is the primary source — there is no dictionary to miss. The engine calls `syllabify(word)` directly in `heuristic_syllable_count`.
+For Spanish, the syllabification rule is the primary source: there is no dictionary to miss. The engine calls `syllabify(word)` directly in `heuristic_syllable_count`.
 
 **Tradeoffs:**
 
@@ -106,11 +106,11 @@ For Spanish, the syllabification rule is the primary source — there is no dict
 
 ## 7. Four focused endpoints rather than a combined `POST /v1/analyze`
 
-**Decision:** The service exposes four endpoints — `GET /healthz`, `POST /v1/rhymes`, `POST /v1/analyze-line`, and `POST /v1/analyze-draft` — instead of a combined endpoint that returns everything in one call.
+**Decision:** The service exposes four endpoints (`GET /healthz`, `POST /v1/rhymes`, `POST /v1/analyze-line`, and `POST /v1/analyze-draft`) instead of a combined endpoint that returns everything in one call.
 
 **Reasoning:**
 
-Each endpoint has a distinct caller and a distinct trigger in the UI: syllable analysis fires on keystroke (or on pause); rhyme lookup fires only when the user explicitly requests suggestions for a word; draft analysis fires when the user saves or requests a structural review of the full draft. Combining them would force rhyme lookup on every line-analysis call and draft-level work on every word query — unnecessary computation and latency in all cases.
+Each endpoint has a distinct caller and a distinct trigger in the UI: syllable analysis fires on keystroke (or on pause); rhyme lookup fires only when the user explicitly requests suggestions for a word; draft analysis fires when the user saves or requests a structural review of the full draft. Combining them would force rhyme lookup on every line-analysis call and draft-level work on every word query: unnecessary computation and latency in all cases.
 
 Keeping them separate also makes each endpoint independently testable and keeps each service class focused on one responsibility. The draft analysis endpoint in particular aggregates across all lines and sections in one call; coupling it to per-word rhyme lookup would produce awkward request shapes.
 
@@ -133,7 +133,7 @@ FastAPI's dependency injection works well for per-request objects, but the dicti
 **Tradeoffs:**
 
 - `app.state` is untyped; a typo in the attribute name fails at runtime rather than at import time. A typed `AppState` dataclass could be attached at startup instead, but adds boilerplate that is not justified at this scale.
-- The pattern does not support hot-reloading dictionaries without a full process restart. That is intentional — dictionaries are immutable data and hot-reload would require locking the index during rebuild.
+- The pattern does not support hot-reloading dictionaries without a full process restart. That is intentional: dictionaries are immutable data and hot-reload would require locking the index during rebuild.
 
 ---
 
@@ -181,7 +181,7 @@ every draft analysis call. Building it once at startup amortises the cost across
 service lifetime, matching the pattern used for rhyme indexes.
 
 `DraftNlpService` is intentionally separate from the per-language `LanguageContext`. It
-does not belong to a single language — it holds instances for all supported languages and
+does not belong to a single language; it holds instances for all supported languages and
 dispatches at call time based on the requested language. Attaching it to one language
 bundle would either require duplicating it or creating an awkward cross-bundle reference.
 
@@ -202,7 +202,7 @@ bundle would either require duplicating it or creating an awkward cross-bundle r
 **Decision:** `/v1/analyze-draft` and `/v1/analyze-draft-compare` support an
 opt-in Redis cache implemented in
 [`app/services/response_cache.py`](../app/services/response_cache.py). It is
-off by default (`NLP_CACHE_ENABLED=false`) and degrades gracefully — if Redis
+off by default (`NLP_CACHE_ENABLED=false`) and degrades gracefully: if Redis
 is unavailable the service computes a fresh response and logs a warning.
 
 **Reasoning:**
@@ -227,14 +227,14 @@ changes.
   environment variable to set in production but keeps the default path simple.
 - **Per-process, not shared.** Each NLP worker instance holds its own Redis
   connection. If multiple workers run behind a load balancer, they share the
-  same Redis keyspace and warm each other's cache — no extra work needed.
+  same Redis keyspace and warm each other's cache, with no extra work needed.
 - **Short socket timeouts (250 ms).** If Redis is slow, the service falls through
   to computation rather than stalling the request. Latency with a degraded Redis
   is therefore bounded at `250 ms overhead + normal compute time`.
 - **No cache invalidation beyond TTL.** Entries expire after `NLP_CACHE_TTL_SECONDS`
   (default 1 hour). If the analysis logic changes mid-session, users with entries
   in the cache will receive stale results until TTL expires or the prefix is
-  bumped. This is acceptable for the current use case — analysis logic changes
+  bumped. This is acceptable for the current use case: analysis logic changes
   only on deploy.
 - **No stampede protection.** Multiple concurrent requests for the same uncached
   key will all compute simultaneously and race to write the result. The last

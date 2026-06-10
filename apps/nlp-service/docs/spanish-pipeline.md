@@ -1,6 +1,6 @@
 # Spanish Pipeline
 
-Spanish-specific implementation details. Where English leans on a curated phoneme dictionary (CMU), Spanish leans on rules — the orthography is regular enough that rule-based G2P, syllabification, and stress get close to ground-truth without a hand-built corpus.
+Spanish-specific implementation details. Where English leans on a curated phoneme dictionary (CMU), Spanish leans on rules: the orthography is regular enough that rule-based G2P, syllabification, and stress get close to ground-truth without a hand-built corpus.
 
 For the cross-language view, see [`bilingual.md`](./bilingual.md).
 
@@ -34,7 +34,7 @@ Spanish G2P is regular enough that rule output is treated as canonical rather th
 
 **Tradeoffs:**
 
-- The corpus inherits whatever quirks `wordfreq` has — primarily web/subtitle/Wikipedia bias.
+- The corpus inherits whatever quirks `wordfreq` has, primarily web/subtitle/Wikipedia bias.
 - Words below the frequency cutoff are absent from the index, so they cannot return rhymes. The G2P still works on them; the syllable count for unknown words is still exact. Only rhyme lookup degrades.
 - Increasing `top_n` is the obvious knob if rhyme coverage feels thin. The cost is linear in build time and memory.
 
@@ -46,7 +46,7 @@ Spanish G2P is regular enough that rule output is treated as canonical rather th
 
 **Reasoning:**
 
-Spanish syllable boundaries follow well-defined rules around vowel clusters (hiatus vs. diphthong vs. triphthong), consonant clusters, and the special status of `y`. A rule implementation is exact for orthographically well-formed words — there is no dictionary to "miss," so the fallback framing from English does not apply.
+Spanish syllable boundaries follow well-defined rules around vowel clusters (hiatus vs. diphthong vs. triphthong), consonant clusters, and the special status of `y`. A rule implementation is exact for orthographically well-formed words. There is no dictionary to "miss," so the fallback framing from English does not apply.
 
 **Tradeoff:**
 
@@ -67,7 +67,7 @@ Both are derived from the same per-word phoneme sequence. The index builds one b
 
 **Reasoning:**
 
-These are the two rhyme categories Spanish songwriting tradition cares about. "Perfect / near" is the wrong vocabulary for Spanish — the categories are not strictness levels of the same idea, they are two different ideas about what counts as a rhyme.
+These are the two rhyme categories Spanish songwriting tradition cares about. "Perfect / near" is the wrong vocabulary for Spanish: the categories are not strictness levels of the same idea but two different ideas about what counts as a rhyme.
 
 **Tradeoffs:**
 
@@ -78,7 +78,7 @@ These are the two rhyme categories Spanish songwriting tradition cares about. "P
 
 ## Stress detection lives in its own module
 
-**Decision:** [`stress.py`](../app/domain/languages/spanish/stress.py) decides which syllable is stressed. The rhyme key functions consume that index — they do not re-derive stress.
+**Decision:** [`stress.py`](../app/domain/languages/spanish/stress.py) decides which syllable is stressed. The rhyme key functions consume that index; they do not re-derive stress.
 
 **Reasoning:**
 
@@ -96,11 +96,11 @@ Compound words and clitics (`dímelo`, `cómpramelo`) have non-default stress pa
 
 **Reasoning:**
 
-Accents carry stress information. Stripping them at normalization time would destroy the data the stress and rhyme modules need. `ñ` is a letter, not a `n + ~` combination — treating it as such would collapse minimal pairs (`año` vs. `ano`).
+Accents carry stress information. Stripping them at normalization time would destroy the data the stress and rhyme modules need. `ñ` is a letter, not a `n + ~` combination; treating it as such would collapse minimal pairs (`año` vs. `ano`).
 
 **Tradeoff:**
 
-Words with non-standard apostrophes or diacritics from other languages get rejected. This is acceptable in a lyric tool — those edge cases are rarer than the harm a permissive normalizer would cause.
+Words with non-standard apostrophes or diacritics from other languages get rejected. This is acceptable in a lyric tool: those edge cases are rarer than the harm a permissive normalizer would cause.
 
 ---
 
@@ -108,4 +108,4 @@ Words with non-standard apostrophes or diacritics from other languages get rejec
 
 - **No prosody scoring.** Whether a line scans is out of scope. The engine ships syllables and rhymes; rhythm/meter is a future concern.
 - **No automatic dialect detection.** The corpus is general Spanish. Regional vocabulary (Mexican, Argentine, Castilian) is represented in `wordfreq` proportionally; the pipeline does not weight or filter by dialect.
-- **No conjugation expansion.** A search for `canto` will not surface conjugated forms of `cantar` as related rhymes; the index sees them as independent words. This is what users actually want for rhyme lookup — but it would be the wrong behavior for a thesaurus feature.
+- **No conjugation expansion.** A search for `canto` will not surface conjugated forms of `cantar` as related rhymes; the index sees them as independent words. This is what users actually want for rhyme lookup, but it would be the wrong behavior for a thesaurus feature.

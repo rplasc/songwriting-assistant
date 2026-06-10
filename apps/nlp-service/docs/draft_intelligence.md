@@ -67,7 +67,7 @@ The filter applies two rules in order:
    contractions that expand to a function word).
 
 This ensures the function-word lists remain the canonical filter for both the phrase-
-ending (M1) and semantic (M3/M4) code paths.
+ending and semantic code paths.
 
 ---
 
@@ -108,7 +108,7 @@ lemmas AND share their first content lemma AND Jaccard ≥ `_ANCHOR_MIN_JACCARD`
 set to 4 (not 2 or 3) because typical lyric lines carry 3–4 content words, and requiring
 ≤ 2 would exclude the common case entirely.
 
-Do not raise `_ANCHOR_MIN_JACCARD` below 0.10 without running the golden sets — at very
+Do not raise `_ANCHOR_MIN_JACCARD` below 0.10 without running the golden sets: at very
 low values, short phrases that share only one common word would cluster aggressively.
 
 ---
@@ -159,7 +159,7 @@ Defined in
 
 Drift insight is emitted when the dominant value in a section differs from the dominant
 value in the immediately preceding section that also had a dominant. Sections below
-`_MIN_SIGNALS` are transparent — they do not break a drift chain.
+`_MIN_SIGNALS` are transparent: they do not break a drift chain.
 
 ---
 
@@ -182,11 +182,11 @@ Draft semantic golden sets live under
 
 | Kind | Test function | Feature |
 | --- | --- | --- |
-| `"rhyme"` | `test_phase5_golden_sets.py` | Rhyme suggestions (M1/M2) |
-| `"draft_semantic_repetition"` | `test_phase5_draft_golden_sets.py` | Semantic repetition (M3) |
-| `"draft_motif_tracking"` | `test_phase5_draft_golden_sets.py` | Motif tracking (M3) |
-| `"draft_section_contrast"` | `test_phase5_draft_golden_sets.py` | Section contrast (M4) |
-| `"draft_consistency_hints"` | `test_phase5_draft_golden_sets.py` | Consistency hints (M4) |
+| `"rhyme"` | `test_phase5_golden_sets.py` | Rhyme suggestions |
+| `"draft_semantic_repetition"` | `test_phase5_draft_golden_sets.py` | Semantic repetition |
+| `"draft_motif_tracking"` | `test_phase5_draft_golden_sets.py` | Motif tracking |
+| `"draft_section_contrast"` | `test_phase5_draft_golden_sets.py` | Section contrast |
+| `"draft_consistency_hints"` | `test_phase5_draft_golden_sets.py` | Consistency hints |
 
 The rhyme golden-set runner (`test_phase5_golden_sets.py`) skips any bundle whose `kind`
 is not `"rhyme"`. Without this filter, the rhyme test would post draft bundles to

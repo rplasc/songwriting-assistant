@@ -31,7 +31,7 @@ on blank lines and infers labels from header-like text ("Verse 1:", "Chorus", et
 
 **Reasoning:**
 
-The web client already has a structured view of the draft — it knows which lines belong
+The web client already has a structured view of the draft: it knows which lines belong
 to which section and has assigned labels. Sending that structure with the request costs
 nothing and lets the service skip a fragile heuristic entirely.
 
@@ -43,7 +43,7 @@ rather than a validation error.
 
 - When the client provides sections, `line_start` / `line_end` must refer to
   1-indexed lines in `content`. Off-by-one errors in the client become silent
-  wrong-section assignments rather than errors — the service trusts the caller's
+  wrong-section assignments rather than errors; the service trusts the caller's
   line ranges.
 - The heuristic is opinionated about what counts as a section header. Drafts with
   unusual formatting may produce unexpected groupings. The `label` field in each
@@ -70,7 +70,7 @@ tractable: it is a straightforward equivalence-class labeling over a list of str
 
 - Lines whose last word has no known pronunciation (English unknown word with no
   heuristic tail, or a Spanish word that fails G2P) yield a `None` key. `assign_scheme`
-  treats `None` as a wildcard — it does not create a rhyme class for it. This degrades
+  treats `None` as a wildcard: it does not create a rhyme class for it. This degrades
   gracefully: a scheme like `"A?BA"` becomes `"ABA"` with `"partial"` confidence.
 - Identical end words always match each other, even if the repetition is coincidental.
   The repetition detection module catches these cases separately.
@@ -94,7 +94,7 @@ that redundancy without introducing shared mutable state across requests.
 
 - The cache holds raw rhyme keys (`str | None`), not `Pronunciation` objects, so it
   cannot be reused for other lookups within the same request. A richer cache would
-  allow reuse across the rhyme scheme and repetition modules — not worth it yet.
+  allow reuse across the rhyme scheme and repetition modules, but that isn't worth it yet.
 - The cache is not bounded. A pathological draft with 64 unique end words would hold
   64 entries. At current limits (64 sections × ~80 lines max) this is irrelevant.
 
@@ -108,7 +108,7 @@ with a `cadence_class` (`"consistent"`, `"mixed"`, or `"varied"`), a variance fl
 and a pre-formatted severity message for the insights list.
 
 Section label is also passed so that chorus and hook sections can apply looser variance
-thresholds — structured repetition in a hook is not a problem.
+thresholds, since structured repetition in a hook is not a problem.
 
 **Reasoning:**
 
@@ -143,7 +143,7 @@ the classification logic and its human-readable output in the same module.
 
 The two patterns have different meaning and different scope. Anaphora ("I see... / I
 feel... / I know...") is a stylistic device that is normal in a chorus but unusual in a
-verse — the section-level pass can account for the label. Word overuse ("love" on 10 of
+verse, and the section-level pass can account for the label. Word overuse ("love" on 10 of
 16 lines) is a draft-level concern that only becomes visible when all sections are
 combined.
 
@@ -159,7 +159,7 @@ score.
   A proportional threshold would be more nuanced.
 - Section signals are emitted for every matching pattern. If a section has both
   opening-phrase anaphora and repeated endings, both insights appear. This is intentional
-  — both are worth surfacing — but it can produce a noisy insights list for highly
+  (both are worth surfacing), but it can produce a noisy insights list for highly
   structured drafts.
 
 ---
@@ -192,8 +192,8 @@ client hardcoding what each language supports.
 
 ## 6. Opt-in semantic analysis via `DraftAnalysisOptions`
 
-**Decision:** Lemma-backed features — semantic repetition detection and
-motif tracking — were added behind two opt-in flags:
+**Decision:** Lemma-backed features (semantic repetition detection and
+motif tracking) were added behind two opt-in flags:
 
 ```json
 {
@@ -214,7 +214,7 @@ for these features read `"unsupported"` in the default case.
 Lemmatization via `simplemma` adds measurable latency for drafts with many unique
 tokens. Clients that do not need the semantic layer (line-level keystroke calls,
 lightweight mobile views) should not pay that cost. The opt-in flags make the
-contract explicit and keep backward compatibility absolute — no existing test needed
+contract explicit and keep backward compatibility absolute: no existing test needed
 to change.
 
 **Tradeoffs:**
@@ -226,7 +226,7 @@ to change.
   fine-grained client control.
 - `simplemma` handles most English and Spanish forms correctly but mis-lemmatizes
   some English irregular pasts (`ran → rin`, `went → wend`). This is documented in
-  `tests/test_lemmatization.py` and is an accepted limitation at this scope —
+  `tests/test_lemmatization.py` and is an accepted limitation at this scope;
   a more accurate lemmatizer would require a heavier dependency.
 
 ---
@@ -245,7 +245,7 @@ threshold is Jaccard ≥ 0.5. A relaxed anchor-match rule fires when:
 
 Full Jaccard 0.5 is too strict for short lyric lines. "Hear your shadow in the hall"
 and "Hear your footsteps on the floor" share only one content lemma ("hear") out of
-three each — raw Jaccard is 1/5 = 0.20. Without the anchor-match relaxation they
+three each, so raw Jaccard is 1/5 = 0.20. Without the anchor-match relaxation they
 would not cluster, and the semantic repetition detector would miss a clear structural
 parallel. The anchor rule captures the songwriter's intent: two lines that start on
 the same idea are usually variants of the same phrase, even if the trailing imagery
@@ -255,7 +255,7 @@ differs.
 
 - The anchor rule increases false-positive clustering for short phrases that coincidentally
   share a common first content word (e.g., two lines starting with "feel"). The Jaccard
-  ≥ 0.15 floor limits this — it still requires at least one additional shared lemma
+  ≥ 0.15 floor limits this: it still requires at least one additional shared lemma
   beyond the anchor for 3-lemma phrases.
 - Content lemmas are derived by stripping function words then lemmatizing. The
   function-word filter reuses the lists from
@@ -274,7 +274,7 @@ by cross-section reach then raw frequency.
 **Reasoning:**
 
 A word that appears once per section in a verse + chorus structure (2 sections, 2 lines)
-should be surfaced as a motif — it signals a recurring thematic anchor even if it only
+should be surfaced as a motif: it signals a recurring thematic anchor even if it only
 appears twice. The cross-section criterion catches that case while the ≥ 3 lines
 criterion catches within-section repetition. The 6-motif cap prevents the motifs list
 from being swamped by generic words that survived the function-word filter.
@@ -332,7 +332,7 @@ line-ending words are shared between the pair.
 
 **Reasoning:**
 
-Same-label sections are the natural comparison unit for revision — a songwriter revising
+Same-label sections are the natural comparison unit for revision: a songwriter revising
 verse 2 needs to know whether it adds anything new compared to verse 1. Verse↔chorus
 comparison catches the specific failure mode where the verse and chorus are
 interchangeable, which eliminates the structural contrast that distinguishes the sections.
@@ -344,7 +344,7 @@ interchangeable, which eliminates the structural contrast that distinguishes the
   (both about loss, both about love) but are lyrically distinct. Reducing the threshold
   would surface more pairs but increase noise.
 - O(s²) pair comparison where s is section count, capped at 64 sections per request.
-  At that cap, 64×63/2 = 2016 pair comparisons — negligible.
+  At that cap, 64×63/2 = 2016 pair comparisons, which is negligible.
 
 ---
 
@@ -406,7 +406,7 @@ of the overused word is inside hook sections. Evidence gains `"hook_context": tr
 
 **Reasoning:**
 
-Repetition in a chorus is structurally intentional — the hook _should_ repeat its
+Repetition in a chorus is structurally intentional: the hook _should_ repeat its
 central phrase and end-rhyme pattern. Flagging it at the same severity as accidental
 repetition in a verse would train users to ignore repetition insights entirely.
 Demotion signals "this is normal in this context" without suppressing the insight
@@ -446,11 +446,11 @@ per-section loop means it can reuse the already-tokenized, already-positioned
 **Tradeoffs:**
 
 - The detector needs its own phoneme cache (`dict[str, tuple[str, ...] |
-  None]`), separate from the per-request rhyme-key cache described in §3 —
-  the rhyme-key cache stores derived keys, not raw phonemes, so it can't be
+  None]`), separate from the per-request rhyme-key cache described in §3.
+  The rhyme-key cache stores derived keys, not raw phonemes, so it can't be
   reused directly.
 - `inner_rhymes` is always computed and always present (`[]` when nothing
-  qualifies) — unlike the semantic features in §6, there is no opt-in flag or
+  qualifies). Unlike the semantic features in §6, there is no opt-in flag or
   capability gate. See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md)
   for the full grouping algorithm, confidence mapping, and ID scheme.
 
@@ -468,7 +468,7 @@ per-section loop means it can reuse the already-tokenized, already-positioned
   languages currently. Spanish has deterministic stress and is the natural first
   candidate for a future implementation.
 - **No embedding-backed similarity.** Section contrast and semantic repetition use
-  Jaccard over content-lemma bags — purely lexical. Sections that use different words
+  Jaccard over content-lemma bags, which is purely lexical. Sections that use different words
   to express the same idea will not be flagged. Embedding-backed comparison is deferred
   to if golden-set analysis shows a precision gap.
 - **No aspect or mood detection.** Tense drift detection covers past/present/future

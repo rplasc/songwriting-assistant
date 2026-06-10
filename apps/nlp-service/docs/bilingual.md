@@ -54,13 +54,13 @@ If you find yourself adding `if engine.code == "es":` somewhere in shared code, 
 The Spanish corpus is built from two sources merged at startup:
 
 1. **wordfreq top-150k** — the 150,000 most frequent Spanish tokens from the wordfreq "es" dataset (raised from the original 80k for wider poetic/regional coverage).
-2. **PR/Reggaetón slang** — a curated hand-tuned list (`app/domain/languages/spanish/data/pr_slang.py`) with ~80 entries. Words already covered by wordfreq are skipped; the slang list only fills gaps. Synthetic frequencies are assigned in the `1e-7..3e-5` band — above `CORPUS_FREQ_FLOOR` so entries survive filtering, below common Spanish nouns so they don't crowd ranking.
+2. **PR/Reggaetón slang** — a curated hand-tuned list (`app/domain/languages/spanish/data/pr_slang.py`) with ~80 entries. Words already covered by wordfreq are skipped; the slang list only fills gaps. Synthetic frequencies are assigned in the `1e-7..3e-5` band, above `CORPUS_FREQ_FLOOR` so entries survive filtering and below common Spanish nouns so they don't crowd ranking.
 
 `SpanishEngine.frequency()` returns `max(wordfreq, slang_floor)` so the corpus build and the ranker see the same frequency floor.
 
 ## Assonant-tier policy
 
-In **consonant mode** (cascade), the assonant secondary tier subtracts the consonant set so each word appears only once. In **assonant mode** (standalone), the full assonant set is returned without subtraction — this gives a richer candidate pool when the user explicitly asks for vowel-pattern matches.
+In **consonant mode** (cascade), the assonant secondary tier subtracts the consonant set so each word appears only once. In **assonant mode** (standalone), the full assonant set is returned without subtraction. This gives a richer candidate pool when the user explicitly asks for vowel-pattern matches.
 
 ## The startup lifespan
 
@@ -78,7 +78,7 @@ PronunciationRepository  →  RhymeIndex (built from repo + engine.key_specs)
 
 All seven of those are owned by the language: switching from English to Spanish picks up a different repository, a different index, and per-language service instances. The router stores the bundle as a `LanguageContext` dataclass.
 
-This is intentional duplication. The alternative — sharing service instances across languages and passing a language argument through every method — was rejected because it would have meant every service method took a `LanguageEngine` parameter, every test setup had to provide one, and every cache key had to compose with it. The bundle-per-language approach concentrates the per-language plumbing at startup and lets the request path stay clean.
+This is intentional duplication. The alternative, sharing service instances across languages and passing a language argument through every method, was rejected because it would have meant every service method took a `LanguageEngine` parameter, every test setup had to provide one, and every cache key had to compose with it. The bundle-per-language approach concentrates the per-language plumbing at startup and lets the request path stay clean.
 
 ---
 
@@ -113,7 +113,7 @@ Mode validity is engine-owned and enforced inside the engine via `validate_mode`
 | English | `perfect`, `near` | `perfect` |
 | Spanish | `consonant`, `assonant` | `consonant` |
 
-The gateway is **not** responsible for translating between vocabularies. If the UI wants to expose a unified "strict / loose" toggle, the translation happens client-side before the request leaves the browser. FastAPI rejects cross-language modes rather than silently coercing them — silent coercion would hide real bugs in the request path.
+The gateway is **not** responsible for translating between vocabularies. If the UI wants to expose a unified "strict / loose" toggle, the translation happens client-side before the request leaves the browser. FastAPI rejects cross-language modes rather than silently coercing them: silent coercion would hide real bugs in the request path.
 
 ---
 
@@ -141,7 +141,7 @@ of language, so clients can check the value without knowing the request options.
 ## What this contract deliberately excludes
 
 - **No automatic language detection.** The router refuses to guess. If the gateway doesn't provide `language`, the gateway's default takes over (currently `en`).
-- **No mixed-language line analysis.** A single request analyzes the line through one engine. A request that mixes English and Spanish in one line gets analyzed as whichever language was specified — the wrong-language tokens will produce low-confidence results (English heuristic) or get rejected by the normalization filter (Spanish).
+- **No mixed-language line analysis.** A single request analyzes the line through one engine. A request that mixes English and Spanish in one line gets analyzed as whichever language was specified; the wrong-language tokens will produce low-confidence results (English heuristic) or get rejected by the normalization filter (Spanish).
 - **No cross-language rhymes.** A Spanish word will never appear as a rhyme suggestion for an English query, even if the phonemes happen to align. Cross-language rhyming would require a phoneme normalization layer that does not exist.
 
 ---
@@ -149,7 +149,7 @@ of language, so clients can check the value without knowing the request options.
 ## Adding a third language
 
 1. Create `app/domain/languages/<code>/` with: `engine.py`, plus whatever modules (normalization, syllabification, g2p, rhyme_rules) you need.
-2. Implement `LanguageEngine`. Pay particular attention to `key_specs` — the slot names become the wire `rhyme_type` values.
+2. Implement `LanguageEngine`. Pay particular attention to `key_specs`: the slot names become the wire `rhyme_type` values.
 3. Create a `PronunciationRepository` implementation for the new language. If there is no dictionary, follow the Spanish pattern: synthesize from a frequency corpus + your G2P.
 4. In the FastAPI `lifespan`, build the repository, build the index (driven by `engine.key_specs`), build the services, and register a new `LanguageContext` with the router.
 5. Update the gateway's [`bilingual.md`](../../gateway/docs/bilingual.md) and `SUPPORTED_LANGUAGES` enum to match.

@@ -10,7 +10,7 @@ For the rhyme-family taxonomy used by `/v1/rhymes`, see [`taxonomy.md`](./taxono
 ## What it is
 
 End rhyme (`rhyme_key()` + `assign_scheme`) only ever looks at the **last
-word of each line**. Songwriters also rely on internal rhyme — a word in the
+word of each line**. Songwriters also rely on internal rhyme: a word in the
 middle of one line echoing a word elsewhere in the same line, or in a
 different line entirely. `inner_rhymes` surfaces that: every word in the
 input is checked against every other word, and words that share a rhyme key
@@ -36,7 +36,7 @@ class InnerRhymeGroup(BaseModel):
 
 `LineAnalysisResponse.inner_rhymes` and `DraftAnalysisResponse.inner_rhymes`
 both default to `[]` and are always populated (no opt-in flag, no
-capability gate) — the schemas defined in
+capability gate), per the schemas defined in
 [`app/schemas/responses.py`](../app/schemas/responses.py).
 
 ---
@@ -78,7 +78,7 @@ re-tokenizing.
 2. **Near pass.** The same tokens are also run through the near/slant key
    (`near_rhyme_key` for English, `assonant_rhyme_key` for Spanish). Any
    occurrence whose `(line_index, word_index)` was already claimed by a
-   perfect group is **excluded** — a word doesn't appear in both a perfect
+   perfect group is **excluded**: a word doesn't appear in both a perfect
    and a near group.
 3. **Group filter.** A bucket only becomes a group if it has **≥ 2
    occurrences and ≥ 2 distinct normalized words**. This keeps plain word
@@ -86,7 +86,7 @@ re-tokenizing.
    a rhyme.
 4. **Confidence.** Perfect groups get `rhyme_type="perfect"` /
    `confidence="high"`; near groups get `rhyme_type="near"` /
-   `confidence="medium"` — the same high/medium convention documented in
+   `confidence="medium"`, the same high/medium convention documented in
    [`confidence-and-evidence.md`](./confidence-and-evidence.md).
 5. **Filtering noise.** Tokens with `normalized` shorter than 2 characters
    (`_MIN_WORD_LEN`) or with no resolvable phonemes are skipped entirely.
@@ -112,7 +112,7 @@ only computes its phonemes once per request.
 
 Each group's `id` is `irh_` followed by the first 10 hex characters of a
 SHA-1 hash of `"<language>|<rhyme_type>|<rhyme_key>|<sorted line:word positions>"`
-— the same hashing pattern used for other generated IDs (`ins_`, `rhy_`).
+, the same hashing pattern used for other generated IDs (`ins_`, `rhy_`).
 Identical input always produces the same group IDs, which matters for the
 Redis response cache and for any future client-side diffing.
 
@@ -133,7 +133,7 @@ responses (which lack the field) are never served stale.
 
 - **No UI highlighting yet.** The gateway and web client pass `inner_rhymes`
   through to `AnalysisResult.innerRhymes` / `DraftAnalysis.innerRhymes`
-  unchanged, but no component renders them yet — that is a follow-up.
+  unchanged, but no component renders them yet; that is a follow-up.
 - **No cross-language groups.** Each request is analyzed in one language;
   there is no attempt to rhyme an English word against a Spanish one.
 - **Doesn't replace end-rhyme scheme.** `sections[].rhyme_scheme` is computed

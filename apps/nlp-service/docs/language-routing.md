@@ -1,6 +1,6 @@
 # Language Routing
 
-How a request finds the right engine. Small file, narrow scope — anything broader belongs in [`bilingual.md`](./bilingual.md).
+How a request finds the right engine. Small file, narrow scope: anything broader belongs in [`bilingual.md`](./bilingual.md).
 
 ---
 
@@ -62,4 +62,4 @@ The tradeoff is startup time scales linearly with supported languages. Acceptabl
 - **Mode defaulting** — also the gateway. FastAPI requires an explicit `mode` if the request supplies one at all; it does not apply a per-language default itself. (The engine's `default_mode` exists for code that needs an "any sensible mode" answer, e.g., introspection.)
 - **Language coercion / translation** — neither the gateway nor FastAPI does this.
 
-If you need any of the above to live inside FastAPI, the right answer is almost always "the gateway should do it" — keep FastAPI's per-request behavior fully explicit.
+If you need any of the above to live inside FastAPI, the right answer is almost always "the gateway should do it": keep FastAPI's per-request behavior fully explicit.

@@ -1,6 +1,6 @@
 # Gateway Overview
 
-Transport and orchestration layer between the editor UI and the FastAPI rhyme/syllable engine. Accepts HTTP and WebSocket requests from the editor, composes downstream calls to FastAPI, persists drafts, and returns UI-friendly combined payloads. Bilingual as of Phase 3 — language is a first-class request and persistence concern.
+Transport and orchestration layer between the editor UI and the FastAPI rhyme/syllable engine. Accepts HTTP and WebSocket requests from the editor, composes downstream calls to FastAPI, persists drafts, and returns UI-friendly combined payloads. Bilingual, with language threaded through both request handling and persistence.
 
 ---
 
@@ -21,7 +21,7 @@ Editor UI
         │                      │
    EditorService          DraftsService
         │                      │
-   LanguageRequestMapper    (in-memory store, Phase 3)
+   LanguageRequestMapper    (in-memory store)
         │
    AnalysisService ──────────────────────┐
         │                                │
@@ -45,7 +45,7 @@ The defaulting and rhyme-mode resolution live in [`LanguageRequestMapper`](../sr
 
 ### Drafts are owned by the gateway, not FastAPI
 
-The NLP service is stateless. Persistence sits at the gateway because the gateway already owns the request envelope, validation, and the language contract — keeping drafts adjacent to that surface avoids a second validation layer in FastAPI. Phase 3 ships drafts as an in-memory store; the [`drafts.md`](./drafts.md) doc covers the contract and the limitations of the current implementation.
+The NLP service is stateless. Persistence sits at the gateway because the gateway already owns the request envelope, validation, and the language contract, so keeping drafts adjacent to that surface avoids a second validation layer in FastAPI. Drafts currently ship as an in-memory store; the [`drafts.md`](./drafts.md) doc covers the contract and the limitations of the current implementation.
 
 ### HTTP-only transport to FastAPI
 
@@ -59,7 +59,7 @@ The HTTP controller and WebSocket gateway both delegate to `EditorService.analyz
 
 A dedicated `EditorResponsePresenter` translates FastAPI's internal field names (`total_syllables`, `rhyme_type`) into the stable UI contract (`syllables.total`, `type`), and echoes the resolved `language` and `mode` back to the client so the editor doesn't have to remember what it asked for. This insulates the frontend from FastAPI implementation details and means FastAPI's schema can evolve without breaking the client.
 
-`inner_rhymes` — FastAPI's word-level rhyme groups (perfect/near, with line/word/char positions for highlighting) — is one of the few fields passed through verbatim rather than reshaped. Both `EditorResponsePresenter` (from `/v1/analyze-line`) and `DraftAnalysisPresenter` (from `/v1/analyze-draft`) default it to `[]` if FastAPI omits it, but otherwise forward the array as-is, snake_case included, matching how `sections` is handled for draft analysis. See `apps/nlp-service/docs/inner-rhyme-detection.md` for the field shapes.
+`inner_rhymes`, FastAPI's word-level rhyme groups (perfect/near, with line/word/char positions for highlighting), is one of the few fields passed through verbatim rather than reshaped. Both `EditorResponsePresenter` (from `/v1/analyze-line`) and `DraftAnalysisPresenter` (from `/v1/analyze-draft`) default it to `[]` if FastAPI omits it, but otherwise forward the array as-is, snake_case included, matching how `sections` is handled for draft analysis. See `apps/nlp-service/docs/inner-rhyme-detection.md` for the field shapes.
 
 ### Socket.IO over raw ws
 
@@ -75,7 +75,7 @@ Joi validates all required environment variables when the app starts. A missing 
 
 ### Global exception filter with error codes
 
-All errors — validation failures, downstream unavailability, internal errors, and 404s from `DraftsService` — are shaped into a single `{ error: { code, message } }` envelope before reaching the client. Codes are stable strings (`VALIDATION_FAILED`, `FASTAPI_UNAVAILABLE`, `UPSTREAM_FAILED`, `DRAFT_NOT_FOUND`) that the frontend can branch on without parsing human-readable messages. The filter deliberately strips internal stack traces and upstream error bodies from client-facing responses.
+All errors, including validation failures, downstream unavailability, internal errors, and 404s from `DraftsService`, are shaped into a single `{ error: { code, message } }` envelope before reaching the client. Codes are stable strings (`VALIDATION_FAILED`, `FASTAPI_UNAVAILABLE`, `UPSTREAM_FAILED`, `DRAFT_NOT_FOUND`) that the frontend can branch on without parsing human-readable messages. The filter deliberately strips internal stack traces and upstream error bodies from client-facing responses.
 
 ---
 
@@ -99,7 +99,7 @@ For the language-contract specifics (enum, defaults, mode-per-language resolutio
 
 **No server-side debounce or rate limiting.** Every `editor.analyze` event results in one or two FastAPI calls. A fast typist or a looping client can saturate the NLP service. The mitigation is to enforce debouncing on the client side before connecting.
 
-**Drafts are in-memory and process-local.** Restarting the gateway loses every saved draft. Acceptable for the current Phase 3 scope (single developer, single user) but the obvious next step before any non-local deployment. See [`drafts.md`](./drafts.md) for the swap-in points.
+**Drafts are in-memory and process-local.** Restarting the gateway loses every saved draft. Acceptable for the current single-developer, single-user scope but the obvious next step before any non-local deployment. See [`drafts.md`](./drafts.md) for the swap-in points.
 
 **No connection-level state.** Each request is fully self-contained. There is no concept of an editing session, song context, or per-user history. The presenter cannot apply cross-line heuristics (e.g., rhyme scheme awareness) because it only sees a single line per request.
 
@@ -117,7 +117,7 @@ For the language-contract specifics (enum, defaults, mode-per-language resolutio
 
 ## Areas for improvement
 
-**Persist drafts to a real store.** SQLite or Postgres behind the existing `DraftsService` interface — `DraftsService` already owns the abstraction so the controller does not need to change.
+**Persist drafts to a real store.** SQLite or Postgres behind the existing `DraftsService` interface; `DraftsService` already owns the abstraction, so the controller does not need to change.
 
 **Forward `x-request-id` to FastAPI.** End-to-end trace correlation across both services using only log search, without a distributed tracing system.
 

@@ -1,6 +1,6 @@
 # Drafts Module
 
-The drafts module owns draft persistence for the songwriting workspace. It exposes a REST CRUD surface, validates inputs against the bilingual language contract, and presents stable client-facing payloads. Phase 3 ships with an in-memory store; the abstraction is set up so a real persistence layer can slot in without controller changes.
+The drafts module owns draft persistence for the songwriting workspace. It exposes a REST CRUD surface, validates inputs against the bilingual language contract, and presents stable client-facing payloads. The module currently ships with an in-memory store; the abstraction is set up so a real persistence layer can slot in without controller changes.
 
 ---
 
@@ -36,15 +36,15 @@ interface DraftPayload {
 
 ## Key decisions
 
-### In-memory store as the Phase 3 default
+### In-memory store as the current default
 
-`DraftsService` keeps everything in a `Map<string, Draft>` inside the singleton service instance. The reasoning is the same as for the rhyme index: the simplest implementation that lets the rest of the system be built and tested. Nothing in the public surface assumes the store is in-memory — `DraftsService` exposes `create / findById / update / remove` and nothing else.
+`DraftsService` keeps everything in a `Map<string, Draft>` inside the singleton service instance. The reasoning is the same as for the rhyme index: the simplest implementation that lets the rest of the system be built and tested. Nothing in the public surface assumes the store is in-memory; `DraftsService` exposes `create / findById / update / remove` and nothing else.
 
 The tradeoff is obvious: restarting the gateway loses every draft. This is acceptable while the product is single-user and pre-production. Swapping to SQLite or Postgres replaces the `Map` and the four method bodies; the controller, DTOs, presenter, and exception filter do not change.
 
 ### Default title applied at the service, not the controller
 
-`create()` checks `input.title?.length` and falls back to `DEFAULT_TITLE`. Centralizing the default at the service means a future caller (e.g., a Phase 4 batch import) can't accidentally create blank-titled drafts. The DTO accepts an optional title; the service is the single source of the fallback rule.
+`create()` checks `input.title?.length` and falls back to `DEFAULT_TITLE`. Centralizing the default at the service means a future caller (e.g., a batch import) can't accidentally create blank-titled drafts. The DTO accepts an optional title; the service is the single source of the fallback rule.
 
 ### PATCH requires at least one mutating field
 
@@ -52,7 +52,7 @@ The controller throws `BadRequestException` if all four of `title`, `content`, `
 
 ### Language defaulting at create, not at read
 
-`create()` defaults `language` to `DEFAULT_LANGUAGE` when omitted. `update()` only touches `language` when explicitly provided. Reads always return the stored value. This avoids silently coercing legacy data on read — which matters once the store is real and predates a future enum expansion.
+`create()` defaults `language` to `DEFAULT_LANGUAGE` when omitted. `update()` only touches `language` when explicitly provided. Reads always return the stored value. This avoids silently coercing legacy data on read, which matters once the store is real and predates a future enum expansion.
 
 ### Delete is idempotent at the client level
 
@@ -85,9 +85,9 @@ Errors come back wrapped in the standard envelope:
 
 **No pagination, no listing endpoint.** The current UI only loads drafts from a local "recent drafts" index in the browser. Once the workspace grows beyond a handful of drafts per user, a `GET /v1/drafts` endpoint with pagination becomes table-stakes.
 
-**No concurrent-update protection.** Two clients editing the same draft will last-writer-wins. Phase 3 is single-user; conflict resolution is a Phase 4+ concern.
+**No concurrent-update protection.** Two clients editing the same draft will last-writer-wins. The current scope is single-user; conflict resolution is a future concern.
 
-**No soft delete.** `remove()` is a hard delete. There is no undo path on the server side — the client's optimistic-delete UX is the only undo affordance, and it disappears as soon as the page reloads.
+**No soft delete.** `remove()` is a hard delete. There is no undo path on the server side. The client's optimistic-delete UX is the only undo affordance, and it disappears as soon as the page reloads.
 
 **No ownership / authorization.** Anyone with a draft's UUID can read, edit, or delete it. Acceptable for single-user local dev; must be addressed before any multi-user deployment.
 

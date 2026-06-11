@@ -5,7 +5,10 @@ import type { ClientRhymeMode } from "@/features/analysis/rhyme-modes";
 import type { DraftSummary, SaveStatus } from "@/features/drafts/drafts-types";
 import { deriveTitle, deriveTitleLine } from "@/features/drafts/derive-title";
 import type { Language } from "@/features/language/language-types";
-import type { ThemePreference } from "@/features/settings/preferences";
+import type {
+  RhymeHighlightStyle,
+  ThemePreference,
+} from "@/features/settings/preferences";
 import { DraftPicker } from "./draft-picker";
 import { LanguageSelector } from "./language-selector";
 import { RhymeModeToggle } from "./rhyme-mode-toggle";
@@ -45,6 +48,8 @@ interface NotebookHeaderProps {
   onThemeChange: (theme: ThemePreference) => void;
   rhymeHighlights: boolean;
   onRhymeHighlightsChange: (on: boolean) => void;
+  rhymeHighlightStyle: RhymeHighlightStyle;
+  onRhymeHighlightStyleChange: (style: RhymeHighlightStyle) => void;
 }
 
 export function NotebookHeader({
@@ -65,6 +70,8 @@ export function NotebookHeader({
   onThemeChange,
   rhymeHighlights,
   onRhymeHighlightsChange,
+  rhymeHighlightStyle,
+  onRhymeHighlightStyleChange,
 }: NotebookHeaderProps) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
@@ -97,6 +104,8 @@ export function NotebookHeader({
           onThemeChange={onThemeChange}
           rhymeHighlights={rhymeHighlights}
           onRhymeHighlightsChange={onRhymeHighlightsChange}
+          rhymeHighlightStyle={rhymeHighlightStyle}
+          onRhymeHighlightStyleChange={onRhymeHighlightStyleChange}
         />
       </div>
     </header>

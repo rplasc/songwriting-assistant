@@ -89,8 +89,14 @@ export function LyricEditorShell() {
 
   const { language, setLanguage } = useDraftLanguage();
 
-  const { theme, rhymeHighlights, setTheme, setRhymeHighlights } =
-    usePreferences();
+  const {
+    theme,
+    rhymeHighlights,
+    rhymeHighlightStyle,
+    setTheme,
+    setRhymeHighlights,
+    setRhymeHighlightStyle,
+  } = usePreferences();
 
   const { result, status } = useEditorAnalysis(
     activeLine,
@@ -305,6 +311,8 @@ export function LyricEditorShell() {
         onThemeChange={setTheme}
         rhymeHighlights={rhymeHighlights}
         onRhymeHighlightsChange={setRhymeHighlights}
+        rhymeHighlightStyle={rhymeHighlightStyle}
+        onRhymeHighlightStyleChange={setRhymeHighlightStyle}
       />
       {(saveStatus === "conflict" ||
         saveStatus === "error" ||
@@ -351,7 +359,10 @@ export function LyricEditorShell() {
         railOpen={railOpen}
         main={
           <>
-            <LyricEditor editor={editor} />
+            <LyricEditor
+              editor={editor}
+              rhymeHighlightStyle={rhymeHighlightStyle}
+            />
             {explorerOpen && (
               <AdvancedRhymeExplorer
                 activeLine={activeLine}
@@ -374,6 +385,7 @@ export function LyricEditorShell() {
               railOpen={railOpen}
               rhymeGroupCount={analysis?.innerRhymes.length ?? 0}
               rhymeHighlights={rhymeHighlights}
+              rhymeHighlightStyle={rhymeHighlightStyle}
               offline={status === "error"}
               language={language}
             />

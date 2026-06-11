@@ -9,6 +9,7 @@ describe("EditorStatusStrip", () => {
         railOpen={true}
         rhymeGroupCount={4}
         rhymeHighlights={true}
+        rhymeHighlightStyle="underline"
         offline={false}
         language="en"
       />,
@@ -19,12 +20,29 @@ describe("EditorStatusStrip", () => {
     expect(strip).not.toHaveTextContent(/offline/i);
   });
 
+  it("says highlighted in marker style", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={true}
+        rhymeGroupCount={4}
+        rhymeHighlights={true}
+        rhymeHighlightStyle="marker"
+        offline={false}
+        language="en"
+      />,
+    );
+    const strip = screen.getByText(/rail open/i);
+    expect(strip).toHaveTextContent(/4 rhyme groups highlighted/i);
+    expect(strip).not.toHaveTextContent(/underlined/i);
+  });
+
   it("reflects a closed rail and offline state", () => {
     render(
       <EditorStatusStrip
         railOpen={false}
         rhymeGroupCount={0}
         rhymeHighlights={true}
+        rhymeHighlightStyle="marker"
         offline={true}
         language="en"
       />,
@@ -39,13 +57,14 @@ describe("EditorStatusStrip", () => {
         railOpen={true}
         rhymeGroupCount={4}
         rhymeHighlights={false}
+        rhymeHighlightStyle="marker"
         offline={false}
         language="en"
       />,
     );
     const strip = screen.getByText(/rail open/i);
     expect(strip).toHaveTextContent(/rhyme highlights off/i);
-    expect(strip).not.toHaveTextContent(/underlined/i);
+    expect(strip).not.toHaveTextContent(/highlighted|underlined/i);
   });
 
   it("speaks Spanish when the draft does", () => {
@@ -54,10 +73,12 @@ describe("EditorStatusStrip", () => {
         railOpen={true}
         rhymeGroupCount={1}
         rhymeHighlights={true}
+        rhymeHighlightStyle="marker"
         offline={false}
         language="es"
       />,
     );
     expect(screen.getByText(/margen abierto/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 grupo de rima resaltado/i)).toBeInTheDocument();
   });
 });

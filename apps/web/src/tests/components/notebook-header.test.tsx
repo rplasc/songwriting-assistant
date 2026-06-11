@@ -24,6 +24,8 @@ function setup(content: string) {
       onThemeChange={vi.fn()}
       rhymeHighlights={true}
       onRhymeHighlightsChange={vi.fn()}
+      rhymeHighlightStyle="marker"
+      onRhymeHighlightStyleChange={vi.fn()}
     />,
   );
   return { onTitleChange };

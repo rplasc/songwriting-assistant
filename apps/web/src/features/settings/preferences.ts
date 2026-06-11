@@ -10,11 +10,18 @@ export const THEME_OPTIONS: ReadonlyArray<ThemePreference> = [
   "dark",
 ];
 
+export type RhymeHighlightStyle = "marker" | "underline";
+
+export const RHYME_HIGHLIGHT_STYLE_OPTIONS: ReadonlyArray<RhymeHighlightStyle> =
+  ["marker", "underline"];
+
 const THEME_KEY = "sa.theme";
 const RHYME_HIGHLIGHTS_KEY = "sa.rhymeHighlights";
+const RHYME_HIGHLIGHT_STYLE_KEY = "sa.rhymeHighlightStyle";
 
 export const DEFAULT_THEME: ThemePreference = "system";
 export const DEFAULT_RHYME_HIGHLIGHTS = true;
+export const DEFAULT_RHYME_HIGHLIGHT_STYLE: RhymeHighlightStyle = "marker";
 
 // One subscriber set drives both preferences. Either setter notifies it, and a
 // cross-tab `storage` event folds in here too so a change in another window is
@@ -29,7 +36,11 @@ function notify(): void {
 function subscribe(callback: Listener): () => void {
   listeners.add(callback);
   const onStorage = (event: StorageEvent) => {
-    if (event.key === THEME_KEY || event.key === RHYME_HIGHLIGHTS_KEY) {
+    if (
+      event.key === THEME_KEY ||
+      event.key === RHYME_HIGHLIGHTS_KEY ||
+      event.key === RHYME_HIGHLIGHT_STYLE_KEY
+    ) {
       callback();
     }
   };
@@ -86,6 +97,28 @@ function writeRhymeHighlights(on: boolean): void {
   notify();
 }
 
+function readRhymeHighlightStyle(): RhymeHighlightStyle {
+  if (typeof window === "undefined") return DEFAULT_RHYME_HIGHLIGHT_STYLE;
+  try {
+    const raw = window.localStorage.getItem(RHYME_HIGHLIGHT_STYLE_KEY);
+    return raw === "marker" || raw === "underline"
+      ? raw
+      : DEFAULT_RHYME_HIGHLIGHT_STYLE;
+  } catch {
+    return DEFAULT_RHYME_HIGHLIGHT_STYLE;
+  }
+}
+
+function writeRhymeHighlightStyle(style: RhymeHighlightStyle): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(RHYME_HIGHLIGHT_STYLE_KEY, style);
+  } catch {
+    /* ignore */
+  }
+  notify();
+}
+
 /**
  * Reflect the theme choice onto <html>. "system" clears the attribute so the
  * `color-scheme: light dark` default follows the OS; an explicit choice pins
@@ -102,8 +135,10 @@ export function applyTheme(theme: ThemePreference): void {
 export interface UsePreferencesReturn {
   theme: ThemePreference;
   rhymeHighlights: boolean;
+  rhymeHighlightStyle: RhymeHighlightStyle;
   setTheme: (theme: ThemePreference) => void;
   setRhymeHighlights: (on: boolean) => void;
+  setRhymeHighlightStyle: (style: RhymeHighlightStyle) => void;
 }
 
 export function usePreferences(): UsePreferencesReturn {
@@ -112,6 +147,11 @@ export function usePreferences(): UsePreferencesReturn {
     subscribe,
     readRhymeHighlights,
     () => DEFAULT_RHYME_HIGHLIGHTS,
+  );
+  const rhymeHighlightStyle = useSyncExternalStore(
+    subscribe,
+    readRhymeHighlightStyle,
+    () => DEFAULT_RHYME_HIGHLIGHT_STYLE,
   );
 
   // The inline script sets the attribute on first paint; this keeps it honest
@@ -128,8 +168,20 @@ export function usePreferences(): UsePreferencesReturn {
     if (on !== readRhymeHighlights()) writeRhymeHighlights(on);
   }, []);
 
-  return { theme, rhymeHighlights, setTheme, setRhymeHighlights };
+  const setRhymeHighlightStyle = useCallback((style: RhymeHighlightStyle) => {
+    if (style !== readRhymeHighlightStyle()) writeRhymeHighlightStyle(style);
+  }, []);
+
+  return {
+    theme,
+    rhymeHighlights,
+    rhymeHighlightStyle,
+    setTheme,
+    setRhymeHighlights,
+    setRhymeHighlightStyle,
+  };
 }
 
 export const THEME_STORAGE_KEY = THEME_KEY;
 export const RHYME_HIGHLIGHTS_STORAGE_KEY = RHYME_HIGHLIGHTS_KEY;
+export const RHYME_HIGHLIGHT_STYLE_STORAGE_KEY = RHYME_HIGHLIGHT_STYLE_KEY;

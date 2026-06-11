@@ -155,12 +155,38 @@ body {
   opacity: 0.35;
 }
 
-/* Inner-rhyme group underlines — inks cycled per group. */
-.tiptap .rhyme-g0 { text-decoration: underline solid var(--rhyme-1) 1.5px; text-underline-offset: 4px; }
-.tiptap .rhyme-g1 { text-decoration: underline solid var(--rhyme-2) 1.5px; text-underline-offset: 4px; }
-.tiptap .rhyme-g2 { text-decoration: underline solid var(--rhyme-3) 1.5px; text-underline-offset: 4px; }
-.tiptap .rhyme-g3 { text-decoration: underline solid var(--rhyme-4) 1.5px; text-underline-offset: 4px; }
-.tiptap .rhyme-g4 { text-decoration: underline solid var(--rhyme-5) 1.5px; text-underline-offset: 4px; }
+/* Inner-rhyme groups — inks cycled per group. Two presentations, switched by
+   the wrapper's data-rhyme-style; the decoration classes stay the same so the
+   ProseMirror plugin is style-agnostic. Each group maps to one --rhyme-N ink. */
+.rhyme-style-underline .tiptap .rhyme-g0 { --rhyme-ink: var(--rhyme-1); }
+.rhyme-style-underline .tiptap .rhyme-g1 { --rhyme-ink: var(--rhyme-2); }
+.rhyme-style-underline .tiptap .rhyme-g2 { --rhyme-ink: var(--rhyme-3); }
+.rhyme-style-underline .tiptap .rhyme-g3 { --rhyme-ink: var(--rhyme-4); }
+.rhyme-style-underline .tiptap .rhyme-g4 { --rhyme-ink: var(--rhyme-5); }
+
+.rhyme-style-marker .tiptap .rhyme-g0 { --rhyme-ink: var(--rhyme-1); }
+.rhyme-style-marker .tiptap .rhyme-g1 { --rhyme-ink: var(--rhyme-2); }
+.rhyme-style-marker .tiptap .rhyme-g2 { --rhyme-ink: var(--rhyme-3); }
+.rhyme-style-marker .tiptap .rhyme-g3 { --rhyme-ink: var(--rhyme-4); }
+.rhyme-style-marker .tiptap .rhyme-g4 { --rhyme-ink: var(--rhyme-5); }
+
+/* Underline style — a fine colored rule under the rhyming word. */
+.rhyme-style-underline .tiptap [class*="rhyme-g"] {
+  text-decoration: underline solid var(--rhyme-ink) 1.5px;
+  text-underline-offset: 4px;
+}
+
+/* Marker style — a translucent highlighter swipe behind the whole word. The
+   ink is mixed toward transparent so text stays readable on either theme; a
+   little inline bleed (offset by negative margin) reads like a real marker. */
+.rhyme-style-marker .tiptap [class*="rhyme-g"] {
+  background-color: color-mix(in srgb, var(--rhyme-ink) 30%, transparent);
+  border-radius: 0.18em;
+  padding-inline: 0.12em;
+  margin-inline: -0.12em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
 
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

@@ -6,6 +6,7 @@ import { SettingsMenu } from "@/components/editor/settings-menu";
 function setup(overrides: Partial<React.ComponentProps<typeof SettingsMenu>> = {}) {
   const onThemeChange = vi.fn();
   const onRhymeHighlightsChange = vi.fn();
+  const onRhymeHighlightStyleChange = vi.fn();
   render(
     <SettingsMenu
       language="en"
@@ -13,10 +14,12 @@ function setup(overrides: Partial<React.ComponentProps<typeof SettingsMenu>> = {
       onThemeChange={onThemeChange}
       rhymeHighlights={true}
       onRhymeHighlightsChange={onRhymeHighlightsChange}
+      rhymeHighlightStyle="marker"
+      onRhymeHighlightStyleChange={onRhymeHighlightStyleChange}
       {...overrides}
     />,
   );
-  return { onThemeChange, onRhymeHighlightsChange };
+  return { onThemeChange, onRhymeHighlightsChange, onRhymeHighlightStyleChange };
 }
 
 describe("SettingsMenu", () => {
@@ -54,6 +57,35 @@ describe("SettingsMenu", () => {
 
     await user.click(sw);
     expect(onRhymeHighlightsChange).toHaveBeenCalledWith(false);
+  });
+
+  it("marks the active highlight style and emits a change", async () => {
+    const user = userEvent.setup();
+    const { onRhymeHighlightStyleChange } = setup({
+      rhymeHighlightStyle: "marker",
+    });
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+
+    const marker = screen.getByRole("radio", { name: /marker/i });
+    const underline = screen.getByRole("radio", { name: /underline/i });
+    expect(marker).toHaveAttribute("aria-checked", "true");
+    expect(underline).toHaveAttribute("aria-checked", "false");
+
+    await user.click(underline);
+    expect(onRhymeHighlightStyleChange).toHaveBeenCalledWith("underline");
+  });
+
+  it("disables the style picker when highlights are off", async () => {
+    const user = userEvent.setup();
+    const { onRhymeHighlightStyleChange } = setup({ rhymeHighlights: false });
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    const underline = screen.getByRole("radio", { name: /underline/i });
+    expect(underline).toBeDisabled();
+
+    await user.click(underline);
+    expect(onRhymeHighlightStyleChange).not.toHaveBeenCalled();
   });
 
   it("closes on Escape", async () => {

@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Language } from "@/features/language/language-types";
 import {
+  RHYME_HIGHLIGHT_STYLE_OPTIONS,
   THEME_OPTIONS,
+  type RhymeHighlightStyle,
   type ThemePreference,
 } from "@/features/settings/preferences";
 
@@ -14,6 +16,8 @@ interface SettingsMenuProps {
   onThemeChange: (theme: ThemePreference) => void;
   rhymeHighlights: boolean;
   onRhymeHighlightsChange: (on: boolean) => void;
+  rhymeHighlightStyle: RhymeHighlightStyle;
+  onRhymeHighlightStyleChange: (style: RhymeHighlightStyle) => void;
 }
 
 const COPY: Record<
@@ -24,6 +28,8 @@ const COPY: Record<
     theme: Record<ThemePreference, string>;
     rhymeHighlights: string;
     rhymeHighlightsHint: string;
+    style: string;
+    styleOptions: Record<RhymeHighlightStyle, string>;
     on: string;
     off: string;
   }
@@ -33,7 +39,9 @@ const COPY: Record<
     appearance: "Appearance",
     theme: { system: "System", light: "Light", dark: "Dark" },
     rhymeHighlights: "Rhyme highlights",
-    rhymeHighlightsHint: "Underline rhyming words in the lyrics.",
+    rhymeHighlightsHint: "Mark rhyming words in the lyrics.",
+    style: "Style",
+    styleOptions: { marker: "Marker", underline: "Underline" },
     on: "On",
     off: "Off",
   },
@@ -42,7 +50,9 @@ const COPY: Record<
     appearance: "Apariencia",
     theme: { system: "Sistema", light: "Claro", dark: "Oscuro" },
     rhymeHighlights: "Resaltar rimas",
-    rhymeHighlightsHint: "Subraya las palabras que riman en la letra.",
+    rhymeHighlightsHint: "Marca las palabras que riman en la letra.",
+    style: "Estilo",
+    styleOptions: { marker: "Marcador", underline: "Subrayado" },
     on: "Sí",
     off: "No",
   },
@@ -73,6 +83,8 @@ export function SettingsMenu({
   onThemeChange,
   rhymeHighlights,
   onRhymeHighlightsChange,
+  rhymeHighlightStyle,
+  onRhymeHighlightStyleChange,
 }: SettingsMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -173,6 +185,48 @@ export function SettingsMenu({
               onText={copy.on}
               offText={copy.off}
             />
+          </div>
+
+          {/* Style only applies while highlights are on; dim it otherwise so
+              the relationship is clear without hiding the choice. */}
+          <div
+            className={cn(
+              "mt-3 flex items-center justify-between gap-3 transition-opacity duration-150",
+              rhymeHighlights ? "opacity-100" : "opacity-45",
+            )}
+          >
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              {copy.style}
+            </span>
+            <div
+              role="radiogroup"
+              aria-label={copy.style}
+              className="inline-flex items-center rounded-full border border-border bg-surface-muted p-0.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+            >
+              {RHYME_HIGHLIGHT_STYLE_OPTIONS.map((option) => {
+                const active = option === rhymeHighlightStyle;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={!rhymeHighlights}
+                    onClick={() => onRhymeHighlightStyleChange(option)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 transition-colors duration-150 ease-out",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+                      "disabled:cursor-not-allowed",
+                      active
+                        ? "bg-accent/85 font-medium text-surface"
+                        : "text-muted-foreground enabled:hover:text-foreground",
+                    )}
+                  >
+                    {copy.styleOptions[option]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

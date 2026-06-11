@@ -24,6 +24,7 @@ import type { Language } from "@/features/language/language-types";
 import { useLyricEditor } from "@/features/editor/tiptap/use-lyric-editor";
 import { jumpToLine } from "@/features/editor/tiptap/jump-to-line";
 import { insertSectionLabel } from "@/features/editor/tiptap/insert-section-label";
+import { setTitleLine } from "@/features/editor/tiptap/set-title-line";
 import { setInnerRhymes } from "@/features/editor/tiptap/inner-rhyme-extension";
 import { useDraftAnalysis } from "@/features/draft-analysis/use-draft-analysis";
 import { useDraftCompare } from "@/features/draft-compare/use-draft-compare";
@@ -242,6 +243,13 @@ export function LyricEditorShell() {
     [editor],
   );
 
+  const handleTitleChange = useCallback(
+    (title: string) => {
+      if (editor) setTitleLine(editor, title);
+    },
+    [editor],
+  );
+
   const lineNotes = useMemo(
     () =>
       buildLineNotes({
@@ -271,6 +279,7 @@ export function LyricEditorShell() {
     <div className="flex flex-col gap-5">
       <NotebookHeader
         content={content}
+        onTitleChange={handleTitleChange}
         rhymeMode={rhymeMode}
         onRhymeModeChange={handleRhymeModeChange}
         language={language}

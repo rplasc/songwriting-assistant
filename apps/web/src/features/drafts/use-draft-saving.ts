@@ -302,7 +302,7 @@ export function useDraftSaving(
       try {
         const draft = await getDraft(id, { signal: controller.signal });
         suppressDirtyRef.current = true;
-        editor.commands.setContent(parseStoredContent(draft.content));
+        editor.commands.setContent(parseStoredContent(draft.content), true);
         suppressDirtyRef.current = false;
         updateCurrentId(draft.id);
         updateCurrentLanguage(draft.language);
@@ -342,7 +342,7 @@ export function useDraftSaving(
         }
         if (inFlightRef.current) inFlightRef.current.abort();
         suppressDirtyRef.current = true;
-        editor.commands.setContent("");
+        editor.commands.setContent("", true);
         suppressDirtyRef.current = false;
         updateCurrentId(null);
         updateCurrentLanguage(null);
@@ -370,7 +370,7 @@ export function useDraftSaving(
     }
     if (inFlightRef.current) inFlightRef.current.abort();
     suppressDirtyRef.current = true;
-    editor.commands.setContent("");
+    editor.commands.setContent("", true);
     suppressDirtyRef.current = false;
     updateCurrentId(null);
     updateCurrentLanguage(null);

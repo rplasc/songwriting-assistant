@@ -225,6 +225,6 @@ describe("useDraftSaving", () => {
     act(() => result.current.newDraft());
     expect(result.current.status).toBe("idle");
     expect(result.current.currentDraftId).toBeNull();
-    expect(editor.commands.setContent).toHaveBeenCalledWith("");
+    expect(editor.commands.setContent).toHaveBeenCalledWith("", true);
   });
 });

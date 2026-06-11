@@ -5,10 +5,12 @@ import type { ClientRhymeMode } from "@/features/analysis/rhyme-modes";
 import type { DraftSummary, SaveStatus } from "@/features/drafts/drafts-types";
 import { deriveTitle, deriveTitleLine } from "@/features/drafts/derive-title";
 import type { Language } from "@/features/language/language-types";
+import type { ThemePreference } from "@/features/settings/preferences";
 import { DraftPicker } from "./draft-picker";
 import { LanguageSelector } from "./language-selector";
 import { RhymeModeToggle } from "./rhyme-mode-toggle";
 import { SaveStatusIndicator } from "./save-status";
+import { SettingsMenu } from "./settings-menu";
 
 const SUBTITLE: Record<Language, string> = {
   en: "A studio notebook — words first, counts in the margin.",
@@ -39,6 +41,10 @@ interface NotebookHeaderProps {
   onSelectDraft: (id: string) => void;
   onNewDraft: () => void;
   onDeleteDraft: (id: string) => void;
+  theme: ThemePreference;
+  onThemeChange: (theme: ThemePreference) => void;
+  rhymeHighlights: boolean;
+  onRhymeHighlightsChange: (on: boolean) => void;
 }
 
 export function NotebookHeader({
@@ -55,6 +61,10 @@ export function NotebookHeader({
   onSelectDraft,
   onNewDraft,
   onDeleteDraft,
+  theme,
+  onThemeChange,
+  rhymeHighlights,
+  onRhymeHighlightsChange,
 }: NotebookHeaderProps) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
@@ -80,6 +90,13 @@ export function NotebookHeader({
           onSelect={onSelectDraft}
           onNew={onNewDraft}
           onDelete={onDeleteDraft}
+        />
+        <SettingsMenu
+          language={language}
+          theme={theme}
+          onThemeChange={onThemeChange}
+          rhymeHighlights={rhymeHighlights}
+          onRhymeHighlightsChange={onRhymeHighlightsChange}
         />
       </div>
     </header>

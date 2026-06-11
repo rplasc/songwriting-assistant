@@ -8,6 +8,7 @@ describe("EditorStatusStrip", () => {
       <EditorStatusStrip
         railOpen={true}
         rhymeGroupCount={4}
+        rhymeHighlights={true}
         offline={false}
         language="en"
       />,
@@ -23,6 +24,7 @@ describe("EditorStatusStrip", () => {
       <EditorStatusStrip
         railOpen={false}
         rhymeGroupCount={0}
+        rhymeHighlights={true}
         offline={true}
         language="en"
       />,
@@ -31,11 +33,27 @@ describe("EditorStatusStrip", () => {
     expect(strip).toHaveTextContent(/offline/i);
   });
 
+  it("notes when rhyme highlights are turned off", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={true}
+        rhymeGroupCount={4}
+        rhymeHighlights={false}
+        offline={false}
+        language="en"
+      />,
+    );
+    const strip = screen.getByText(/rail open/i);
+    expect(strip).toHaveTextContent(/rhyme highlights off/i);
+    expect(strip).not.toHaveTextContent(/underlined/i);
+  });
+
   it("speaks Spanish when the draft does", () => {
     render(
       <EditorStatusStrip
         railOpen={true}
         rhymeGroupCount={1}
+        rhymeHighlights={true}
         offline={false}
         language="es"
       />,

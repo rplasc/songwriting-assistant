@@ -21,6 +21,7 @@ import { useLineSyllables } from "@/features/analysis/use-line-syllables";
 import { useDraftSaving } from "@/features/drafts/use-draft-saving";
 import { useDraftLanguage } from "@/features/language/use-draft-language";
 import type { Language } from "@/features/language/language-types";
+import { usePreferences } from "@/features/settings/preferences";
 import { useLyricEditor } from "@/features/editor/tiptap/use-lyric-editor";
 import { jumpToLine } from "@/features/editor/tiptap/jump-to-line";
 import { insertSectionLabel } from "@/features/editor/tiptap/insert-section-label";
@@ -88,6 +89,9 @@ export function LyricEditorShell() {
 
   const { language, setLanguage } = useDraftLanguage();
 
+  const { theme, rhymeHighlights, setTheme, setRhymeHighlights } =
+    usePreferences();
+
   const { result, status } = useEditorAnalysis(
     activeLine,
     rhymeMode,
@@ -132,14 +136,20 @@ export function LyricEditorShell() {
     liveResult: result,
   });
 
-  // Inner-rhyme underlines from the latest full-draft analysis.
+  // Inner-rhyme underlines from the latest full-draft analysis. When the
+  // writer turns highlights off, clear any existing underlines and hold.
   useEffect(() => {
-    if (!editor || !analysis || analyzedContent === null) return;
+    if (!editor) return;
+    if (!rhymeHighlights) {
+      setInnerRhymes(editor, { groups: [], sourceLines: [] });
+      return;
+    }
+    if (!analysis || analyzedContent === null) return;
     setInnerRhymes(editor, {
       groups: analysis.innerRhymes,
       sourceLines: analyzedContent.split("\n"),
     });
-  }, [editor, analysis, analyzedContent]);
+  }, [editor, analysis, analyzedContent, rhymeHighlights]);
 
   // Baseline is a stored revision hash; the gateway's SnapshotStore retains
   // the analysis payload behind that hash for the comparison call. Tag the
@@ -291,6 +301,10 @@ export function LyricEditorShell() {
         onSelectDraft={(id) => void loadDraft(id)}
         onNewDraft={newDraft}
         onDeleteDraft={(id) => void deleteDraft(id)}
+        theme={theme}
+        onThemeChange={setTheme}
+        rhymeHighlights={rhymeHighlights}
+        onRhymeHighlightsChange={setRhymeHighlights}
       />
       {(saveStatus === "conflict" ||
         saveStatus === "error" ||
@@ -359,6 +373,7 @@ export function LyricEditorShell() {
             <EditorStatusStrip
               railOpen={railOpen}
               rhymeGroupCount={analysis?.innerRhymes.length ?? 0}
+              rhymeHighlights={rhymeHighlights}
               offline={status === "error"}
               language={language}
             />

@@ -20,6 +20,10 @@ function setup(content: string) {
       onSelectDraft={vi.fn()}
       onNewDraft={vi.fn()}
       onDeleteDraft={vi.fn()}
+      theme="system"
+      onThemeChange={vi.fn()}
+      rhymeHighlights={true}
+      onRhymeHighlightsChange={vi.fn()}
     />,
   );
   return { onTitleChange };

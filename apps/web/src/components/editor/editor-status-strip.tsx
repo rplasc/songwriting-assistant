@@ -3,6 +3,7 @@ import type { Language } from "@/features/language/language-types";
 interface EditorStatusStripProps {
   railOpen: boolean;
   rhymeGroupCount: number;
+  rhymeHighlights: boolean;
   offline: boolean;
   language: Language;
 }
@@ -13,6 +14,7 @@ const COPY: Record<
     railOpen: string;
     railClosed: string;
     rhymeGroups: (n: number) => string;
+    rhymeHighlightsOff: string;
     syllables: string;
     offline: string;
   }
@@ -22,6 +24,7 @@ const COPY: Record<
     railClosed: "rail closed",
     rhymeGroups: (n) =>
       n > 0 ? `${n} rhyme group${n === 1 ? "" : "s"} underlined` : "rhyme groups underlined",
+    rhymeHighlightsOff: "rhyme highlights off",
     syllables: "syllables at right edge",
     offline: "offline",
   },
@@ -30,6 +33,7 @@ const COPY: Record<
     railClosed: "margen cerrado",
     rhymeGroups: (n) =>
       n > 0 ? `${n} grupo${n === 1 ? "" : "s"} de rima subrayado${n === 1 ? "" : "s"}` : "grupos de rima subrayados",
+    rhymeHighlightsOff: "resaltado de rimas desactivado",
     syllables: "sílabas al borde derecho",
     offline: "sin conexión",
   },
@@ -38,13 +42,14 @@ const COPY: Record<
 export function EditorStatusStrip({
   railOpen,
   rhymeGroupCount,
+  rhymeHighlights,
   offline,
   language,
 }: EditorStatusStripProps) {
   const copy = COPY[language];
   const segments = [
     railOpen ? copy.railOpen : copy.railClosed,
-    copy.rhymeGroups(rhymeGroupCount),
+    rhymeHighlights ? copy.rhymeGroups(rhymeGroupCount) : copy.rhymeHighlightsOff,
     copy.syllables,
   ];
   if (offline) segments.push(copy.offline);

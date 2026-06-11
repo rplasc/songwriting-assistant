@@ -467,6 +467,7 @@ export function LyricEditorShell() {
               rhymeGroupCount={analysis?.innerRhymes.length ?? 0}
               rhymeHighlights={rhymeHighlights}
               rhymeHighlightStyle={rhymeHighlightStyle}
+              syllableCounts={syllableCounts}
               offline={status === "error"}
               language={language}
             />

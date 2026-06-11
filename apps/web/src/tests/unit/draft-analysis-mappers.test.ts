@@ -18,21 +18,23 @@ const BASE: ServerDraftAnalysisPayload = {
       total_syllables: 56,
       notable_patterns: ["Chorus repeats line 1"],
     },
-    sections: [
-      {
-        id: "s1",
-        label: "Verse",
-        line_start: 1,
-        line_end: 4,
-        line_count: 4,
-        rhyme_scheme: "ABAB",
-        rhyme_scheme_confidence: 0.82,
-        syllable_pattern: [8, 8, 9, 8],
-        syllable_variance: 0.25,
-        cadence_class: "steady",
-        repetition_signals: [{ kind: "phrase" }],
-      },
-    ],
+    detail: {
+      sections: [
+        {
+          id: "s1",
+          label: "Verse",
+          line_start: 1,
+          line_end: 4,
+          line_count: 4,
+          rhyme_scheme: "ABAB",
+          rhyme_scheme_confidence: "partial",
+          syllable_pattern: [8, 8, 9, 8],
+          syllable_variance: 0.25,
+          cadence_class: "steady",
+          repetition_signals: [{ kind: "phrase" }],
+        },
+      ],
+    },
     insights: [],
     capabilities: {
       rhyme_scheme: "full",

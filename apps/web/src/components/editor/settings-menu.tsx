@@ -239,7 +239,7 @@ export function SettingsMenu({
             </div>
           </div>
 
-          <div className="mt-3.5 flex items-start justify-between gap-3 border-t border-border pt-3.5">
+          <div className="mt-4 flex items-start justify-between gap-3">
             <span className="min-w-0">
               <span className="block text-[12px] font-medium text-foreground">
                 {copy.syllableCounts}

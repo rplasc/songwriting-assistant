@@ -42,7 +42,7 @@ const ANALYSIS: DraftAnalysis = {
       lineEnd: 5,
       lineCount: 4,
       rhymeScheme: "ABAB",
-      rhymeSchemeConfidence: 0.9,
+      rhymeSchemeConfidence: "full",
       syllablePattern: [5, 6, 5, 5],
       syllableVariance: 1.4,
       cadenceClass: "mixed",

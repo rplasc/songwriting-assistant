@@ -6,6 +6,7 @@ interface EditorStatusStripProps {
   rhymeGroupCount: number;
   rhymeHighlights: boolean;
   rhymeHighlightStyle: RhymeHighlightStyle;
+  syllableCounts: boolean;
   offline: boolean;
   language: Language;
 }
@@ -18,6 +19,7 @@ const COPY: Record<
     rhymeGroups: (n: number, style: RhymeHighlightStyle) => string;
     rhymeHighlightsOff: string;
     syllables: string;
+    syllablesOff: string;
     offline: string;
   }
 > = {
@@ -32,6 +34,7 @@ const COPY: Record<
     },
     rhymeHighlightsOff: "rhyme highlights off",
     syllables: "syllables at right edge",
+    syllablesOff: "syllable counts off",
     offline: "offline",
   },
   es: {
@@ -46,6 +49,7 @@ const COPY: Record<
     },
     rhymeHighlightsOff: "resaltado de rimas desactivado",
     syllables: "sílabas al borde derecho",
+    syllablesOff: "conteo de sílabas desactivado",
     offline: "sin conexión",
   },
 };
@@ -55,6 +59,7 @@ export function EditorStatusStrip({
   rhymeGroupCount,
   rhymeHighlights,
   rhymeHighlightStyle,
+  syllableCounts,
   offline,
   language,
 }: EditorStatusStripProps) {
@@ -64,7 +69,7 @@ export function EditorStatusStrip({
     rhymeHighlights
       ? copy.rhymeGroups(rhymeGroupCount, rhymeHighlightStyle)
       : copy.rhymeHighlightsOff,
-    copy.syllables,
+    syllableCounts ? copy.syllables : copy.syllablesOff,
   ];
   if (offline) segments.push(copy.offline);
 

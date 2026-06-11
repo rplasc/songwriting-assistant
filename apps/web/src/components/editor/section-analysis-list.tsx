@@ -7,6 +7,7 @@ import {
   CONFIDENCE_LABEL,
   NO_SECTIONS_COPY,
   REPETITION_LABEL,
+  RHYME_SCHEME_CONFIDENCE_LABEL,
   SECTIONS_HEADING,
   SYLLABLES_LABEL,
   VARIANCE_LABEL,
@@ -79,7 +80,7 @@ export function SectionAnalysisList({ sections, language, onJump }: Props) {
                     {s.rhymeSchemeConfidence !== null ? (
                       <Row
                         label={CONFIDENCE_LABEL[language]}
-                        value={`${Math.round(s.rhymeSchemeConfidence * 100)}%`}
+                        value={RHYME_SCHEME_CONFIDENCE_LABEL[s.rhymeSchemeConfidence][language]}
                       />
                     ) : null}
                     {s.repetitionSignals.length > 0 ? (

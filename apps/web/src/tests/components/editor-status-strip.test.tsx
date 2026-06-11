@@ -10,6 +10,7 @@ describe("EditorStatusStrip", () => {
         rhymeGroupCount={4}
         rhymeHighlights={true}
         rhymeHighlightStyle="underline"
+        syllableCounts={true}
         offline={false}
         language="en"
       />,
@@ -27,6 +28,7 @@ describe("EditorStatusStrip", () => {
         rhymeGroupCount={4}
         rhymeHighlights={true}
         rhymeHighlightStyle="marker"
+        syllableCounts={true}
         offline={false}
         language="en"
       />,
@@ -43,6 +45,7 @@ describe("EditorStatusStrip", () => {
         rhymeGroupCount={0}
         rhymeHighlights={true}
         rhymeHighlightStyle="marker"
+        syllableCounts={true}
         offline={true}
         language="en"
       />,
@@ -58,6 +61,7 @@ describe("EditorStatusStrip", () => {
         rhymeGroupCount={4}
         rhymeHighlights={false}
         rhymeHighlightStyle="marker"
+        syllableCounts={true}
         offline={false}
         language="en"
       />,
@@ -67,6 +71,23 @@ describe("EditorStatusStrip", () => {
     expect(strip).not.toHaveTextContent(/highlighted|underlined/i);
   });
 
+  it("notes when syllable counts are turned off", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={true}
+        rhymeGroupCount={4}
+        rhymeHighlights={true}
+        rhymeHighlightStyle="marker"
+        syllableCounts={false}
+        offline={false}
+        language="en"
+      />,
+    );
+    const strip = screen.getByText(/rail open/i);
+    expect(strip).toHaveTextContent(/syllable counts off/i);
+    expect(strip).not.toHaveTextContent(/syllables at right edge/i);
+  });
+
   it("speaks Spanish when the draft does", () => {
     render(
       <EditorStatusStrip
@@ -74,6 +95,7 @@ describe("EditorStatusStrip", () => {
         rhymeGroupCount={1}
         rhymeHighlights={true}
         rhymeHighlightStyle="marker"
+        syllableCounts={true}
         offline={false}
         language="es"
       />,

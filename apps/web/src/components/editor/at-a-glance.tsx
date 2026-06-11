@@ -1,11 +1,8 @@
 import {
+  AT_A_GLANCE_CADENCE_NOTE,
   AT_A_GLANCE_HEADING,
-  CADENCE_LABEL,
-  LINE_COUNT_LABEL,
-  SCHEME_LABEL,
-  SECTION_COUNT_LABEL,
-  SYLLABLE_COUNT_LABEL,
-  VARIANCE_LABEL,
+  AT_A_GLANCE_SCHEME_NOTE,
+  AT_A_GLANCE_SUMMARY,
 } from "@/features/draft-analysis/draft-analysis-copy";
 import type { DraftAnalysis } from "@/features/draft-analysis/draft-analysis-types";
 import type { Language } from "@/features/language/language-types";
@@ -15,8 +12,8 @@ interface AtAGlanceProps {
   language: Language;
 }
 
-/** Most frequent non-null rhyme scheme across sections, else em dash. */
-function dominantScheme(analysis: DraftAnalysis): string {
+/** Most frequent non-null rhyme scheme across sections, else none. */
+function dominantScheme(analysis: DraftAnalysis): string | null {
   const freq = new Map<string, number>();
   for (const s of analysis.sections) {
     if (s.rhymeScheme) freq.set(s.rhymeScheme, (freq.get(s.rhymeScheme) ?? 0) + 1);
@@ -29,55 +26,36 @@ function dominantScheme(analysis: DraftAnalysis): string {
       bestCount = count;
     }
   }
-  return best ?? "—";
+  return best;
 }
 
-function sharedCadence(analysis: DraftAnalysis): string {
+/** Cadence class shared by every section, when it's a clear signal. */
+function sharedCadence(analysis: DraftAnalysis): "consistent" | "varied" | null {
+  if (analysis.sections.length === 0) return null;
   const classes = new Set(analysis.sections.map((s) => s.cadenceClass));
-  if (classes.size === 1) return analysis.sections[0]?.cadenceClass ?? "—";
-  return "mixed";
-}
-
-function maxVariance(analysis: DraftAnalysis): string {
-  if (analysis.sections.length === 0) return "—";
-  return Math.max(...analysis.sections.map((s) => s.syllableVariance)).toFixed(2);
+  if (classes.size !== 1) return null;
+  const shared = analysis.sections[0]?.cadenceClass;
+  return shared === "consistent" || shared === "varied" ? shared : null;
 }
 
 export function AtAGlance({ analysis, language }: AtAGlanceProps) {
-  const cells: Array<[string, string]> = [
-    [capitalize(SECTION_COUNT_LABEL[language]), String(analysis.summary.sectionCount)],
-    [capitalize(LINE_COUNT_LABEL[language]), String(analysis.summary.lineCount)],
-    [capitalize(SYLLABLE_COUNT_LABEL[language]), String(analysis.summary.totalSyllables)],
-    [SCHEME_LABEL[language], dominantScheme(analysis)],
-    [CADENCE_LABEL[language], sharedCadence(analysis)],
-    [VARIANCE_LABEL[language], maxVariance(analysis)],
-  ];
+  const { sectionCount, lineCount, totalSyllables } = analysis.summary;
+  const scheme = dominantScheme(analysis);
+  const cadence = sharedCadence(analysis);
 
   return (
     <section aria-labelledby="at-a-glance-heading">
       <h3
         id="at-a-glance-heading"
-        className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground"
+        className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground"
       >
         {AT_A_GLANCE_HEADING[language]}
       </h3>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-        {cells.map(([label, value]) => (
-          <div
-            key={label}
-            className="flex items-baseline justify-between gap-2 border-b border-dotted border-border/60 pb-1"
-          >
-            <dt className="text-[11px] text-muted-foreground">{label}</dt>
-            <dd className="font-mono text-[11px] font-medium text-foreground">
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <p className="text-[12px] leading-relaxed text-foreground/80">
+        {AT_A_GLANCE_SUMMARY[language](sectionCount, lineCount, totalSyllables)}
+        {scheme && ` ${AT_A_GLANCE_SCHEME_NOTE[language](scheme)}`}
+        {cadence && ` ${AT_A_GLANCE_CADENCE_NOTE[cadence][language]}`}
+      </p>
     </section>
   );
-}
-
-function capitalize(s: string): string {
-  return s.length > 0 ? s[0].toUpperCase() + s.slice(1) : s;
 }

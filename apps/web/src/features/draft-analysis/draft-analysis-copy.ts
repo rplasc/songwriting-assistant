@@ -32,6 +32,42 @@ export const AT_A_GLANCE_HEADING: Bilingual = {
   es: "De un vistazo",
 };
 
+export const AT_A_GLANCE_SUMMARY: Record<
+  Language,
+  (sections: number, lines: number, syllables: number) => string
+> = {
+  en: (sections, lines, syllables) => {
+    const lineWord = `${lines} line${lines === 1 ? "" : "s"}`;
+    const syllableWord = `${syllables} syllable${syllables === 1 ? "" : "s"}`;
+    return sections > 1
+      ? `${lineWord} across ${sections} sections, ${syllableWord} total.`
+      : `${lineWord}, ${syllableWord} total.`;
+  },
+  es: (sections, lines, syllables) => {
+    const lineWord = `${lines} línea${lines === 1 ? "" : "s"}`;
+    const syllableWord = `${syllables} sílaba${syllables === 1 ? "" : "s"}`;
+    return sections > 1
+      ? `${lineWord} en ${sections} secciones, ${syllableWord} en total.`
+      : `${lineWord}, ${syllableWord} en total.`;
+  },
+};
+
+export const AT_A_GLANCE_SCHEME_NOTE: Record<Language, (scheme: string) => string> = {
+  en: (scheme) => `Mostly rhymes in ${scheme}.`,
+  es: (scheme) => `Rima sobre todo en ${scheme}.`,
+};
+
+export const AT_A_GLANCE_CADENCE_NOTE: Record<"consistent" | "varied", Bilingual> = {
+  consistent: {
+    en: "Line lengths stay even throughout.",
+    es: "La duración de las líneas se mantiene uniforme.",
+  },
+  varied: {
+    en: "Line lengths vary widely.",
+    es: "La duración de las líneas varía mucho.",
+  },
+};
+
 export const LINE_NOTE_HEADING: Bilingual = {
   en: "A note on this line",
   es: "Una nota sobre esta línea",
@@ -40,11 +76,6 @@ export const LINE_NOTE_HEADING: Bilingual = {
 export const SYLLABLES_ON_LINE_LABEL: Bilingual = {
   en: "syllables on this line",
   es: "sílabas en esta línea",
-};
-
-export const SCHEME_LABEL: Bilingual = {
-  en: "Scheme",
-  es: "Esquema",
 };
 
 export const FIND_WEAK_LINE_LABEL: Bilingual = {
@@ -97,21 +128,6 @@ export const STANZAS_HEADING: Bilingual = {
   es: "Estrofas",
 };
 
-export const SECTION_COUNT_LABEL: Bilingual = {
-  en: "sections",
-  es: "secciones",
-};
-
-export const LINE_COUNT_LABEL: Bilingual = {
-  en: "lines",
-  es: "líneas",
-};
-
-export const SYLLABLE_COUNT_LABEL: Bilingual = {
-  en: "syllables",
-  es: "sílabas",
-};
-
 export const NO_PATTERNS_COPY: Bilingual = {
   en: "No standout patterns yet.",
   es: "Aún no hay patrones destacados.",
@@ -155,6 +171,11 @@ export const CONFIDENCE_LABEL: Bilingual = {
 export const REPETITION_LABEL: Bilingual = {
   en: "Repetition",
   es: "Repetición",
+};
+
+export const RHYME_SCHEME_CONFIDENCE_LABEL: Record<"full" | "partial", Bilingual> = {
+  full: { en: "Full", es: "Total" },
+  partial: { en: "Partial", es: "Parcial" },
 };
 
 export const STATUS_COPY: Record<DraftAnalysisStatus, Bilingual> = {

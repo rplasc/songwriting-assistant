@@ -52,6 +52,8 @@ interface NotebookHeaderProps {
   onRhymeHighlightsChange: (on: boolean) => void;
   rhymeHighlightStyle: RhymeHighlightStyle;
   onRhymeHighlightStyleChange: (style: RhymeHighlightStyle) => void;
+  syllableCounts: boolean;
+  onSyllableCountsChange: (on: boolean) => void;
 }
 
 export function NotebookHeader({
@@ -75,6 +77,8 @@ export function NotebookHeader({
   onRhymeHighlightsChange,
   rhymeHighlightStyle,
   onRhymeHighlightStyleChange,
+  syllableCounts,
+  onSyllableCountsChange,
 }: NotebookHeaderProps) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
@@ -109,6 +113,8 @@ export function NotebookHeader({
           onRhymeHighlightsChange={onRhymeHighlightsChange}
           rhymeHighlightStyle={rhymeHighlightStyle}
           onRhymeHighlightStyleChange={onRhymeHighlightStyleChange}
+          syllableCounts={syllableCounts}
+          onSyllableCountsChange={onSyllableCountsChange}
         />
       </div>
     </header>

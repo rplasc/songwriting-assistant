@@ -18,6 +18,8 @@ interface SettingsMenuProps {
   onRhymeHighlightsChange: (on: boolean) => void;
   rhymeHighlightStyle: RhymeHighlightStyle;
   onRhymeHighlightStyleChange: (style: RhymeHighlightStyle) => void;
+  syllableCounts: boolean;
+  onSyllableCountsChange: (on: boolean) => void;
 }
 
 const COPY: Record<
@@ -30,6 +32,8 @@ const COPY: Record<
     rhymeHighlightsHint: string;
     style: string;
     styleOptions: Record<RhymeHighlightStyle, string>;
+    syllableCounts: string;
+    syllableCountsHint: string;
     on: string;
     off: string;
   }
@@ -42,6 +46,8 @@ const COPY: Record<
     rhymeHighlightsHint: "Mark rhyming words in the lyrics.",
     style: "Style",
     styleOptions: { marker: "Marker", underline: "Underline" },
+    syllableCounts: "Syllable counts",
+    syllableCountsHint: "Show a per-line count in the margin.",
     on: "On",
     off: "Off",
   },
@@ -53,6 +59,8 @@ const COPY: Record<
     rhymeHighlightsHint: "Marca las palabras que riman en la letra.",
     style: "Estilo",
     styleOptions: { marker: "Marcador", underline: "Subrayado" },
+    syllableCounts: "Conteo de sílabas",
+    syllableCountsHint: "Muestra un conteo por línea en el margen.",
     on: "Sí",
     off: "No",
   },
@@ -85,6 +93,8 @@ export function SettingsMenu({
   onRhymeHighlightsChange,
   rhymeHighlightStyle,
   onRhymeHighlightStyleChange,
+  syllableCounts,
+  onSyllableCountsChange,
 }: SettingsMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -227,6 +237,24 @@ export function SettingsMenu({
                 );
               })}
             </div>
+          </div>
+
+          <div className="mt-3.5 flex items-start justify-between gap-3 border-t border-border pt-3.5">
+            <span className="min-w-0">
+              <span className="block text-[12px] font-medium text-foreground">
+                {copy.syllableCounts}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                {copy.syllableCountsHint}
+              </span>
+            </span>
+            <Switch
+              checked={syllableCounts}
+              onChange={onSyllableCountsChange}
+              label={copy.syllableCounts}
+              onText={copy.on}
+              offText={copy.off}
+            />
           </div>
         </div>
       )}

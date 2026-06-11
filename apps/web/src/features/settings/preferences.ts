@@ -18,10 +18,12 @@ export const RHYME_HIGHLIGHT_STYLE_OPTIONS: ReadonlyArray<RhymeHighlightStyle> =
 const THEME_KEY = "sa.theme";
 const RHYME_HIGHLIGHTS_KEY = "sa.rhymeHighlights";
 const RHYME_HIGHLIGHT_STYLE_KEY = "sa.rhymeHighlightStyle";
+const SYLLABLE_COUNTS_KEY = "sa.syllableCounts";
 
 export const DEFAULT_THEME: ThemePreference = "system";
 export const DEFAULT_RHYME_HIGHLIGHTS = true;
 export const DEFAULT_RHYME_HIGHLIGHT_STYLE: RhymeHighlightStyle = "marker";
+export const DEFAULT_SYLLABLE_COUNTS = true;
 
 // One subscriber set drives both preferences. Either setter notifies it, and a
 // cross-tab `storage` event folds in here too so a change in another window is
@@ -39,7 +41,8 @@ function subscribe(callback: Listener): () => void {
     if (
       event.key === THEME_KEY ||
       event.key === RHYME_HIGHLIGHTS_KEY ||
-      event.key === RHYME_HIGHLIGHT_STYLE_KEY
+      event.key === RHYME_HIGHLIGHT_STYLE_KEY ||
+      event.key === SYLLABLE_COUNTS_KEY
     ) {
       callback();
     }
@@ -119,6 +122,26 @@ function writeRhymeHighlightStyle(style: RhymeHighlightStyle): void {
   notify();
 }
 
+function readSyllableCounts(): boolean {
+  if (typeof window === "undefined") return DEFAULT_SYLLABLE_COUNTS;
+  try {
+    const raw = window.localStorage.getItem(SYLLABLE_COUNTS_KEY);
+    return raw === null ? DEFAULT_SYLLABLE_COUNTS : raw === "1";
+  } catch {
+    return DEFAULT_SYLLABLE_COUNTS;
+  }
+}
+
+function writeSyllableCounts(on: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SYLLABLE_COUNTS_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+  notify();
+}
+
 /**
  * Reflect the theme choice onto <html>. "system" clears the attribute so the
  * `color-scheme: light dark` default follows the OS; an explicit choice pins
@@ -136,9 +159,11 @@ export interface UsePreferencesReturn {
   theme: ThemePreference;
   rhymeHighlights: boolean;
   rhymeHighlightStyle: RhymeHighlightStyle;
+  syllableCounts: boolean;
   setTheme: (theme: ThemePreference) => void;
   setRhymeHighlights: (on: boolean) => void;
   setRhymeHighlightStyle: (style: RhymeHighlightStyle) => void;
+  setSyllableCounts: (on: boolean) => void;
 }
 
 export function usePreferences(): UsePreferencesReturn {
@@ -152,6 +177,11 @@ export function usePreferences(): UsePreferencesReturn {
     subscribe,
     readRhymeHighlightStyle,
     () => DEFAULT_RHYME_HIGHLIGHT_STYLE,
+  );
+  const syllableCounts = useSyncExternalStore(
+    subscribe,
+    readSyllableCounts,
+    () => DEFAULT_SYLLABLE_COUNTS,
   );
 
   // The inline script sets the attribute on first paint; this keeps it honest
@@ -172,16 +202,23 @@ export function usePreferences(): UsePreferencesReturn {
     if (style !== readRhymeHighlightStyle()) writeRhymeHighlightStyle(style);
   }, []);
 
+  const setSyllableCounts = useCallback((on: boolean) => {
+    if (on !== readSyllableCounts()) writeSyllableCounts(on);
+  }, []);
+
   return {
     theme,
     rhymeHighlights,
     rhymeHighlightStyle,
+    syllableCounts,
     setTheme,
     setRhymeHighlights,
     setRhymeHighlightStyle,
+    setSyllableCounts,
   };
 }
 
 export const THEME_STORAGE_KEY = THEME_KEY;
 export const RHYME_HIGHLIGHTS_STORAGE_KEY = RHYME_HIGHLIGHTS_KEY;
 export const RHYME_HIGHLIGHT_STYLE_STORAGE_KEY = RHYME_HIGHLIGHT_STYLE_KEY;
+export const SYLLABLE_COUNTS_STORAGE_KEY = SYLLABLE_COUNTS_KEY;

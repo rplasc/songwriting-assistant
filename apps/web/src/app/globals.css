@@ -128,6 +128,12 @@ body {
   color: var(--accent);
 }
 
+/* "Syllable counts" off in Settings — hide the margin counts but keep the
+   reserved padding so lines don't reflow when the toggle changes. */
+.syllable-counts-hidden .tiptap p[data-syllables]::after {
+  content: none;
+}
+
 /* `[Chorus]` lines render as small-caps margin labels with a trailing rule.
    Flex keeps the rule on the same baseline; if a browser misbehaves with
    flex on an editable <p>, fall back to a background-gradient rule. */

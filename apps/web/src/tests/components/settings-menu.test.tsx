@@ -7,6 +7,7 @@ function setup(overrides: Partial<React.ComponentProps<typeof SettingsMenu>> = {
   const onThemeChange = vi.fn();
   const onRhymeHighlightsChange = vi.fn();
   const onRhymeHighlightStyleChange = vi.fn();
+  const onSyllableCountsChange = vi.fn();
   render(
     <SettingsMenu
       language="en"
@@ -16,10 +17,17 @@ function setup(overrides: Partial<React.ComponentProps<typeof SettingsMenu>> = {
       onRhymeHighlightsChange={onRhymeHighlightsChange}
       rhymeHighlightStyle="marker"
       onRhymeHighlightStyleChange={onRhymeHighlightStyleChange}
+      syllableCounts={true}
+      onSyllableCountsChange={onSyllableCountsChange}
       {...overrides}
     />,
   );
-  return { onThemeChange, onRhymeHighlightsChange, onRhymeHighlightStyleChange };
+  return {
+    onThemeChange,
+    onRhymeHighlightsChange,
+    onRhymeHighlightStyleChange,
+    onSyllableCountsChange,
+  };
 }
 
 describe("SettingsMenu", () => {
@@ -52,11 +60,23 @@ describe("SettingsMenu", () => {
     const { onRhymeHighlightsChange } = setup({ rhymeHighlights: true });
 
     await user.click(screen.getByRole("button", { name: /settings/i }));
-    const sw = screen.getByRole("switch");
+    const sw = screen.getByRole("switch", { name: /rhyme highlights/i });
     expect(sw).toHaveAttribute("aria-checked", "true");
 
     await user.click(sw);
     expect(onRhymeHighlightsChange).toHaveBeenCalledWith(false);
+  });
+
+  it("toggles syllable counts via the switch", async () => {
+    const user = userEvent.setup();
+    const { onSyllableCountsChange } = setup({ syllableCounts: true });
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    const sw = screen.getByRole("switch", { name: /syllable counts/i });
+    expect(sw).toHaveAttribute("aria-checked", "true");
+
+    await user.click(sw);
+    expect(onSyllableCountsChange).toHaveBeenCalledWith(false);
   });
 
   it("marks the active highlight style and emits a change", async () => {

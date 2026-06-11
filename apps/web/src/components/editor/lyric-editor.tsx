@@ -7,9 +7,14 @@ import type { RhymeHighlightStyle } from "@/features/settings/preferences";
 interface LyricEditorProps {
   editor: Editor | null;
   rhymeHighlightStyle: RhymeHighlightStyle;
+  syllableCounts: boolean;
 }
 
-export function LyricEditor({ editor, rhymeHighlightStyle }: LyricEditorProps) {
+export function LyricEditor({
+  editor,
+  rhymeHighlightStyle,
+  syllableCounts,
+}: LyricEditorProps) {
   return (
     <div
       className={cn(
@@ -17,6 +22,7 @@ export function LyricEditor({ editor, rhymeHighlightStyle }: LyricEditorProps) {
         rhymeHighlightStyle === "marker"
           ? "rhyme-style-marker"
           : "rhyme-style-underline",
+        !syllableCounts && "syllable-counts-hidden",
       )}
     >
       <EditorContent editor={editor} />

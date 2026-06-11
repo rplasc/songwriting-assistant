@@ -113,9 +113,11 @@ export function LyricEditorShell() {
     theme,
     rhymeHighlights,
     rhymeHighlightStyle,
+    syllableCounts,
     setTheme,
     setRhymeHighlights,
     setRhymeHighlightStyle,
+    setSyllableCounts,
   } = usePreferences();
 
   const { result, status } = useEditorAnalysis(
@@ -388,6 +390,8 @@ export function LyricEditorShell() {
         onRhymeHighlightsChange={setRhymeHighlights}
         rhymeHighlightStyle={rhymeHighlightStyle}
         onRhymeHighlightStyleChange={setRhymeHighlightStyle}
+        syllableCounts={syllableCounts}
+        onSyllableCountsChange={setSyllableCounts}
       />
       {(saveStatus === "conflict" ||
         saveStatus === "error" ||
@@ -437,6 +441,7 @@ export function LyricEditorShell() {
             <LyricEditor
               editor={editor}
               rhymeHighlightStyle={rhymeHighlightStyle}
+              syllableCounts={syllableCounts}
             />
             {explorerOpen && (
               <AdvancedRhymeExplorer

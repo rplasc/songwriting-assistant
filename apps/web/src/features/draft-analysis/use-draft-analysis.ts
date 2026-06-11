@@ -31,8 +31,12 @@ export interface UseDraftAnalysisReturn {
   analyzedContent: string | null;
   error: string | null;
   isLoading: boolean;
-  /** Manually request a refresh; bypasses the min-content gate. */
+  /** Manually request a refresh; bypasses the min-content gate and asks the
+   * server for a fresh (non-cached) analysis. */
   refresh: () => Promise<void>;
+  /** Analyze immediately (e.g. right after a paste) without busting the
+   * server cache. Bypasses the min-content gate. */
+  analyzeNow: () => Promise<void>;
 }
 
 function makeRevisionKey(content: string, language: Language): string {
@@ -77,9 +81,13 @@ export function useDraftAnalysis(
     languageRef.current = language;
   }, [draftId, content, language]);
 
-  const run = useCallback(async (force: boolean) => {
+  const run = useCallback(async (opts: {
+    bypassGate?: boolean;
+    forceServer?: boolean;
+  }) => {
+    const { bypassGate = false, forceServer = false } = opts;
     const liveContent = contentRef.current;
-    if (!force && !hasEnoughContent(liveContent)) {
+    if (!bypassGate && !hasEnoughContent(liveContent)) {
       setStatus("idle");
       return;
     }
@@ -99,7 +107,7 @@ export function useDraftAnalysis(
           draftId: draftIdRef.current,
           content: liveContent,
           language: languageRef.current,
-          forceRefresh: force,
+          forceRefresh: forceServer,
         },
         { signal: controller.signal },
       );
@@ -131,7 +139,7 @@ export function useDraftAnalysis(
     if (autoFiredForDraftRef.current === draftId) return;
     if (!hasEnoughContent(content)) return;
     autoFiredForDraftRef.current = draftId;
-    void run(false);
+    void run({});
   }, [draftId, content, run]);
 
   // Cancel in-flight requests when the draft id changes or on unmount.
@@ -162,13 +170,17 @@ export function useDraftAnalysis(
     if (effectiveStatus !== "stale") return;
     if (!hasEnoughContent(content)) return;
     const t = setTimeout(() => {
-      void run(false);
+      void run({});
     }, STALE_REFRESH_IDLE_MS);
     return () => clearTimeout(t);
   }, [effectiveStatus, content, run]);
 
   const refresh = useCallback(async () => {
-    await run(true);
+    await run({ bypassGate: true, forceServer: true });
+  }, [run]);
+
+  const analyzeNow = useCallback(async () => {
+    await run({ bypassGate: true });
   }, [run]);
 
   return {
@@ -178,5 +190,6 @@ export function useDraftAnalysis(
     error,
     isLoading: status === "loading",
     refresh,
+    analyzeNow,
   };
 }

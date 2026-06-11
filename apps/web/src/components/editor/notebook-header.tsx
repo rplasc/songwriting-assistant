@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ClientRhymeMode } from "@/features/analysis/rhyme-modes";
 import type { DraftSummary, SaveStatus } from "@/features/drafts/drafts-types";
-import { deriveTitle, deriveTitleLine } from "@/features/drafts/derive-title";
 import type { Language } from "@/features/language/language-types";
 import type {
   RhymeHighlightStyle,
@@ -16,8 +15,8 @@ import { SaveStatusIndicator } from "./save-status";
 import { SettingsMenu } from "./settings-menu";
 
 const SUBTITLE: Record<Language, string> = {
-  en: "A studio notebook — words first, counts in the margin.",
-  es: "Un cuaderno de estudio — primero las palabras, las cuentas al margen.",
+  en: "A lyric notebook. Write to see rhymes, get feedback, and keep track of your drafts.",
+  es: "Un cuaderno de letras. Escribe para ver rimas, recibir comentarios y hacer un seguimiento de tus borradores.",
 };
 
 const TITLE_PLACEHOLDER: Record<Language, string> = {
@@ -31,7 +30,10 @@ const EDIT_TITLE_LABEL: Record<Language, string> = {
 };
 
 interface NotebookHeaderProps {
-  content: string;
+  /** Truncated, defaulted title for display. */
+  displayTitle: string;
+  /** Untruncated title text used as the input value while editing. */
+  editableTitle: string;
   onTitleChange: (title: string) => void;
   rhymeMode: ClientRhymeMode;
   onRhymeModeChange: (mode: ClientRhymeMode) => void;
@@ -53,7 +55,8 @@ interface NotebookHeaderProps {
 }
 
 export function NotebookHeader({
-  content,
+  displayTitle,
+  editableTitle,
   onTitleChange,
   rhymeMode,
   onRhymeModeChange,
@@ -77,8 +80,8 @@ export function NotebookHeader({
     <header className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
       <div className="min-w-0">
         <EditableTitle
-          displayTitle={deriveTitle(content)}
-          editableTitle={deriveTitleLine(content)}
+          displayTitle={displayTitle}
+          editableTitle={editableTitle}
           placeholder={TITLE_PLACEHOLDER[language]}
           editLabel={EDIT_TITLE_LABEL[language]}
           onCommit={onTitleChange}

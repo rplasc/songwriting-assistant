@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NotebookHeader } from "@/components/editor/notebook-header";
 
-function setup(content: string) {
+function setup(displayTitle: string, editableTitle: string) {
   const onTitleChange = vi.fn();
   render(
     <NotebookHeader
-      content={content}
+      displayTitle={displayTitle}
+      editableTitle={editableTitle}
       onTitleChange={onTitleChange}
       rhymeMode="perfect"
       onRhymeModeChange={vi.fn()}
@@ -32,9 +33,9 @@ function setup(content: string) {
 }
 
 describe("NotebookHeader title", () => {
-  it("shows the derived title and the full first line when editing", async () => {
+  it("shows the display title and the untruncated editable title when editing", async () => {
     const user = userEvent.setup();
-    setup("[Verse]\nA letter to tomorrow\nSecond line");
+    setup("A letter to tomorrow", "A letter to tomorrow");
 
     const titleButton = screen.getByRole("button", { name: /edit draft title/i });
     expect(titleButton).toHaveTextContent("A letter to tomorrow");
@@ -46,7 +47,7 @@ describe("NotebookHeader title", () => {
 
   it("commits an edited title on Enter", async () => {
     const user = userEvent.setup();
-    const { onTitleChange } = setup("Old title\nSecond line");
+    const { onTitleChange } = setup("Old title", "Old title");
 
     await user.click(screen.getByRole("button", { name: /edit draft title/i }));
     const input = screen.getByRole("textbox", { name: /edit draft title/i });
@@ -59,7 +60,7 @@ describe("NotebookHeader title", () => {
 
   it("discards changes on Escape without committing", async () => {
     const user = userEvent.setup();
-    const { onTitleChange } = setup("Old title\nSecond line");
+    const { onTitleChange } = setup("Old title", "Old title");
 
     await user.click(screen.getByRole("button", { name: /edit draft title/i }));
     const input = screen.getByRole("textbox", { name: /edit draft title/i });
@@ -75,7 +76,7 @@ describe("NotebookHeader title", () => {
 
   it("shows the placeholder and default title for an empty draft", async () => {
     const user = userEvent.setup();
-    setup("");
+    setup("Untitled Draft", "");
 
     const titleButton = screen.getByRole("button", { name: /edit draft title/i });
     expect(titleButton).toHaveTextContent("Untitled Draft");

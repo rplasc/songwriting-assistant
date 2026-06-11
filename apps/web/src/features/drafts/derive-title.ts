@@ -16,9 +16,14 @@ export function deriveTitleLine(content: string): string {
   );
 }
 
+/** Ellipsis-truncate a title for header display. */
+export function truncateTitle(title: string): string {
+  return title.length > 60 ? `${title.slice(0, 57)}…` : title;
+}
+
 /** Display title: `deriveTitleLine`, truncated and defaulted for the header. */
 export function deriveTitle(content: string): string {
   const firstLine = deriveTitleLine(content);
   if (!firstLine) return DEFAULT_TITLE;
-  return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
+  return truncateTitle(firstLine);
 }

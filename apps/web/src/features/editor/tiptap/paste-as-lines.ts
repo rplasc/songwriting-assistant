@@ -3,6 +3,13 @@ import { Fragment, Slice } from "@tiptap/pm/model";
 import { Plugin } from "@tiptap/pm/state";
 
 /**
+ * Transaction meta flag set on multi-line pastes. The editor shell watches
+ * for it to kick off a draft analysis right away, so pasted lines get their
+ * margin syllable counts without waiting for the stale-idle refresh.
+ */
+export const PASTE_AS_LINES_META = "pasteAsLines";
+
+/**
  * Split clipboard text into one entry per lyric line. A single trailing
  * newline is dropped so a copied block doesn't leave a stray blank line.
  * Exported for unit tests.
@@ -39,7 +46,11 @@ export const PasteAsLines = Extension.create({
                 : paragraph.create(null),
             );
             const slice = new Slice(Fragment.fromArray(nodes), 1, 1);
-            view.dispatch(view.state.tr.replaceSelection(slice));
+            view.dispatch(
+              view.state.tr
+                .replaceSelection(slice)
+                .setMeta(PASTE_AS_LINES_META, true),
+            );
             return true;
           },
         },

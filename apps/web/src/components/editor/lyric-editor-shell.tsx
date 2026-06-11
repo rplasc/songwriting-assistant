@@ -19,13 +19,20 @@ import {
 import { buildLineNotes } from "@/features/analysis/line-notes";
 import { useLineSyllables } from "@/features/analysis/use-line-syllables";
 import { useDraftSaving } from "@/features/drafts/use-draft-saving";
+import {
+  DEFAULT_TITLE,
+  deriveTitle,
+  deriveTitleLine,
+  truncateTitle,
+} from "@/features/drafts/derive-title";
+import { getEditorText } from "@/features/editor/tiptap/editor-lines";
 import { useDraftLanguage } from "@/features/language/use-draft-language";
 import type { Language } from "@/features/language/language-types";
 import { usePreferences } from "@/features/settings/preferences";
 import { useLyricEditor } from "@/features/editor/tiptap/use-lyric-editor";
 import { jumpToLine } from "@/features/editor/tiptap/jump-to-line";
 import { insertSectionLabel } from "@/features/editor/tiptap/insert-section-label";
-import { setTitleLine } from "@/features/editor/tiptap/set-title-line";
+import { PASTE_AS_LINES_META } from "@/features/editor/tiptap/paste-as-lines";
 import { setInnerRhymes } from "@/features/editor/tiptap/inner-rhyme-extension";
 import { useDraftAnalysis } from "@/features/draft-analysis/use-draft-analysis";
 import { useDraftCompare } from "@/features/draft-compare/use-draft-compare";
@@ -48,7 +55,8 @@ const CONTENT_WARN_AT = Math.floor(CONTENT_CEILING * 0.9);
 const RAIL_STORAGE_KEY = "songwriting-assistant.margin-rail.collapsed";
 
 export function LyricEditorShell() {
-  const { editor, activeLine, activeLineNumber, content } = useLyricEditor();
+  const { editor, activeLine, activeWord, activeLineNumber, content } =
+    useLyricEditor();
   const [explorerOpen, setExplorerOpen] = useState(false);
 
   // Rail visibility — read the persisted preference after mount to avoid a
@@ -89,6 +97,18 @@ export function LyricEditorShell() {
 
   const { language, setLanguage } = useDraftLanguage();
 
+  // A manually-set title detaches from the editor: it no longer follows the
+  // first lyric line and is never written into the editor text. Null means
+  // "derive from the first lyric line" (the original behavior). The ref
+  // mirrors the state so the save path reads a just-committed title without
+  // waiting on a re-render.
+  const [manualTitle, setManualTitleState] = useState<string | null>(null);
+  const manualTitleRef = useRef<string | null>(null);
+  const setManualTitle = useCallback((title: string | null) => {
+    manualTitleRef.current = title;
+    setManualTitleState(title);
+  }, []);
+
   const {
     theme,
     rhymeHighlights,
@@ -100,6 +120,7 @@ export function LyricEditorShell() {
 
   const { result, status } = useEditorAnalysis(
     activeLine,
+    activeWord,
     rhymeMode,
     language,
   );
@@ -115,8 +136,17 @@ export function LyricEditorShell() {
     deleteDraft,
   } = useDraftSaving(editor, {
     language,
+    getTitle: () => manualTitleRef.current,
     onDraftLoaded: (draft) => {
       setLanguage(draft.language);
+      // A stored title that doesn't match the first lyric line was set by
+      // hand — keep it detached. Matching (or default) titles stay derived.
+      const text = editor ? getEditorText(editor) : "";
+      const detached =
+        draft.title.trim().length > 0 &&
+        draft.title !== deriveTitle(text) &&
+        draft.title !== DEFAULT_TITLE;
+      setManualTitle(detached ? draft.title : null);
     },
   });
 
@@ -126,11 +156,38 @@ export function LyricEditorShell() {
     analyzedContent,
     error: analysisError,
     refresh: refreshAnalysis,
+    analyzeNow,
   } = useDraftAnalysis({
     draftId: currentDraftId,
     content,
     language,
   });
+
+  // A multi-line paste fills lines the live caret analysis will never visit,
+  // so analyze immediately instead of waiting out the stale-idle window —
+  // that's what backfills the margin syllable counts for every pasted line.
+  const [pasteTick, setPasteTick] = useState(0);
+  useEffect(() => {
+    if (!editor) return;
+    const onTransaction = ({
+      transaction,
+    }: {
+      transaction: { getMeta: (key: string) => unknown };
+    }) => {
+      if (transaction.getMeta(PASTE_AS_LINES_META)) {
+        setPasteTick((t) => t + 1);
+      }
+    };
+    editor.on("transaction", onTransaction);
+    return () => {
+      editor.off("transaction", onTransaction);
+    };
+  }, [editor]);
+  useEffect(() => {
+    // Runs after useDraftAnalysis has synced its content ref, so the
+    // analysis sees the post-paste text.
+    if (pasteTick > 0) void analyzeNow();
+  }, [pasteTick, analyzeNow]);
 
   // ── Editor decorations ────────────────────────────────────────────────
   // Per-line syllable counts: draft analysis backfills every line, the live
@@ -242,14 +299,16 @@ export function LyricEditorShell() {
   const handleInsertWord = useCallback(
     (word: string) => {
       if (!editor) return;
-      const needsSpace = /\S$/.test(activeLine);
+      const { $from } = editor.state.selection;
+      const beforeCaret = $from.parent.textContent.slice(0, $from.parentOffset);
+      const needsSpace = /\S$/.test(beforeCaret);
       editor
         .chain()
         .focus()
         .insertContent(needsSpace ? ` ${word}` : word)
         .run();
     },
-    [editor, activeLine],
+    [editor],
   );
 
   const handleInsertSection = useCallback(
@@ -259,11 +318,18 @@ export function LyricEditorShell() {
     [editor],
   );
 
+  // Committing a title detaches it from the editor text; committing an empty
+  // title re-attaches (back to deriving from the first lyric line). Either
+  // way the editor content is left alone, and the new title is persisted.
   const handleTitleChange = useCallback(
     (title: string) => {
-      if (editor) setTitleLine(editor, title);
+      const trimmed = title.trim();
+      setManualTitle(trimmed.length > 0 ? trimmed : null);
+      if (currentDraftId && (editor?.getText().trim().length ?? 0) > 0) {
+        queueMicrotask(() => void saveNowRef.current());
+      }
     },
-    [editor],
+    [setManualTitle, currentDraftId, editor],
   );
 
   const lineNotes = useMemo(
@@ -294,7 +360,10 @@ export function LyricEditorShell() {
   return (
     <div className="flex flex-col gap-5">
       <NotebookHeader
-        content={content}
+        displayTitle={
+          manualTitle !== null ? truncateTitle(manualTitle) : deriveTitle(content)
+        }
+        editableTitle={manualTitle ?? deriveTitleLine(content)}
         onTitleChange={handleTitleChange}
         rhymeMode={rhymeMode}
         onRhymeModeChange={handleRhymeModeChange}
@@ -305,8 +374,14 @@ export function LyricEditorShell() {
         drafts={recentDrafts}
         currentDraftId={currentDraftId}
         onSelectDraft={(id) => void loadDraft(id)}
-        onNewDraft={newDraft}
-        onDeleteDraft={(id) => void deleteDraft(id)}
+        onNewDraft={() => {
+          setManualTitle(null);
+          newDraft();
+        }}
+        onDeleteDraft={(id) => {
+          if (id === currentDraftId) setManualTitle(null);
+          void deleteDraft(id);
+        }}
         theme={theme}
         onThemeChange={setTheme}
         rhymeHighlights={rhymeHighlights}
@@ -366,6 +441,7 @@ export function LyricEditorShell() {
             {explorerOpen && (
               <AdvancedRhymeExplorer
                 activeLine={activeLine}
+                activeWord={activeWord}
                 language={language}
                 enabled={explorerOpen}
                 onClose={() => setExplorerOpen(false)}

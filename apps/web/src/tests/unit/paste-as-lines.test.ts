@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { getEditorText } from "@/features/editor/tiptap/editor-lines";
-import { PasteAsLines, splitPastedLines } from "@/features/editor/tiptap/paste-as-lines";
+import {
+  PASTE_AS_LINES_META,
+  PasteAsLines,
+  splitPastedLines,
+} from "@/features/editor/tiptap/paste-as-lines";
 
 describe("splitPastedLines", () => {
   it("splits on newlines", () => {
@@ -73,6 +77,17 @@ describe("PasteAsLines", () => {
     const editor = makeEditor();
     const handled = paste(editor, "just one line");
     expect(handled).toBe(false);
+    editor.destroy();
+  });
+
+  it("tags the paste transaction so the shell can trigger an analysis", () => {
+    const editor = makeEditor();
+    const metas: unknown[] = [];
+    editor.on("transaction", ({ transaction }) => {
+      metas.push(transaction.getMeta(PASTE_AS_LINES_META));
+    });
+    paste(editor, "one\ntwo");
+    expect(metas).toContain(true);
     editor.destroy();
   });
 });

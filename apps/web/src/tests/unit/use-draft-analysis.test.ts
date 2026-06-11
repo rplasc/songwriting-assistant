@@ -141,4 +141,48 @@ describe("useDraftAnalysis", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.current.status).toBe("fresh");
   });
+
+  it("manual refresh asks the server for a non-cached analysis", async () => {
+    const fetchMock = vi.fn(async () => makeAnalysisResponse());
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const { result } = renderHook(() =>
+      useDraftAnalysis({
+        draftId: "d5",
+        content: SAMPLE_CONTENT,
+        language: "en",
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("fresh"));
+    await act(async () => {
+      await result.current.refresh();
+    });
+    const lastBody = JSON.parse(
+      (fetchMock.mock.calls.at(-1)![1] as RequestInit).body as string,
+    );
+    expect(lastBody.forceRefresh).toBe(true);
+  });
+
+  it("analyzeNow runs immediately without busting the server cache", async () => {
+    const fetchMock = vi.fn(async () => makeAnalysisResponse());
+    global.fetch = fetchMock as unknown as typeof fetch;
+    // No draftId and short content: analyzeNow must bypass the min-content
+    // gate (a paste can land in a brand-new unsaved draft).
+    const { result } = renderHook(() =>
+      useDraftAnalysis({
+        draftId: null,
+        content: "two\nlines",
+        language: "en",
+      }),
+    );
+    expect(result.current.status).toBe("idle");
+    await act(async () => {
+      await result.current.analyzeNow();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body.forceRefresh).toBeUndefined();
+    await waitFor(() => expect(result.current.status).toBe("fresh"));
+  });
 });

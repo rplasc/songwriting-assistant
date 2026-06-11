@@ -50,6 +50,12 @@ function parseStoredContent(raw: string): string {
 
 export interface UseDraftSavingOptions {
   language: Language;
+  /**
+   * Returns the manually-set title, or null when the title should derive
+   * from the first lyric line. Read at save time (a ref-backed getter keeps
+   * a just-committed title from being missed by effect timing).
+   */
+  getTitle?: () => string | null;
   onDraftLoaded?: (draft: Draft) => void;
 }
 
@@ -108,7 +114,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 export function useDraftSaving(
   editor: Editor | null,
-  { language, onDraftLoaded }: UseDraftSavingOptions,
+  { language, getTitle, onDraftLoaded }: UseDraftSavingOptions,
 ): UseDraftSavingReturn {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -129,10 +135,12 @@ export function useDraftSaving(
   const inFlightRef = useRef<AbortController | null>(null);
   const suppressDirtyRef = useRef(false);
   const onDraftLoadedRef = useRef(onDraftLoaded);
+  const getTitleRef = useRef(getTitle);
 
   useEffect(() => {
     onDraftLoadedRef.current = onDraftLoaded;
-  }, [onDraftLoaded]);
+    getTitleRef.current = getTitle;
+  }, [onDraftLoaded, getTitle]);
 
   const updateCurrentId = useCallback((id: string | null) => {
     currentIdRef.current = id;
@@ -164,6 +172,9 @@ export function useDraftSaving(
 
     const content = editor.getHTML();
     const text = getEditorText(editor);
+    // A manually-set title wins; otherwise the title tracks the first lyric
+    // line so the drafts picker never shows a stale name.
+    const title = getTitleRef.current?.() ?? deriveTitle(text);
 
     setStatus("saving");
     const targetLanguage = languageRef.current;
@@ -172,9 +183,10 @@ export function useDraftSaving(
       if (currentIdRef.current) {
         const patch: {
           content: string;
+          title: string;
           language?: Language;
           expectedVersion?: number;
-        } = { content };
+        } = { content, title };
         if (
           currentDraftLanguageRef.current &&
           currentDraftLanguageRef.current !== targetLanguage
@@ -191,7 +203,7 @@ export function useDraftSaving(
       const created = await createDraft(
         {
           content,
-          title: deriveTitle(text),
+          title,
           language: targetLanguage,
         },
         { signal: controller.signal },

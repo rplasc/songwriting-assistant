@@ -37,7 +37,11 @@ describe('EditorService', () => {
       language: opts.rhymeLanguage ?? 'en',
       pronunciations_found: true,
       rhymes: [],
-      meta: opts.rhymeMeta ?? { limit: 10, mode: 'perfect', include_near: false },
+      meta: opts.rhymeMeta ?? {
+        limit: 10,
+        mode: 'perfect',
+        include_near: false,
+      },
     });
     const fastapi = { analyzeLine, getRhymes } as unknown as FastapiClient;
     const service = new EditorService(
@@ -133,15 +137,34 @@ describe('EditorService', () => {
     });
   });
 
+  it('rhymes the caret target word instead of the last word when provided', async () => {
+    const { service, getRhymes } = setup({ pronunciationFound: true });
+    const out = await service.analyze('hello world', { targetWord: 'hello' });
+    expect(getRhymes).toHaveBeenCalledWith({
+      word: 'hello',
+      mode: 'perfect',
+      language: 'en',
+    });
+    expect(out.rhymes.target_word).toBe('hello');
+  });
+
+  it('echoes the last word as target_word when no caret word is sent', async () => {
+    const { service } = setup({ pronunciationFound: true });
+    const out = await service.analyze('hello world');
+    expect(out.rhymes.target_word).toBe('world');
+  });
+
   describe('exploreRhymes', () => {
-    function setupExplore(upstream?: Partial<{
-      rhymes: Array<Record<string, unknown>>;
-      capabilities: Record<string, unknown>;
-      summary: Record<string, unknown>;
-      mode: string;
-      target_type: string;
-      language: 'en' | 'es';
-    }>) {
+    function setupExplore(
+      upstream?: Partial<{
+        rhymes: Array<Record<string, unknown>>;
+        capabilities: Record<string, unknown>;
+        summary: Record<string, unknown>;
+        mode: string;
+        target_type: string;
+        language: 'en' | 'es';
+      }>,
+    ) {
       const getRhymes = jest.fn().mockResolvedValue({
         query: 'hollow',
         normalized_query: 'hollow',

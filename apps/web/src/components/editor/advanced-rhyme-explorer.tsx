@@ -33,6 +33,8 @@ import {
 
 interface AdvancedRhymeExplorerProps {
   activeLine: string;
+  /** Caret word — preferred "word" target when present. */
+  activeWord?: string | null;
   language?: Language;
   /** When false, the explorer is mounted but quiet (no fetches). */
   enabled: boolean;
@@ -54,6 +56,7 @@ const MODE_OPTIONS: Record<Language, AdvancedRhymeMode[]> = {
 
 export function AdvancedRhymeExplorer({
   activeLine,
+  activeWord = null,
   language = DEFAULT_LANGUAGE,
   enabled,
   onClose,
@@ -69,6 +72,7 @@ export function AdvancedRhymeExplorer({
     resolvedQuery,
   } = useAdvancedRhyme({
     activeLine,
+    activeWord,
     language,
     enabled,
   });

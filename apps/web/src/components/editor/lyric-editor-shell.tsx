@@ -88,7 +88,7 @@ export function LyricEditorShell() {
 
   const { language, setLanguage } = useDraftLanguage();
 
-  const { result, status, error } = useEditorAnalysis(
+  const { result, status } = useEditorAnalysis(
     activeLine,
     rhymeMode,
     language,
@@ -389,11 +389,6 @@ export function LyricEditorShell() {
           />
         }
       />
-      {status === "error" && error ? (
-        <p role="alert" className="text-[11px] text-muted-foreground">
-          {error} Keep writing — I&rsquo;ll catch up when I&rsquo;m back.
-        </p>
-      ) : null}
     </div>
   );
 }

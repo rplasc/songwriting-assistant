@@ -83,6 +83,8 @@ body {
 .tiptap {
   outline: none;
   min-height: 22rem;
+  max-height: 60vh;
+  overflow-y: auto;
   font-family: var(--font-plex-serif), Georgia, serif;
   font-size: 1.0625rem;
   line-height: 1.9;
@@ -93,6 +95,7 @@ body {
 @media (min-width: 1536px) {
   .tiptap {
     min-height: 28rem;
+    max-height: 65vh;
     font-size: 1.125rem;
   }
 }

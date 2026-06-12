@@ -52,6 +52,10 @@ class RhymeResponse(BaseModel):
     target_type: RhymeTargetType
     mode: str
     pronunciations_found: bool
+    # True only for target_type="phrase_ending" when at least one span token
+    # had no dictionary pronunciation and was dropped from the rhyme
+    # phonemes -- the match reflects part of the phrase, not all of it.
+    partial_pronunciation: bool = False
     summary: RhymeSummary
     rhymes: list[RhymeCandidate]
     capabilities: dict[str, Capability]

@@ -26,10 +26,10 @@ def _normalize_key(word: str) -> str:
 class CmuDictRepository(PronunciationRepository):
     def __init__(self) -> None:
         raw = cmudict.dict()
-        index: dict[str, list[Pronunciation]] = {}
+        index: dict[str, tuple[Pronunciation, ...]] = {}
         for word, pron_lists in raw.items():
             key = _normalize_key(word)
-            bucket = index.setdefault(key, [])
+            bucket = list(index.get(key, ()))
             for phonemes in pron_lists:
                 pron = Pronunciation(
                     phonemes=tuple(phonemes),
@@ -37,10 +37,11 @@ class CmuDictRepository(PronunciationRepository):
                 )
                 if pron not in bucket:
                     bucket.append(pron)
+            index[key] = tuple(bucket)
         self._index = index
 
-    def lookup(self, normalized_word: str) -> list[Pronunciation]:
-        return list(self._index.get(normalized_word, ()))
+    def lookup(self, normalized_word: str) -> tuple[Pronunciation, ...]:
+        return self._index.get(normalized_word, ())
 
     def iter_entries(self) -> Iterable[tuple[str, Pronunciation]]:
         for word, prons in self._index.items():

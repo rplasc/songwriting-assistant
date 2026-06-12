@@ -245,6 +245,34 @@ def test_rhymes_phrase_ending_accepts_multi_token_input(client: TestClient) -> N
     assert all("phrase_ending_match" in r["evidence_tags"] for r in body["rhymes"])
 
 
+def test_rhymes_phrase_ending_all_known_is_not_partial(client: TestClient) -> None:
+    resp = client.post(
+        "/v1/rhymes",
+        json={"word": "hold me", "target_type": "phrase_ending", "limit": 10},
+    )
+    body = resp.json()
+    assert body["partial_pronunciation"] is False
+
+
+def test_rhymes_phrase_ending_unknown_token_is_partial(client: TestClient) -> None:
+    # "wundurful" has no dictionary pronunciation, so it's dropped from the
+    # concatenated phonemes -- the match is based on "feeling" alone.
+    resp = client.post(
+        "/v1/rhymes",
+        json={"word": "feeling wundurful", "target_type": "phrase_ending", "limit": 10},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["pronunciations_found"] is True
+    assert body["partial_pronunciation"] is True
+
+
+def test_rhymes_word_target_never_partial(client: TestClient) -> None:
+    resp = client.post("/v1/rhymes", json={"word": "fire", "limit": 5})
+    body = resp.json()
+    assert body["partial_pronunciation"] is False
+
+
 def test_rhymes_phrase_ending_trims_leading_function_words(client: TestClient) -> None:
     resp = client.post(
         "/v1/rhymes",
@@ -291,3 +319,14 @@ def test_top_results_for_high_cluster_query_are_diversified(client: TestClient) 
     assert rhymes
     suffixes = {r["word"][-3:] for r in rhymes if len(r["word"]) >= 3}
     assert len(suffixes) >= 4, f"top-10 collapsed onto {suffixes}"
+
+
+def test_rhymes_top_results_stable_across_limits(client: TestClient) -> None:
+    # Candidates are scored/diversified once at a fixed pool size and sliced
+    # per request, so a smaller limit must return a prefix of a larger one
+    # rather than a differently-diversified ordering.
+    small = client.post("/v1/rhymes", json={"word": "fire", "limit": 5}).json()
+    large = client.post("/v1/rhymes", json={"word": "fire", "limit": 25}).json()
+    small_words = [r["word"] for r in small["rhymes"]]
+    large_words = [r["word"] for r in large["rhymes"]]
+    assert small_words == large_words[:5]

@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Request
+from fastapi.concurrency import run_in_threadpool
 
+from app.core.config import settings
 from app.core.logging import get_logger, timed
 from app.domain.rhyme.inner_rhyme_rules import (
     find_inner_rhyme_groups,
@@ -7,26 +9,30 @@ from app.domain.rhyme.inner_rhyme_rules import (
 )
 from app.schemas.requests import LineAnalysisRequest
 from app.schemas.responses import LastWord, LineAnalysisResponse, TokenAnalysis
-from app.services.language_router import LanguageRouter
+from app.services.language_router import LanguageContext, LanguageRouter
+from app.services.response_cache import ResponseCache
 
 router = APIRouter(prefix="/v1")
 logger = get_logger("nlp.analysis")
+
+_CACHE_NAMESPACE = "analyze-line"
 
 
 def _language_router(request: Request) -> LanguageRouter:
     return request.app.state.language_router
 
 
+def _cache(request: Request) -> ResponseCache:
+    return request.app.state.rhyme_response_cache
+
+
 def _source(found: bool) -> str:
     return "dictionary" if found else "heuristic"
 
 
-@router.post("/analyze-line")
-def post_analyze_line(
-    payload: LineAnalysisRequest, request: Request
+def _compute_analyze_line(
+    payload: LineAnalysisRequest, ctx: LanguageContext
 ) -> LineAnalysisResponse:
-    router_ = _language_router(request)
-    ctx = router_.get(payload.language)
     with timed(
         logger,
         "analyze_line.request",
@@ -76,3 +82,29 @@ def post_analyze_line(
         last_word=last_word,
         inner_rhymes=inner_rhymes,
     )
+
+
+@router.post("/analyze-line")
+async def post_analyze_line(
+    payload: LineAnalysisRequest, request: Request
+) -> LineAnalysisResponse:
+    router_ = _language_router(request)
+    ctx = router_.get(payload.language)
+    cache = _cache(request)
+    cache_key = ResponseCache.make_key(
+        f"{settings.cache_key_prefix}:{_CACHE_NAMESPACE}", payload
+    )
+
+    if cache.enabled:
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            logger.info(
+                "analyze_line.cache_hit", extra={"extras": {"key": cache_key}}
+            )
+            return LineAnalysisResponse.model_validate(cached)
+
+    response = await run_in_threadpool(_compute_analyze_line, payload, ctx)
+
+    if cache.enabled:
+        await cache.set(cache_key, response.model_dump(mode="json"))
+    return response

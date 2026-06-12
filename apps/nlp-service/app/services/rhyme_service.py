@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from functools import lru_cache
 
+from app.core.config import settings
 from app.domain.languages.base import LanguageEngine
 from app.domain.rhyme.diversity_rules import diversify
 from app.domain.rhyme.ending_span_rules import extract_ending_span
@@ -14,6 +15,12 @@ from app.services.rhyme_index import RhymeIndex
 from app.services.syllable_service import SyllableService
 
 _CACHE_SIZE = 1024
+
+# Word-path candidates are always scored and diversified at this pool size,
+# then sliced to the requested limit per call. This gives `diversify` a
+# meaningful pool to reorder before truncation (Q4) and lets one cache entry
+# per (normalized, mode) serve every limit up to max_rhyme_limit (P3).
+_CANDIDATE_POOL_SIZE = max(50, settings.max_rhyme_limit * 2)
 
 
 def _multisyllabic_len(phonemes: tuple[str, ...] | None) -> int:
@@ -53,6 +60,11 @@ class RhymeLookup:
     ``"hold me"``) for ``target_type="phrase_ending"``. ``query_span`` is
     the original-casing span text for phrase-ending requests, ``None``
     otherwise.
+
+    ``partial_pronunciation`` is ``True`` for phrase-ending lookups where at
+    least one (but not all) span tokens lacked a dictionary pronunciation and
+    was dropped from the concatenated rhyme phonemes -- the match is based on
+    a subset of the phrase. Always ``False`` for ``target_type="word"``.
     """
 
     normalized: str | None
@@ -60,6 +72,7 @@ class RhymeLookup:
     resolved_mode: str
     query_span: str | None
     candidates: list[RhymeCandidate]
+    partial_pronunciation: bool = False
 
 
 class RhymeService:
@@ -80,7 +93,10 @@ class RhymeService:
         # singleton, garbage-collected with it. The corpus is read-only after
         # startup, so no invalidation is needed. include_metadata, family
         # labels, and matched_span are intentionally excluded from the key —
-        # they're applied per-request after retrieval.
+        # they're applied per-request after retrieval. `limit` is also
+        # excluded: every entry holds a _CANDIDATE_POOL_SIZE pool and callers
+        # slice to their requested limit, so the line strip (limit=10) and the
+        # advanced explorer (limit=25) for the same word share one entry.
         self._cached_candidates = lru_cache(maxsize=_CACHE_SIZE)(
             self._compute_candidates
         )
@@ -132,7 +148,7 @@ class RhymeService:
                 query_span=None,
                 candidates=[],
             )
-        cached = self._cached_candidates(normalized, limit, resolved_mode)
+        cached = self._cached_candidates(normalized, resolved_mode)
         # pronunciations_found is True for two distinct cases: (a) the word is
         # in the dictionary, or (b) the heuristic fallback produced usable
         # candidates. Clients that need to distinguish these quality levels
@@ -142,7 +158,7 @@ class RhymeService:
         found = bool(prons) or bool(cached)
         query_phonemes = prons[0].phonemes if prons else None
         candidates = self._annotate(
-            cached,
+            cached[:limit],
             query_phonemes=query_phonemes,
             include_metadata=include_metadata,
         )
@@ -175,17 +191,25 @@ class RhymeService:
             )
 
         # Concatenate phonemes across span tokens that have a dictionary
-        # pronunciation. Tokens without one are dropped on the assumption
-        # that they contribute no reliable phonetic information (heuristic
-        # G2P for English is single-token-shaped; mixing dictionary +
-        # heuristic phonemes in one tail would be noisy).
+        # pronunciation. Tokens without one are dropped from the phonemes on
+        # the assumption that they contribute no reliable phonetic
+        # information (heuristic G2P for English is single-token-shaped;
+        # mixing dictionary + heuristic phonemes in one tail would be noisy),
+        # but their heuristic syllable count still contributes to
+        # query_syllables so the length signal reflects the whole phrase.
         concatenated: list[str] = []
+        query_syllables = 0
         any_pron = False
+        partial_pronunciation = False
         for norm in span.normalized:
             _, prons = self._pronunciation.lookup(norm)
             if prons:
                 concatenated.extend(prons[0].phonemes)
+                query_syllables += prons[0].syllables
                 any_pron = True
+            else:
+                query_syllables += self._engine.heuristic_syllable_count(norm)
+                partial_pronunciation = True
         normalized_span = " ".join(span.normalized)
         if not any_pron:
             return RhymeLookup(
@@ -203,9 +227,6 @@ class RhymeService:
         exclude_word = span.normalized[-1]
         span_set = set(span.normalized)
         query_phonemes = tuple(concatenated)
-        query_syllables = sum(
-            self._engine.heuristic_syllable_count(n) for n in span.normalized
-        )
         tiers = self._engine.candidate_tiers(
             self._index,
             exclude_word,
@@ -235,6 +256,7 @@ class RhymeService:
             resolved_mode=resolved_mode,
             query_span=span.span_text,
             candidates=candidates,
+            partial_pronunciation=partial_pronunciation,
         )
 
     # --- shared helpers ---
@@ -242,11 +264,14 @@ class RhymeService:
     def _compute_candidates(
         self,
         normalized: str,
-        limit: int,
         mode: str,
     ) -> tuple[_RankedEntry, ...]:
         # Word-path only; phrase-ending lookups are not cached in M1
         # because their pronunciation step iterates over span tokens.
+        # Always score and diversify a fixed-size pool (_CANDIDATE_POOL_SIZE)
+        # so one cache entry per (normalized, mode) serves every requested
+        # limit, and diversify has a real pool to reorder before callers
+        # slice to their limit.
         prons = self._pronunciation.lookup(normalized)[1]
         if not prons:
             # Heuristic fallback path. The engine decides whether one exists
@@ -262,7 +287,7 @@ class RhymeService:
                 tiers,
                 normalized,
                 query_syllables,
-                limit,
+                _CANDIDATE_POOL_SIZE,
                 query_multisyllabic_len=0,
             )
             return diversify(ranked, engine=self._engine)
@@ -277,7 +302,7 @@ class RhymeService:
             tiers,
             normalized,
             query_syllables,
-            limit,
+            _CANDIDATE_POOL_SIZE,
             query_multisyllabic_len=query_multi_len,
         )
         return diversify(ranked, engine=self._engine)

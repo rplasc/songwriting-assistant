@@ -17,6 +17,8 @@ export interface EmitAnalyzeOptions {
   targetWord?: string;
   rhymeMode?: RhymeMode;
   language?: Language;
+  /** Omit the upstream rhymes lookup (the advanced explorer covers it). */
+  skipRhymes?: boolean;
 }
 
 type AnalysisHandler = (payload: ServerAnalysisPayload) => void;
@@ -58,16 +60,18 @@ export interface SocketAnalysisAdapter {
 export function getSocketAdapter(): SocketAnalysisAdapter {
   const s = getSocket();
   return {
-    emit({ line, targetWord, rhymeMode, language }) {
+    emit({ line, targetWord, rhymeMode, language, skipRhymes }) {
       const payload: {
         line: string;
         target_word?: string;
         rhyme_mode?: RhymeMode;
         language?: Language;
+        skip_rhymes?: boolean;
       } = { line };
       if (targetWord) payload.target_word = targetWord;
       if (rhymeMode) payload.rhyme_mode = rhymeMode;
       if (language) payload.language = language;
+      if (skipRhymes) payload.skip_rhymes = true;
       s.emit("editor.analyze", payload);
     },
     onAnalysis(handler) {

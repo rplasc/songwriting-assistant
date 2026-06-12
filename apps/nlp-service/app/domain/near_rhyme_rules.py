@@ -13,6 +13,26 @@ _MANNER_CLASS: dict[str, str] = {
 }
 
 
+# Vowel-neighborhood classes for near-rhyme grouping. Within a class, vowels
+# are treated as interchangeable when building the near-rhyme key — they're
+# close enough that lyricists routinely slant-rhyme across them ("again"/
+# "thin", "love"/"move"). AE and the closing diphthongs (AW, AY, OY) are
+# deliberately left out: AE sits between the two classes below, and merging
+# it into either would collapse otherwise-distinct families (e.g. "cat"
+# would land in the same bucket as both "cit" and "dog").
+_VOWEL_CLASS: dict[str, str] = {
+    # Front, non-low: fleece/kit/face/dress.
+    "IY": "front", "IH": "front", "EY": "front", "EH": "front",
+    # Central/back: strut/lot/thought/goat/foot/goose/nurse.
+    "AH": "back", "AA": "back", "AO": "back", "OW": "back",
+    "UH": "back", "UW": "back", "ER": "back",
+}
+
+
+def _vowel_class(vowel_base: str) -> str:
+    return _VOWEL_CLASS.get(vowel_base, vowel_base)
+
+
 def _is_vowel(phoneme: str) -> bool:
     return bool(phoneme) and phoneme[-1].isdigit()
 
@@ -37,25 +57,29 @@ def near_rhyme_key(phonemes: Sequence[str]) -> str | None:
 
     Strategy:
       - anchor on the last stressed (or last) vowel
-      - keep the vowel identity (ignoring stress level)
+      - reduce the vowel to its neighborhood class (ignoring stress level),
+        so close vowels like the IH/EY/EH family or the AH/UW/AO/... family
+        become interchangeable (see ``_VOWEL_CLASS``)
       - reduce the coda to just its first phoneme: a following vowel keeps its
-        identity, a following consonant becomes its manner-of-articulation class
+        class, a following consonant becomes its manner-of-articulation class
 
     This collapses voicing pairs (cat/cad), and groups consonants that share
     articulation so endings like "-ack" / "-ock" remain distinct (different
     vowels) while "-it" / "-id" merge. Reducing the coda to a single unit also
     lets codas of different lengths still match (mind/time, friend/again),
     since slant-rhyme families commonly add or drop a trailing consonant.
+    Reducing the vowel to a neighborhood class additionally groups slant pairs
+    that differ only by vowel (again/thin, love/move).
     """
     start = _stressed_or_last_vowel(phonemes)
     if start < 0:
         return None
-    parts: list[str] = [_vowel_base(phonemes[start])]
+    parts: list[str] = [_vowel_class(_vowel_base(phonemes[start]))]
     coda = phonemes[start + 1 :]
     if coda:
         first = coda[0]
         if _is_vowel(first):
-            parts.append(_vowel_base(first))
+            parts.append(_vowel_class(_vowel_base(first)))
         else:
             # Unknown phoneme falls through verbatim, creating a singleton bucket
             # that only matches itself. All standard ARPABET consonants are covered

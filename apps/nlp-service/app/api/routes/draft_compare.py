@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+from fastapi.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.logging import get_logger, timed
@@ -53,7 +54,7 @@ async def post_analyze_draft_compare(
                 )
                 return DraftCompareResponse.model_validate(cached)
 
-        response = service.compare(payload, ctx)
+        response = await run_in_threadpool(service.compare, payload, ctx)
 
         if cache.enabled:
             await cache.set(cache_key, response.model_dump(mode="json"))

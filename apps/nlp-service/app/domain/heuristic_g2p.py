@@ -22,6 +22,12 @@ _LAST_VOWEL_RE = re.compile(r"(?P<vowel>[aeiouy]+)(?P<tail>[^aeiouy]*)$")
 
 _MAX_CANDIDATES = 30
 
+# When a caller wants more than the single best-guess tail (e.g. to build a
+# rhyme-key set for unknown words), this is how many of the leading
+# candidates are worth considering — later candidates are increasingly
+# unlikely vowel readings.
+MAX_HEURISTIC_TAIL_VARIANTS = 3
+
 _VOWEL_PHONEMES: dict[str, tuple[str, ...]] = {
     # Monographs — broad coverage of common readings.
     "a": ("AE1", "EY1", "AH1"),
@@ -259,4 +265,4 @@ def _dedupe(tails: list[tuple[str, ...]]) -> list[tuple[str, ...]]:
     return out
 
 
-__all__ = ["heuristic_phoneme_tails"]
+__all__ = ["heuristic_phoneme_tails", "MAX_HEURISTIC_TAIL_VARIANTS"]

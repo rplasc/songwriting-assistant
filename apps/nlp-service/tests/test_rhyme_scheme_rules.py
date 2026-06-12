@@ -31,3 +31,19 @@ def test_none_key_renders_question_mark_and_partial_confidence() -> None:
     scheme, conf = assign_scheme(["k1", None, "k1"])
     assert scheme == "A?A"
     assert conf == "partial"
+
+
+def test_multi_key_transitive_bridge() -> None:
+    # Line 0 is a heteronym with two candidate keys; lines 1 and 2 each match
+    # one of them and should end up in the same group as each other, even
+    # though they share no key directly.
+    scheme, conf = assign_scheme(
+        [
+            frozenset({"k1", "k2"}),
+            frozenset({"k1"}),
+            frozenset({"k2"}),
+            frozenset({"k3"}),
+        ]
+    )
+    assert scheme == "AAAB"
+    assert conf == "full"

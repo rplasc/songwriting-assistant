@@ -22,6 +22,11 @@ export interface AnalyzeOptions {
   targetWord?: string;
   rhymeMode?: RhymeMode;
   language?: Language;
+  /**
+   * Skip the upstream rhymes lookup entirely (the advanced rhyme explorer is
+   * already covering rhymes for this line elsewhere).
+   */
+  skipRhymes?: boolean;
 }
 
 export interface ExploreRhymesOptions {
@@ -50,12 +55,50 @@ export class EditorService {
     });
 
     const t0 = performance.now();
+
+    if (options.skipRhymes) {
+      const lineResp = await this.fastapi.analyzeLine({ line, language });
+      const targetWord =
+        options.targetWord ?? lineResp.last_word?.normalized ?? null;
+      return this.presenter.toClient(
+        lineResp,
+        null,
+        performance.now() - t0,
+        mode,
+        language,
+        options.requestId,
+        targetWord,
+      );
+    }
+
+    if (options.targetWord) {
+      // The caret word is already known, so the rhymes request doesn't
+      // depend on the line-analysis response — issue both upstream calls in
+      // parallel instead of waiting on analyze-line first.
+      const [lineResp, rhymes] = await Promise.all([
+        this.fastapi.analyzeLine({ line, language }),
+        this.fastapi.getRhymes({
+          word: options.targetWord,
+          mode,
+          language,
+        }),
+      ]);
+      return this.presenter.toClient(
+        lineResp,
+        rhymes,
+        performance.now() - t0,
+        mode,
+        language,
+        options.requestId,
+        options.targetWord,
+      );
+    }
+
     const lineResp = await this.fastapi.analyzeLine({ line, language });
 
-    // The caret word from the client wins; the line's last word is the
-    // fallback so bare requests keep their old behavior.
-    const targetWord =
-      options.targetWord ?? lineResp.last_word?.normalized ?? null;
+    // No caret word was sent, so the rhyme target depends on the line's
+    // last word from the response above.
+    const targetWord = lineResp.last_word?.normalized ?? null;
     const rhymes = targetWord
       ? await this.fastapi.getRhymes({
           word: targetWord,

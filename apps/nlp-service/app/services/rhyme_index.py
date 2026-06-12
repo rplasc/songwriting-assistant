@@ -26,6 +26,11 @@ class RhymeEntry:
     # the last stressed vowel). Used by ranking_service to reward longer
     # shared stressed tails — see _MULTISYLLABIC_LEN_BONUS.
     multisyllabic_tail_phonemes: int = 0
+    # Prosodic stress class ("aguda"/"llana"/"esdrujula" for Spanish), or
+    # None for engines that don't use stress-position ranking (English).
+    # Precomputed at index build so score_entries can compare it per
+    # candidate without re-running syllabification on every call.
+    stress_class: str | None = None
 
 
 class RhymeIndex:
@@ -88,6 +93,7 @@ class RhymeIndex:
                 syllables=modal_syllables,
                 frequency=freq,
                 multisyllabic_tail_phonemes=multi_len,
+                stress_class=engine.stress_signature(word),
             )
             for phonemes in prons:
                 for spec in engine.key_specs:

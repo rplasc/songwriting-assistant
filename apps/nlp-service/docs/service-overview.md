@@ -52,6 +52,7 @@ Building the full reverse index takes a few seconds per language on a typical la
 - Memory cost as noted above.
 - The index is immutable after startup. Adding a user-supplied pronunciation or custom word requires a restart. This is fine for now and keeps the concurrency story trivial (no locking needed at read time).
 - Building at startup means the first request is always fast. A lazy-build approach would reduce startup time but introduce inconsistent latency on early requests, which is worse for interactive use.
+- For Spanish, the underlying pronunciation source (`SpanishCorpus`) itself runs rule-based G2P over the wordfreq top-N (default 150k words) before the index can be built from it — by far the largest piece of Spanish startup. Since that output is a pure function of `(top_n, wordfreq's installed version, G2P_VERSION)`, `SpanishCorpus` caches it to `.cache/spanish_corpus/*.json` (`app/repositories/spanish_corpus_cache.py`) and skips recomputation when none of those have changed, cutting a multi-second cold build down to a few hundred milliseconds. A missing or corrupt cache file just falls back to a normal rebuild — never fatal. Bump `G2P_VERSION` (in `app/domain/languages/spanish/g2p.py`) whenever a G2P/syllabification change should invalidate existing cache files.
 
 ---
 
@@ -199,11 +200,21 @@ bundle would either require duplicating it or creating an awkward cross-bundle r
 
 ## 11. Redis response cache for draft endpoints
 
-**Decision:** `/v1/analyze-draft` and `/v1/analyze-draft-compare` support an
-opt-in Redis cache implemented in
+**Decision:** `/v1/analyze-draft`, `/v1/analyze-draft-compare`, `/v1/rhymes`,
+and `/v1/analyze-line` support an opt-in Redis cache implemented in
 [`app/services/response_cache.py`](../app/services/response_cache.py). It is
 off by default (`NLP_CACHE_ENABLED=false`) and degrades gracefully: if Redis
 is unavailable the service computes a fresh response and logs a warning.
+
+`/v1/rhymes` and `/v1/analyze-line` share the same Redis connection as the
+draft endpoints (via `ResponseCache.with_ttl`) but use a much shorter TTL
+(`NLP_CACHE_TTL_SECONDS_RHYMES`, default 60s). These endpoints fire on every
+keystroke across an effectively unbounded key space (word × limit × mode ×
+language), so a short TTL bounds Redis memory while still absorbing the burst
+of near-identical requests a single typing pause produces. Both routes were
+converted to `async def` with the actual computation run via
+`run_in_threadpool`, matching the pattern used for the draft endpoints, so the
+cache `await` doesn't block the event loop.
 
 **Reasoning:**
 

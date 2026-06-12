@@ -6,8 +6,12 @@ from app.models.pronunciation import Pronunciation
 
 class PronunciationRepository(ABC):
     @abstractmethod
-    def lookup(self, normalized_word: str) -> list[Pronunciation]:
-        """Return all pronunciations for the normalized word, or [] if unknown."""
+    def lookup(self, normalized_word: str) -> tuple[Pronunciation, ...]:
+        """Return all pronunciations for the normalized word, or () if unknown.
+
+        Implementations return the corpus's own stored tuple directly, not a
+        copy — callers must not mutate the result.
+        """
 
     @abstractmethod
     def iter_entries(self) -> Iterable[tuple[str, Pronunciation]]:

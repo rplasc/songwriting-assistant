@@ -59,6 +59,46 @@ def _en_is_same_stem_inflection(query: str, candidate: str) -> bool:
     return False
 
 
+def _en_inflection_forms(query: str) -> frozenset[str]:
+    """Materialise the candidate set of inflected forms of ``query``.
+
+    Mirrors the four patterns checked by :func:`_en_is_same_stem_inflection`
+    so the set-based ranking penalty and the predicate cannot drift.
+    """
+    if not query:
+        return frozenset()
+
+    forms: set[str] = set()
+
+    for suffix in _INFLECTION_SUFFIXES:
+        forms.add(query + suffix)
+
+    if len(query) >= 2 and query[-1] not in "aeiouy":
+        for suffix in _INFLECTION_SUFFIXES:
+            forms.add(query + query[-1] + suffix)
+
+    if query.endswith("e"):
+        stem = query[:-1]
+        for suffix in _INFLECTION_SUFFIXES:
+            forms.add(stem + suffix)
+
+    if query.endswith("y") and len(query) >= 2 and query[-2] not in "aeiou":
+        stem = query[:-1] + "i"
+        for suffix in _INFLECTION_SUFFIXES:
+            forms.add(stem + suffix)
+
+    forms.discard(query)
+    return frozenset(forms)
+
+
+# Vowel-pairs that are usually pronounced as two separate syllables (hiatus)
+# rather than one diphthong, e.g. "idea" (i-de-a), "create" (cre-ate),
+# "being" (be-ing), "video" (vi-de-o), "boa" (bo-a), "poem" (po-em).
+_HIATUS_PAIRS: tuple[str, ...] = (
+    "ia", "io", "ua", "ue", "uo", "eo", "ea", "ei", "oa", "oe",
+)
+
+
 def _english_heuristic_syllable_count(word: str) -> int:
     # Local re-implementation of the existing English heuristic so the
     # SyllableService can call it via the engine without circular-importing
@@ -72,8 +112,15 @@ def _english_heuristic_syllable_count(word: str) -> int:
         return 1
     groups = re.findall(r"[aeiouy]+", w)
     count = len(groups)
-    for pair in ("ia", "io", "ua", "ue", "uo", "eo", "ea"):
-        if pair in w and pair in groups:
+    # A vowel group containing a hiatus pair anywhere (not just groups that
+    # are *exactly* a two-letter pair) counts for one extra syllable, e.g.
+    # "create" -> groups ["ea", "e"] -- "ea" is its own group here, but
+    # "idea" -> groups ["i", "ea"] would be missed by an exact-match check
+    # on the whole-word vowel groups. At most one bonus per group.
+    for group in groups:
+        if len(group) < 2:
+            continue
+        if any(group[i : i + 2] in _HIATUS_PAIRS for i in range(len(group) - 1)):
             count += 1
     if w.endswith("e") and not w.endswith("le") and not w.endswith("ee") and count > 1:
         count -= 1
@@ -163,6 +210,9 @@ class EnglishEngine(LanguageEngine):
 
     def is_same_stem_inflection(self, query: str, candidate: str) -> bool:
         return _en_is_same_stem_inflection(query, candidate)
+
+    def inflection_forms(self, query: str) -> frozenset[str]:
+        return _en_inflection_forms(query)
 
     def heuristic_candidates(
         self,

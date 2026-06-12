@@ -1,3 +1,5 @@
+import pytest
+
 from app.domain.languages.english.engine import (
     EnglishEngine,
     _en_is_same_stem_inflection,
@@ -41,6 +43,34 @@ def test_engine_inflection_detection_matches_helper() -> None:
 def test_shares_stem_for_related_words() -> None:
     assert _engine.shares_stem("fire", "fires")
     assert not _engine.shares_stem("fire", "higher")
+
+
+def test_english_inflection_forms_cover_common_suffixes() -> None:
+    forms = _engine.inflection_forms("walk")
+    assert "walked" in forms
+    assert "walks" in forms
+    assert "walking" in forms
+    assert "walk" not in forms
+
+
+def test_inflection_penalty_applies_to_walked_and_walking() -> None:
+    # "talk" is an unrelated perfect rhyme for "walk" and should not be
+    # penalised; "walked"/"walking" are inflections and should take the
+    # full -0.20 penalty rather than the weaker -0.10 same-stem penalty.
+    ranked = score_entries(
+        [
+            _entry("talk", frequency=1e-4),
+            _entry("walked", frequency=1e-4),
+            _entry("walking", frequency=1e-4),
+        ],
+        query="walk",
+        rhyme_type="perfect",
+        limit=10,
+        engine=_engine,
+    )
+    scores = {c.word: c.score for c in ranked}
+    assert scores["talk"] - scores["walked"] == pytest.approx(0.20)
+    assert scores["talk"] - scores["walking"] == pytest.approx(0.20)
 
 
 def test_score_entries_orders_by_score_then_frequency() -> None:

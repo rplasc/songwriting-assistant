@@ -51,3 +51,36 @@ def test_near_rhyme_keeps_unrelated_words_separate() -> None:
     cat = ["K", "AE1", "T"]
     dog = ["D", "AO1", "G"]
     assert near_rhyme_key(cat) != near_rhyme_key(dog)
+
+
+def test_near_rhyme_groups_vowel_neighbors_again_and_thin() -> None:
+    # "again": AH0 G EH1 N  "thin": TH IH1 N — EH/IH are both front,
+    # non-low vowels and share a nasal coda.
+    again = ["AH0", "G", "EH1", "N"]
+    thin = ["TH", "IH1", "N"]
+    assert near_rhyme_key(again) == near_rhyme_key(thin)
+
+
+def test_near_rhyme_groups_vowel_neighbors_love_and_move() -> None:
+    # "love": L AH1 V  "move": M UW1 V — AH/UW are both in the broad
+    # central/back vowel class and share a fricative coda.
+    love = ["L", "AH1", "V"]
+    move = ["M", "UW1", "V"]
+    assert near_rhyme_key(love) == near_rhyme_key(move)
+
+
+def test_near_rhyme_vowel_classes_do_not_collapse_ae() -> None:
+    # "cat": K AE1 T  "cut": K AH1 T — AE is deliberately excluded from both
+    # vowel-neighborhood classes, so it must not merge with "back" (AH/UW/...)
+    # any more than it merges with "front" (IH/EH/...).
+    cat = ["K", "AE1", "T"]
+    cut = ["K", "AH1", "T"]
+    assert near_rhyme_key(cat) != near_rhyme_key(cut)
+
+
+def test_near_rhyme_does_not_group_unrelated_diphthongs() -> None:
+    # "boy": B OY1  "buy": B AY1 — closing diphthongs are left out of the
+    # vowel-neighborhood classes and keep their own identity.
+    boy = ["B", "OY1"]
+    buy = ["B", "AY1"]
+    assert near_rhyme_key(boy) != near_rhyme_key(buy)

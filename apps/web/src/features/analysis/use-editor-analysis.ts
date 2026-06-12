@@ -35,6 +35,8 @@ export function useEditorAnalysis(
   activeWord: string | null,
   rhymeMode: ClientRhymeMode = DEFAULT_RHYME_MODE,
   language: Language = DEFAULT_LANGUAGE,
+  /** Omit the upstream rhymes lookup (the advanced explorer covers it). */
+  skipRhymes: boolean = false,
 ): UseEditorAnalysisReturn {
   const resolvedMode = resolveRhymeMode(rhymeMode, language);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -46,7 +48,17 @@ export function useEditorAnalysis(
     targetWord: string | null;
     mode: RhymeMode;
     language: Language;
+    skipRhymes: boolean;
   } | null>(null);
+
+  // Mirrors `status` for the debounce effect below, which intentionally
+  // excludes `status` from its deps (re-running it on every status
+  // transition would restart the debounce timer). Reading the ref instead
+  // of the closed-over `status` keeps the `alreadyReady` check current.
+  const statusRef = useRef<AnalysisStatus>(status);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     const adapter = getSocketAdapter();
@@ -108,7 +120,8 @@ export function useEditorAnalysis(
       sent.targetWord === activeWord &&
       sent.mode === resolvedMode &&
       sent.language === language &&
-      status === "ready";
+      sent.skipRhymes === skipRhymes &&
+      statusRef.current === "ready";
     if (alreadyReady) return;
 
     const timer = setTimeout(() => {
@@ -117,6 +130,7 @@ export function useEditorAnalysis(
         targetWord: activeWord,
         mode: resolvedMode,
         language,
+        skipRhymes,
       };
       setStatus("loading");
       setError(null);
@@ -125,12 +139,13 @@ export function useEditorAnalysis(
         targetWord: activeWord ?? undefined,
         rhymeMode: resolvedMode,
         language,
+        skipRhymes,
       });
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLine, activeWord, resolvedMode, language]);
+  }, [activeLine, activeWord, resolvedMode, language, skipRhymes]);
 
   return { result, status, error };
 }

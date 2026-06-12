@@ -16,6 +16,11 @@ from __future__ import annotations
 from app.domain.languages.spanish.syllabification import syllabify
 from app.models.pronunciation import Pronunciation
 
+# Bump whenever a change here (or in syllabification) would change the
+# phonemes/syllables this module produces for existing words. SpanishCorpus's
+# on-disk cache keys on this value, so a bump invalidates stale cache files.
+G2P_VERSION = 1
+
 _VOWEL_BASE: dict[str, str] = {
     "a": "A",
     "á": "A",

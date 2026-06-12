@@ -30,5 +30,12 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 3600
     cache_key_prefix: str = "nlp:v2"
 
+    # Shorter TTL for /v1/rhymes and /v1/analyze-line. These fire on every
+    # keystroke (debounced) across a huge, open-ended key space (every word x
+    # limit x mode x language), so a short TTL keeps Redis memory bounded
+    # while still absorbing the bursts of repeated requests a single pause in
+    # typing produces.
+    cache_ttl_seconds_rhymes: int = 60
+
 
 settings = Settings()

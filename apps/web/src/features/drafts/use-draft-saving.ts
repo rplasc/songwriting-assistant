@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import type { Language } from "@/features/language/language-types";
-import type { DraftSection } from "@/features/structure/structure-types";
 import {
   createDraft,
   deleteDraft as deleteDraftRequest,
@@ -19,10 +18,10 @@ import {
   getCurrentDraftId as readCurrentId,
 } from "./drafts-local-index";
 import type { Draft, DraftSummary, SaveStatus } from "./drafts-types";
+import { deriveTitle, DEFAULT_TITLE } from "./derive-title";
 import { getEditorText } from "@/features/editor/tiptap/editor-lines";
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
-const DEFAULT_TITLE = "Untitled Draft";
 
 // Bounded retry budget for network-class failures. The client stays in
 // "offline" between attempts and transitions to "error" after exhausting
@@ -51,7 +50,12 @@ function parseStoredContent(raw: string): string {
 
 export interface UseDraftSavingOptions {
   language: Language;
-  sections?: DraftSection[];
+  /**
+   * Returns the manually-set title, or null when the title should derive
+   * from the first lyric line. Read at save time (a ref-backed getter keeps
+   * a just-committed title from being missed by effect timing).
+   */
+  getTitle?: () => string | null;
   onDraftLoaded?: (draft: Draft) => void;
 }
 
@@ -65,15 +69,6 @@ export interface UseDraftSavingReturn {
   loadDraft: (id: string) => Promise<void>;
   newDraft: () => void;
   deleteDraft: (id: string) => Promise<void>;
-}
-
-function deriveTitle(content: string): string {
-  const firstLine = content
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .find((l) => l.length > 0);
-  if (!firstLine) return DEFAULT_TITLE;
-  return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
 }
 
 function summarize(draft: Draft): DraftSummary {
@@ -119,7 +114,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 export function useDraftSaving(
   editor: Editor | null,
-  { language, sections, onDraftLoaded }: UseDraftSavingOptions,
+  { language, getTitle, onDraftLoaded }: UseDraftSavingOptions,
 ): UseDraftSavingReturn {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -136,15 +131,16 @@ export function useDraftSaving(
   const currentDraftLanguageRef = useRef<Language | null>(null);
   const currentVersionRef = useRef<number | null>(null);
   const languageRef = useRef<Language>(language);
-  const sectionsRef = useRef<DraftSection[]>(sections ?? []);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef<AbortController | null>(null);
   const suppressDirtyRef = useRef(false);
   const onDraftLoadedRef = useRef(onDraftLoaded);
+  const getTitleRef = useRef(getTitle);
 
   useEffect(() => {
     onDraftLoadedRef.current = onDraftLoaded;
-  }, [onDraftLoaded]);
+    getTitleRef.current = getTitle;
+  }, [onDraftLoaded, getTitle]);
 
   const updateCurrentId = useCallback((id: string | null) => {
     currentIdRef.current = id;
@@ -176,6 +172,9 @@ export function useDraftSaving(
 
     const content = editor.getHTML();
     const text = getEditorText(editor);
+    // A manually-set title wins; otherwise the title tracks the first lyric
+    // line so the drafts picker never shows a stale name.
+    const title = getTitleRef.current?.() ?? deriveTitle(text);
 
     setStatus("saving");
     const targetLanguage = languageRef.current;
@@ -184,10 +183,10 @@ export function useDraftSaving(
       if (currentIdRef.current) {
         const patch: {
           content: string;
+          title: string;
           language?: Language;
-          sections?: DraftSection[];
           expectedVersion?: number;
-        } = { content, sections: sectionsRef.current };
+        } = { content, title };
         if (
           currentDraftLanguageRef.current &&
           currentDraftLanguageRef.current !== targetLanguage
@@ -204,9 +203,8 @@ export function useDraftSaving(
       const created = await createDraft(
         {
           content,
-          title: deriveTitle(text),
+          title,
           language: targetLanguage,
-          sections: sectionsRef.current,
         },
         { signal: controller.signal },
       );
@@ -277,10 +275,6 @@ export function useDraftSaving(
   }, [language]);
 
   useEffect(() => {
-    sectionsRef.current = sections ?? [];
-  }, [sections]);
-
-  useEffect(() => {
     if (!editor) return;
     const handleUpdate = () => {
       if (suppressDirtyRef.current) return;
@@ -320,7 +314,7 @@ export function useDraftSaving(
       try {
         const draft = await getDraft(id, { signal: controller.signal });
         suppressDirtyRef.current = true;
-        editor.commands.setContent(parseStoredContent(draft.content));
+        editor.commands.setContent(parseStoredContent(draft.content), true);
         suppressDirtyRef.current = false;
         updateCurrentId(draft.id);
         updateCurrentLanguage(draft.language);
@@ -360,7 +354,7 @@ export function useDraftSaving(
         }
         if (inFlightRef.current) inFlightRef.current.abort();
         suppressDirtyRef.current = true;
-        editor.commands.setContent("");
+        editor.commands.setContent("", true);
         suppressDirtyRef.current = false;
         updateCurrentId(null);
         updateCurrentLanguage(null);
@@ -388,7 +382,7 @@ export function useDraftSaving(
     }
     if (inFlightRef.current) inFlightRef.current.abort();
     suppressDirtyRef.current = true;
-    editor.commands.setContent("");
+    editor.commands.setContent("", true);
     suppressDirtyRef.current = false;
     updateCurrentId(null);
     updateCurrentLanguage(null);

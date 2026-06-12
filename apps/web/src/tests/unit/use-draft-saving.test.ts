@@ -9,8 +9,15 @@ interface FakeEditor {
   on: (event: string, handler: () => void) => void;
   off: (event: string, handler: () => void) => void;
   getText: () => string;
+  getHTML: () => string;
+  state: { doc: FakeDoc };
   commands: { setContent: ReturnType<typeof vi.fn> };
   type: (text: string) => void;
+}
+
+interface FakeDoc {
+  readonly textContent: string;
+  forEach: (fn: (node: { textContent: string }) => void) => void;
 }
 
 function createFakeEditor(): FakeEditor {
@@ -26,6 +33,25 @@ function createFakeEditor(): FakeEditor {
     },
     getText() {
       return this.text;
+    },
+    getHTML() {
+      return editor.text
+        .split("\n")
+        .map((line) => `<p>${line}</p>`)
+        .join("");
+    },
+    // Just enough of the ProseMirror doc for getEditorText / emptiness checks.
+    state: {
+      doc: {
+        get textContent() {
+          return editor.text;
+        },
+        forEach(fn) {
+          for (const line of editor.text.split("\n")) {
+            fn({ textContent: line });
+          }
+        },
+      },
     },
     commands: {
       setContent: vi.fn((text: string) => {
@@ -163,8 +189,10 @@ describe("useDraftSaving", () => {
   });
 
   it("flips to offline when the gateway is unreachable", async () => {
+    // Native fetch rejects with TypeError on network failure — the hook's
+    // retry classifier keys off that.
     global.fetch = vi.fn(() =>
-      Promise.reject(new Error("network down")),
+      Promise.reject(new TypeError("network down")),
     ) as unknown as typeof fetch;
     const editor = createFakeEditor();
     const { result } = renderHook(() =>
@@ -172,8 +200,10 @@ describe("useDraftSaving", () => {
     );
 
     act(() => editor.type("offline test"));
-    await act(async () => {
-      await result.current.saveNow();
+    // Don't await saveNow — it stays pending through the retry backoff.
+    // The hook flips to "offline" before the first backoff sleep.
+    act(() => {
+      void result.current.saveNow();
     });
     await waitFor(() => expect(result.current.status).toBe("offline"));
   });
@@ -195,6 +225,65 @@ describe("useDraftSaving", () => {
     act(() => result.current.newDraft());
     expect(result.current.status).toBe("idle");
     expect(result.current.currentDraftId).toBeNull();
-    expect(editor.commands.setContent).toHaveBeenCalledWith("");
+    expect(editor.commands.setContent).toHaveBeenCalledWith("", true);
+  });
+
+  it("derives the title from the first line when no manual title is set", async () => {
+    const fetchMock = makeFetchMock();
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const editor = createFakeEditor();
+    const { result } = renderHook(() =>
+      useDraftSaving(editor as unknown as Editor, {
+        language: "en",
+        getTitle: () => null,
+      }),
+    );
+
+    act(() => editor.type("Opening line\nsecond line"));
+    await act(async () => {
+      await result.current.saveNow();
+    });
+    await waitFor(() => expect(result.current.status).toBe("saved"));
+
+    const postCall = fetchMock.mock.calls.find(
+      (call) => (call[1] as RequestInit | undefined)?.method === "POST",
+    );
+    const body = JSON.parse((postCall![1] as RequestInit).body as string);
+    expect(body.title).toBe("Opening line");
+  });
+
+  it("sends the manual title on create and update when one is set", async () => {
+    const fetchMock = makeFetchMock();
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const editor = createFakeEditor();
+    const { result } = renderHook(() =>
+      useDraftSaving(editor as unknown as Editor, {
+        language: "en",
+        getTitle: () => "My Chosen Name",
+      }),
+    );
+
+    act(() => editor.type("Opening line"));
+    await act(async () => {
+      await result.current.saveNow();
+    });
+    await waitFor(() => expect(result.current.status).toBe("saved"));
+
+    act(() => editor.type("Opening line changed"));
+    await act(async () => {
+      await result.current.saveNow();
+    });
+    await waitFor(() => expect(result.current.status).toBe("saved"));
+
+    const bodies = fetchMock.mock.calls
+      .filter((call) => {
+        const method = (call[1] as RequestInit | undefined)?.method;
+        return method === "POST" || method === "PATCH";
+      })
+      .map((call) => JSON.parse((call[1] as RequestInit).body as string));
+    expect(bodies).toHaveLength(2);
+    for (const body of bodies) {
+      expect(body.title).toBe("My Chosen Name");
+    }
   });
 });

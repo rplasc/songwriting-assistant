@@ -1,0 +1,106 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { EditorStatusStrip } from "@/components/editor/editor-status-strip";
+
+describe("EditorStatusStrip", () => {
+  it("reflects an open rail and underline count", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={true}
+        rhymeGroupCount={4}
+        rhymeHighlights={true}
+        rhymeHighlightStyle="underline"
+        syllableCounts={true}
+        offline={false}
+        language="en"
+      />,
+    );
+    const strip = screen.getByText(/rail open/i);
+    expect(strip).toHaveTextContent(/4 rhyme groups underlined/i);
+    expect(strip).toHaveTextContent(/syllables at right edge/i);
+    expect(strip).not.toHaveTextContent(/offline/i);
+  });
+
+  it("says highlighted in marker style", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={true}
+        rhymeGroupCount={4}
+        rhymeHighlights={true}
+        rhymeHighlightStyle="marker"
+        syllableCounts={true}
+        offline={false}
+        language="en"
+      />,
+    );
+    const strip = screen.getByText(/rail open/i);
+    expect(strip).toHaveTextContent(/4 rhyme groups highlighted/i);
+    expect(strip).not.toHaveTextContent(/underlined/i);
+  });
+
+  it("reflects a closed rail and offline state", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={false}
+        rhymeGroupCount={0}
+        rhymeHighlights={true}
+        rhymeHighlightStyle="marker"
+        syllableCounts={true}
+        offline={true}
+        language="en"
+      />,
+    );
+    const strip = screen.getByText(/rail closed/i);
+    expect(strip).toHaveTextContent(/offline/i);
+  });
+
+  it("notes when rhyme highlights are turned off", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={true}
+        rhymeGroupCount={4}
+        rhymeHighlights={false}
+        rhymeHighlightStyle="marker"
+        syllableCounts={true}
+        offline={false}
+        language="en"
+      />,
+    );
+    const strip = screen.getByText(/rail open/i);
+    expect(strip).toHaveTextContent(/rhyme highlights off/i);
+    expect(strip).not.toHaveTextContent(/highlighted|underlined/i);
+  });
+
+  it("notes when syllable counts are turned off", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={true}
+        rhymeGroupCount={4}
+        rhymeHighlights={true}
+        rhymeHighlightStyle="marker"
+        syllableCounts={false}
+        offline={false}
+        language="en"
+      />,
+    );
+    const strip = screen.getByText(/rail open/i);
+    expect(strip).toHaveTextContent(/syllable counts off/i);
+    expect(strip).not.toHaveTextContent(/syllables at right edge/i);
+  });
+
+  it("speaks Spanish when the draft does", () => {
+    render(
+      <EditorStatusStrip
+        railOpen={true}
+        rhymeGroupCount={1}
+        rhymeHighlights={true}
+        rhymeHighlightStyle="marker"
+        syllableCounts={true}
+        offline={false}
+        language="es"
+      />,
+    );
+    expect(screen.getByText(/margen abierto/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 grupo de rima resaltado/i)).toBeInTheDocument();
+  });
+});

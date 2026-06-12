@@ -289,3 +289,23 @@ def test_analyze_draft_detects_cross_line_inner_rhymes(client: TestClient) -> No
     for occ in perfect["occurrences"]:
         assert occ["line_index"] >= 1
         assert occ["char_end"] > occ["char_start"]
+
+
+def test_inner_rhyme_line_index_skips_label_and_blank_lines(
+    client: TestClient,
+) -> None:
+    # Line 1 is a section label and line 2 is blank, neither of which appear
+    # in `section.lines` — line_index must still point at the lyric lines
+    # (3 and 4), not be off by the two skipped lines.
+    draft = "[Verse]\n\nthe cat sat down\non a soft green mat"
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={"language": "en", "content": draft},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    groups = body["inner_rhymes"]
+    perfect = next(g for g in groups if g["rhyme_type"] == "perfect")
+    by_line = {(o["line_index"], o["normalized"]) for o in perfect["occurrences"]}
+    assert (3, "cat") in by_line
+    assert (4, "mat") in by_line

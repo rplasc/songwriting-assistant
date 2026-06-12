@@ -31,7 +31,9 @@ _RECOGNIZED_LABELS: frozenset[str] = frozenset(
     }
 )
 
-_LABEL_LINE_RE = re.compile(r"^\s*\[\s*([A-Za-z][A-Za-z\- ]*?)\s*\]\s*$")
+_LABEL_LINE_RE = re.compile(r"^\s*\[\s*([^\[\]]+?)\s*\]\s*$")
+
+_MAX_LABEL_LENGTH = 40
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,13 +77,17 @@ def _parse_lines(content: str) -> list[_RawLine]:
 
 
 def _normalize_label(raw: str) -> str | None:
-    s = raw.strip().lower().replace(" ", "-")
-    if s in _RECOGNIZED_LABELS:
+    s = raw.strip().lower()
+    if not any(ch.isalpha() for ch in s):
+        # Bracketed numbers/punctuation ("[2]", "[...]") stay lyric lines.
+        return None
+    key = s.replace(" ", "-")
+    if key in _RECOGNIZED_LABELS:
         # Canonicalize: "prechorus" → "pre-chorus".
-        if s == "prechorus":
+        if key == "prechorus":
             return "pre-chorus"
-        return s
-    return None
+        return key
+    return s[:_MAX_LABEL_LENGTH]
 
 
 def parse_sections(

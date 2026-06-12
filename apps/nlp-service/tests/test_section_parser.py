@@ -61,3 +61,28 @@ def test_label_case_insensitive_and_pre_chorus() -> None:
     content = "[Pre-Chorus]\nbuild up\n[CHORUS]\nbig moment"
     sections = parse_sections(content)
     assert [s.label for s in sections] == ["pre-chorus", "chorus"]
+
+
+def test_spanish_labels_define_sections() -> None:
+    content = "[Coro]\nlinea uno\n[Puente]\nlinea dos"
+    sections = parse_sections(content)
+    assert [s.label for s in sections] == ["coro", "puente"]
+    assert [ln.text for ln in sections[0].lines] == ["linea uno"]
+    assert [ln.text for ln in sections[1].lines] == ["linea dos"]
+
+
+def test_custom_label_kept_verbatim_lowercased() -> None:
+    content = "[Drop 2]\nbass hits\n[Outro Vamp]\nfade away"
+    sections = parse_sections(content)
+    assert [s.label for s in sections] == ["drop 2", "outro vamp"]
+
+
+def test_custom_label_capped_at_40_chars() -> None:
+    long_label = "x" * 60
+    sections = parse_sections(f"[{long_label}]\nsome line")
+    assert sections[0].label == "x" * 40
+
+
+def test_letterless_bracket_line_is_lyric() -> None:
+    sections = parse_sections("[2]\nstill a stanza\n[...]\nstill here")
+    assert all(s.label is None for s in sections)

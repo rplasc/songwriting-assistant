@@ -150,10 +150,8 @@ class DraftAnalysisService:
                 total_syllables += sum(result.payload.syllable_pattern)
                 all_token_lists.extend(result.token_lists)
                 section_tokens[section.id] = result.token_objects
-                for offset, line_tokens in enumerate(result.token_objects):
-                    inner_rhyme_lines.append(
-                        (section.line_start + offset, line_tokens)
-                    )
+                for line, line_tokens in zip(section.lines, result.token_objects):
+                    inner_rhyme_lines.append((line.index, line_tokens))
 
         with timed(
             _logger,

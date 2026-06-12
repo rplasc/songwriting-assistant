@@ -1,23 +1,47 @@
 @import "tailwindcss";
 
 :root {
+  /* `light dark` lets every light-dark() token below follow the OS by default.
+     A manual override pins color-scheme via the [data-theme] rules further
+     down, and light-dark() re-resolves with no duplicated palette block. */
+  color-scheme: light dark;
+
   /* Warm parchment base */
-  --background: #f8f6f0;
-  --foreground: #1c1a17;
-  --surface: #fefcf8;
-  --surface-muted: #f2efe6;
-  --border: #dedad0;
+  --background: light-dark(#f8f6f0, #12110e);
+  --foreground: light-dark(#1c1a17, #ece8e1);
+  --surface: light-dark(#fefcf8, #1a1915);
+  --surface-muted: light-dark(#f2efe6, #232118);
+  --border: light-dark(#dedad0, #302e28);
 
   /* Accent: warm amber-ochre — ink, not corporate */
-  --accent: #a16207;
-  --accent-muted: #fef3c7;
+  --accent: light-dark(#a16207, #f59e0b);
+  --accent-muted: light-dark(#fef3c7, #292013);
 
-  --muted-foreground: #78736a;
+  --muted-foreground: light-dark(#78736a, #9c9589);
 
   /* Signal palette — tinted to the warm-paper world. Never neon. */
-  --success: #5f7a3a;   /* sage-olive ink */
-  --warn:    #b07a1f;   /* slightly cooler than accent, for "needs saving" */
-  --danger:  #9a3b2a;   /* warm rust */
+  --success: light-dark(#5f7a3a, #8aa863);   /* sage-olive ink */
+  --warn:    light-dark(#b07a1f, #d49a3e);   /* cooler than accent, for "needs saving" */
+  --danger:  light-dark(#9a3b2a, #c25f4b);   /* warm rust */
+
+  /* Notebook rule — softer than --border; sits under every lyric line. */
+  --notebook-line: light-dark(#e9e4d8, #2b2922);
+
+  /* Rhyme-group underline inks. Cycled g0..g4; must read on parchment. */
+  --rhyme-1: light-dark(#b3582f, #d98a5f);   /* rust */
+  --rhyme-2: light-dark(#3f6796, #7da3cc);   /* slate blue */
+  --rhyme-3: light-dark(#5f7a3a, #a3bd7e);   /* sage */
+  --rhyme-4: light-dark(#8b4f86, #c08bbb);   /* plum */
+  --rhyme-5: light-dark(#a16207, #d49a3e);   /* ochre */
+}
+
+/* Manual theme override — pins color-scheme so the light-dark() tokens above
+   resolve to the chosen side regardless of the OS preference. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -32,23 +56,10 @@
   --color-success: var(--success);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
+  --color-notebook-line: var(--notebook-line);
   --font-sans: var(--font-plex-sans);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #12110e;
-    --foreground: #ece8e1;
-    --surface: #1a1915;
-    --surface-muted: #232118;
-    --border: #302e28;
-    --accent: #f59e0b;
-    --accent-muted: #292013;
-    --muted-foreground: #9c9589;
-    --success: #8aa863;
-    --warn: #d49a3e;
-    --danger: #c25f4b;
-  }
+  --font-serif: var(--font-plex-serif);
+  --font-mono: var(--font-plex-mono);
 }
 
 html,
@@ -59,13 +70,16 @@ body {
     "Segoe UI", Roboto, sans-serif;
 }
 
-/* ── TipTap editor surface ────────────────────────── */
+/* ── TipTap editor surface — studio notebook ──────── */
 
 .tiptap {
   outline: none;
   min-height: 22rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  font-family: var(--font-plex-serif), Georgia, serif;
   font-size: 1.0625rem;
-  line-height: 1.8;
+  line-height: 1.9;
   letter-spacing: 0.01em;
   white-space: pre-wrap;
 }
@@ -73,13 +87,111 @@ body {
 @media (min-width: 1536px) {
   .tiptap {
     min-height: 28rem;
+    max-height: 65vh;
     font-size: 1.125rem;
   }
 }
 
+/* Every paragraph is a notebook line: soft rule below, syllable count at
+   the right edge, room reserved so text never collides with the count. */
 .tiptap p {
+  position: relative;
   margin: 0;
-  padding-bottom: 0.15em; /* slight inter-line breathing */
+  padding: 0.4em 3.25rem 0.4em 0;
+  border-bottom: 1px solid var(--notebook-line);
+}
+
+.tiptap p[data-syllables]::after {
+  content: attr(data-syllables);
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.55em;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+}
+
+/* Accent tick marking the line the caret is on. */
+.tiptap p.line-active::before {
+  content: "";
+  position: absolute;
+  right: 2.25rem;
+  top: 0.6em;
+  bottom: 0.6em;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.tiptap p.line-active[data-syllables]::after {
+  color: var(--accent);
+}
+
+/* "Syllable counts" off in Settings — hide the margin counts but keep the
+   reserved padding so lines don't reflow when the toggle changes. */
+.syllable-counts-hidden .tiptap p[data-syllables]::after {
+  content: none;
+}
+
+/* `[Chorus]` lines render as small-caps margin labels with a trailing rule.
+   Flex keeps the rule on the same baseline; if a browser misbehaves with
+   flex on an editable <p>, fall back to a background-gradient rule. */
+.tiptap p.line-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  border-bottom: none;
+  padding: 1.2em 0 0.15em 0;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.tiptap p.line-section-label::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.tiptap .bracket-dim {
+  opacity: 0.35;
+}
+
+/* Inner-rhyme groups — inks cycled per group. Two presentations, switched by
+   the wrapper's data-rhyme-style; the decoration classes stay the same so the
+   ProseMirror plugin is style-agnostic. Each group maps to one --rhyme-N ink. */
+.rhyme-style-underline .tiptap .rhyme-g0 { --rhyme-ink: var(--rhyme-1); }
+.rhyme-style-underline .tiptap .rhyme-g1 { --rhyme-ink: var(--rhyme-2); }
+.rhyme-style-underline .tiptap .rhyme-g2 { --rhyme-ink: var(--rhyme-3); }
+.rhyme-style-underline .tiptap .rhyme-g3 { --rhyme-ink: var(--rhyme-4); }
+.rhyme-style-underline .tiptap .rhyme-g4 { --rhyme-ink: var(--rhyme-5); }
+
+.rhyme-style-marker .tiptap .rhyme-g0 { --rhyme-ink: var(--rhyme-1); }
+.rhyme-style-marker .tiptap .rhyme-g1 { --rhyme-ink: var(--rhyme-2); }
+.rhyme-style-marker .tiptap .rhyme-g2 { --rhyme-ink: var(--rhyme-3); }
+.rhyme-style-marker .tiptap .rhyme-g3 { --rhyme-ink: var(--rhyme-4); }
+.rhyme-style-marker .tiptap .rhyme-g4 { --rhyme-ink: var(--rhyme-5); }
+
+/* Underline style — a fine colored rule under the rhyming word. */
+.rhyme-style-underline .tiptap [class*="rhyme-g"] {
+  text-decoration: underline solid var(--rhyme-ink) 1.5px;
+  text-underline-offset: 4px;
+}
+
+/* Marker style — a translucent highlighter swipe behind the whole word. The
+   ink is mixed toward transparent so text stays readable on either theme; a
+   little inline bleed (offset by negative margin) reads like a real marker. */
+.rhyme-style-marker .tiptap [class*="rhyme-g"] {
+  background-color: color-mix(in srgb, var(--rhyme-ink) 30%, transparent);
+  border-radius: 0.18em;
+  padding-inline: 0.12em;
+  margin-inline: -0.12em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .tiptap p.is-editor-empty:first-child::before {

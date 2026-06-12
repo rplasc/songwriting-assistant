@@ -67,7 +67,7 @@ export interface DraftAnalysisSectionResult {
   lineEnd: number;
   lineCount: number;
   rhymeScheme: string | null;
-  rhymeSchemeConfidence: number | null;
+  rhymeSchemeConfidence: "full" | "partial" | null;
   syllablePattern: number[];
   syllableVariance: number;
   cadenceClass: string;

@@ -37,4 +37,23 @@ describe('AnalyzeLineDto', () => {
     const errors = await validateDto({ line: '   ' });
     expect(errors).toContain('isNotEmpty');
   });
+
+  it('accepts an optional target_word', async () => {
+    expect(
+      await validateDto({ line: 'hello world', target_word: 'hello' }),
+    ).toEqual([]);
+  });
+
+  it('rejects a blank target_word', async () => {
+    const errors = await validateDto({ line: 'hello', target_word: '   ' });
+    expect(errors).toContain('isNotEmpty');
+  });
+
+  it('rejects an overlong target_word', async () => {
+    const errors = await validateDto({
+      line: 'hello',
+      target_word: 'x'.repeat(129),
+    });
+    expect(errors).toContain('maxLength');
+  });
 });

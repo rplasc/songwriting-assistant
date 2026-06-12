@@ -90,6 +90,7 @@ export class EditorResponsePresenter {
     mode: RhymeMode,
     language: Language,
     requestId?: string,
+    targetWord?: string | null,
   ): EditorAnalysisPayload {
     return {
       line: line.line,
@@ -103,7 +104,9 @@ export class EditorResponsePresenter {
         })),
       },
       rhymes: {
-        target_word: line.last_word?.normalized ?? null,
+        // Echo the word that was actually rhymed (caret word or last-word
+        // fallback) so the client can correlate replies.
+        target_word: targetWord ?? line.last_word?.normalized ?? null,
         // If FastAPI returned a resolved mode in its meta, prefer it so the
         // echoed value reflects exactly what produced these candidates.
         mode: (rhymes?.meta?.mode as RhymeMode | undefined) ?? mode,
@@ -153,7 +156,7 @@ export class EditorResponsePresenter {
       })),
       summary: {
         family_counts: upstream.summary?.family_counts ?? {},
-        returned: upstream.summary?.returned ?? (upstream.rhymes?.length ?? 0),
+        returned: upstream.summary?.returned ?? upstream.rhymes?.length ?? 0,
         requested_limit: upstream.summary?.requested_limit ?? 0,
       },
       capabilities: {

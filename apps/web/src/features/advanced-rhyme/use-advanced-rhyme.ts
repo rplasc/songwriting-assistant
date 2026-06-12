@@ -18,6 +18,8 @@ const MAX_QUERY_CHARS = 128;
 
 export interface UseAdvancedRhymeInput {
   activeLine: string;
+  /** Caret word — preferred "word" target when present. */
+  activeWord?: string | null;
   language: Language;
   enabled: boolean;
   /** Initial mode; the hook owns it after mount. Defaults to "multisyllabic". */
@@ -50,10 +52,13 @@ function lastWordOf(line: string): string | null {
 
 function resolveQuery(
   line: string,
+  activeWord: string | null,
   targetType: AdvancedRhymeTargetType,
 ): string | null {
   if (targetType === "word") {
-    return lastWordOf(line);
+    // The caret word when known (matches the suggestion strip's target);
+    // otherwise the line's last word.
+    return activeWord ?? lastWordOf(line);
   }
   const trimmed = line.trim();
   if (!trimmed) return null;
@@ -65,7 +70,7 @@ function resolveQuery(
 export function useAdvancedRhyme(
   input: UseAdvancedRhymeInput,
 ): UseAdvancedRhymeReturn {
-  const { activeLine, language, enabled } = input;
+  const { activeLine, activeWord = null, language, enabled } = input;
   const [mode, setMode] = useState<AdvancedRhymeMode>(
     input.initialMode ?? "multisyllabic",
   );
@@ -79,8 +84,8 @@ export function useAdvancedRhyme(
   const inFlightRef = useRef<AbortController | null>(null);
 
   const resolvedQuery = useMemo(
-    () => resolveQuery(activeLine, targetType),
-    [activeLine, targetType],
+    () => resolveQuery(activeLine, activeWord, targetType),
+    [activeLine, activeWord, targetType],
   );
 
   const run = useCallback(

@@ -51,7 +51,7 @@ interface ServerSection {
   line_end: number;
   line_count: number;
   rhyme_scheme: string | null;
-  rhyme_scheme_confidence: number | null;
+  rhyme_scheme_confidence: "full" | "partial" | null;
   syllable_pattern: number[];
   syllable_variance: number;
   cadence_class: string;
@@ -65,6 +65,10 @@ interface ServerSummary {
   notable_patterns: string[];
 }
 
+interface ServerDetail {
+  sections: ServerSection[];
+}
+
 export interface ServerDraftAnalysisPayload {
   draft_id: string | null;
   revision_hash: string;
@@ -74,7 +78,7 @@ export interface ServerDraftAnalysisPayload {
     language: string;
     title: string | null;
     summary: ServerSummary;
-    sections: ServerSection[];
+    detail: ServerDetail;
     insights: ServerInsight[];
     inner_rhymes?: ServerInnerRhymeGroup[];
     capabilities: ServerCapabilities;
@@ -169,7 +173,7 @@ export function toDraftAnalysis(
     language: coerceLanguage(payload.analysis?.language),
     title: payload.analysis?.title ?? null,
     summary: toSummary(payload.analysis?.summary),
-    sections: (payload.analysis?.sections ?? []).map(toSection),
+    sections: (payload.analysis?.detail?.sections ?? []).map(toSection),
     insights: (payload.analysis?.insights ?? []).map(toInsight),
     innerRhymes: toInnerRhymeGroups(payload.analysis?.inner_rhymes),
     capabilities: toCapabilities(payload.analysis?.capabilities ?? {}),

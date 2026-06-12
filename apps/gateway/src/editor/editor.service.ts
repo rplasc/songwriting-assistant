@@ -18,6 +18,8 @@ import {
 
 export interface AnalyzeOptions {
   requestId?: string;
+  /** Rhyme this word (the caret word) instead of the line's last word. */
+  targetWord?: string;
   rhymeMode?: RhymeMode;
   language?: Language;
 }
@@ -50,10 +52,13 @@ export class EditorService {
     const t0 = performance.now();
     const lineResp = await this.fastapi.analyzeLine({ line, language });
 
-    const last = lineResp.last_word;
-    const rhymes = last
+    // The caret word from the client wins; the line's last word is the
+    // fallback so bare requests keep their old behavior.
+    const targetWord =
+      options.targetWord ?? lineResp.last_word?.normalized ?? null;
+    const rhymes = targetWord
       ? await this.fastapi.getRhymes({
-          word: last.normalized,
+          word: targetWord,
           mode,
           language,
         })
@@ -66,6 +71,7 @@ export class EditorService {
       mode,
       language,
       options.requestId,
+      targetWord,
     );
   }
 

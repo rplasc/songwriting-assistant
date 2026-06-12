@@ -38,24 +38,29 @@ def near_rhyme_key(phonemes: Sequence[str]) -> str | None:
     Strategy:
       - anchor on the last stressed (or last) vowel
       - keep the vowel identity (ignoring stress level)
-      - replace each following consonant with its manner-of-articulation class
+      - reduce the coda to just its first phoneme: a following vowel keeps its
+        identity, a following consonant becomes its manner-of-articulation class
 
     This collapses voicing pairs (cat/cad), and groups consonants that share
     articulation so endings like "-ack" / "-ock" remain distinct (different
-    vowels) while "-it" / "-id" merge.
+    vowels) while "-it" / "-id" merge. Reducing the coda to a single unit also
+    lets codas of different lengths still match (mind/time, friend/again),
+    since slant-rhyme families commonly add or drop a trailing consonant.
     """
     start = _stressed_or_last_vowel(phonemes)
     if start < 0:
         return None
     parts: list[str] = [_vowel_base(phonemes[start])]
-    for p in phonemes[start + 1 :]:
-        if _is_vowel(p):
-            parts.append(_vowel_base(p))
+    coda = phonemes[start + 1 :]
+    if coda:
+        first = coda[0]
+        if _is_vowel(first):
+            parts.append(_vowel_base(first))
         else:
             # Unknown phoneme falls through verbatim, creating a singleton bucket
             # that only matches itself. All standard ARPABET consonants are covered
             # above; this path only fires for non-standard or future phonemes.
-            parts.append(_MANNER_CLASS.get(p, p))
+            parts.append(_MANNER_CLASS.get(first, first))
     return "_".join(parts)
 
 

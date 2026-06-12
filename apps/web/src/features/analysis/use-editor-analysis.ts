@@ -32,6 +32,7 @@ export interface UseEditorAnalysisReturn {
 
 export function useEditorAnalysis(
   activeLine: string,
+  activeWord: string | null,
   rhymeMode: ClientRhymeMode = DEFAULT_RHYME_MODE,
   language: Language = DEFAULT_LANGUAGE,
 ): UseEditorAnalysisReturn {
@@ -42,6 +43,7 @@ export function useEditorAnalysis(
 
   const latestSentRef = useRef<{
     line: string;
+    targetWord: string | null;
     mode: RhymeMode;
     language: Language;
   } | null>(null);
@@ -52,6 +54,14 @@ export function useEditorAnalysis(
     const removeAnalysis = adapter.onAnalysis((payload) => {
       const sent = latestSentRef.current;
       if (!sent || payload.line !== sent.line) return;
+      // Same line text can be in flight for two caret words — the gateway
+      // echoes the target it rhymed, so only the latest request's reply lands.
+      if (
+        sent.targetWord !== null &&
+        payload.rhymes?.target_word !== sent.targetWord
+      ) {
+        return;
+      }
       setResult(toAnalysisResult(payload));
       setStatus("ready");
       setError(null);
@@ -95,17 +105,24 @@ export function useEditorAnalysis(
     const alreadyReady =
       sent &&
       sent.line === trimmed &&
+      sent.targetWord === activeWord &&
       sent.mode === resolvedMode &&
       sent.language === language &&
       status === "ready";
     if (alreadyReady) return;
 
     const timer = setTimeout(() => {
-      latestSentRef.current = { line: trimmed, mode: resolvedMode, language };
+      latestSentRef.current = {
+        line: trimmed,
+        targetWord: activeWord,
+        mode: resolvedMode,
+        language,
+      };
       setStatus("loading");
       setError(null);
       getSocketAdapter().emit({
         line: trimmed,
+        targetWord: activeWord ?? undefined,
         rhymeMode: resolvedMode,
         language,
       });
@@ -113,7 +130,7 @@ export function useEditorAnalysis(
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLine, resolvedMode, language]);
+  }, [activeLine, activeWord, resolvedMode, language]);
 
   return { result, status, error };
 }

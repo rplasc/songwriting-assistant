@@ -45,6 +45,7 @@ export class EditorGateway {
     try {
       const result = await this.editor.analyze(dto.line, {
         requestId,
+        targetWord: dto.target_word,
         rhymeMode: dto.rhyme_mode,
         language: dto.language,
       });

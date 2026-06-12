@@ -1,0 +1,130 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { SettingsMenu } from "@/components/editor/settings-menu";
+
+function setup(overrides: Partial<React.ComponentProps<typeof SettingsMenu>> = {}) {
+  const onThemeChange = vi.fn();
+  const onRhymeHighlightsChange = vi.fn();
+  const onRhymeHighlightStyleChange = vi.fn();
+  const onSyllableCountsChange = vi.fn();
+  render(
+    <SettingsMenu
+      language="en"
+      theme="system"
+      onThemeChange={onThemeChange}
+      rhymeHighlights={true}
+      onRhymeHighlightsChange={onRhymeHighlightsChange}
+      rhymeHighlightStyle="marker"
+      onRhymeHighlightStyleChange={onRhymeHighlightStyleChange}
+      syllableCounts={true}
+      onSyllableCountsChange={onSyllableCountsChange}
+      {...overrides}
+    />,
+  );
+  return {
+    onThemeChange,
+    onRhymeHighlightsChange,
+    onRhymeHighlightStyleChange,
+    onSyllableCountsChange,
+  };
+}
+
+describe("SettingsMenu", () => {
+  it("opens on click and marks the active theme", async () => {
+    const user = userEvent.setup();
+    setup({ theme: "dark" });
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+
+    const dark = screen.getByRole("radio", { name: /dark/i });
+    expect(dark).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /system/i })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
+
+  it("emits the chosen theme", async () => {
+    const user = userEvent.setup();
+    const { onThemeChange } = setup();
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("radio", { name: /light/i }));
+
+    expect(onThemeChange).toHaveBeenCalledWith("light");
+  });
+
+  it("toggles rhyme highlights via the switch", async () => {
+    const user = userEvent.setup();
+    const { onRhymeHighlightsChange } = setup({ rhymeHighlights: true });
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    const sw = screen.getByRole("switch", { name: /rhyme highlights/i });
+    expect(sw).toHaveAttribute("aria-checked", "true");
+
+    await user.click(sw);
+    expect(onRhymeHighlightsChange).toHaveBeenCalledWith(false);
+  });
+
+  it("toggles syllable counts via the switch", async () => {
+    const user = userEvent.setup();
+    const { onSyllableCountsChange } = setup({ syllableCounts: true });
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    const sw = screen.getByRole("switch", { name: /syllable counts/i });
+    expect(sw).toHaveAttribute("aria-checked", "true");
+
+    await user.click(sw);
+    expect(onSyllableCountsChange).toHaveBeenCalledWith(false);
+  });
+
+  it("marks the active highlight style and emits a change", async () => {
+    const user = userEvent.setup();
+    const { onRhymeHighlightStyleChange } = setup({
+      rhymeHighlightStyle: "marker",
+    });
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+
+    const marker = screen.getByRole("radio", { name: /marker/i });
+    const underline = screen.getByRole("radio", { name: /underline/i });
+    expect(marker).toHaveAttribute("aria-checked", "true");
+    expect(underline).toHaveAttribute("aria-checked", "false");
+
+    await user.click(underline);
+    expect(onRhymeHighlightStyleChange).toHaveBeenCalledWith("underline");
+  });
+
+  it("disables the style picker when highlights are off", async () => {
+    const user = userEvent.setup();
+    const { onRhymeHighlightStyleChange } = setup({ rhymeHighlights: false });
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    const underline = screen.getByRole("radio", { name: /underline/i });
+    expect(underline).toBeDisabled();
+
+    await user.click(underline);
+    expect(onRhymeHighlightStyleChange).not.toHaveBeenCalled();
+  });
+
+  it("closes on Escape", async () => {
+    const user = userEvent.setup();
+    setup();
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("speaks Spanish when the draft does", async () => {
+    const user = userEvent.setup();
+    setup({ language: "es" });
+
+    await user.click(screen.getByRole("button", { name: /ajustes/i }));
+    expect(screen.getByText(/apariencia/i)).toBeInTheDocument();
+    expect(screen.getByText(/resaltar rimas/i)).toBeInTheDocument();
+  });
+});

@@ -13,6 +13,8 @@ export interface SocketErrorPayload {
 
 export interface EmitAnalyzeOptions {
   line: string;
+  /** Rhyme this word (the caret word) instead of the line's last word. */
+  targetWord?: string;
   rhymeMode?: RhymeMode;
   language?: Language;
 }
@@ -56,12 +58,14 @@ export interface SocketAnalysisAdapter {
 export function getSocketAdapter(): SocketAnalysisAdapter {
   const s = getSocket();
   return {
-    emit({ line, rhymeMode, language }) {
+    emit({ line, targetWord, rhymeMode, language }) {
       const payload: {
         line: string;
+        target_word?: string;
         rhyme_mode?: RhymeMode;
         language?: Language;
       } = { line };
+      if (targetWord) payload.target_word = targetWord;
       if (rhymeMode) payload.rhyme_mode = rhymeMode;
       if (language) payload.language = language;
       s.emit("editor.analyze", payload);

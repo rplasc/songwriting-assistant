@@ -1,4 +1,4 @@
-from app.domain.near_rhyme_rules import near_rhyme_key
+from app.domain.near_rhyme_rules import inner_near_rhyme_key, near_rhyme_key
 from app.domain.rhyme_rules import rhyme_key
 
 
@@ -84,3 +84,42 @@ def test_near_rhyme_does_not_group_unrelated_diphthongs() -> None:
     boy = ["B", "OY1"]
     buy = ["B", "AY1"]
     assert near_rhyme_key(boy) != near_rhyme_key(buy)
+
+
+# --- inner_near_rhyme_key: stricter variant for in-editor highlighting ---
+
+
+def test_inner_near_collapses_voicing_pair() -> None:
+    # cat/cad still slant-match: exact vowel, fuzzy coda.
+    assert inner_near_rhyme_key(["K", "AE1", "T"]) == inner_near_rhyme_key(["K", "AE1", "D"])
+
+
+def test_inner_near_keeps_coda_cluster_extension() -> None:
+    # mind/time keep matching: same exact vowel, nasal-led codas.
+    mind = ["M", "AY1", "N", "D"]
+    time = ["T", "AY1", "M"]
+    assert inner_near_rhyme_key(mind) == inner_near_rhyme_key(time)
+
+
+def test_inner_near_does_not_group_vowel_neighbors() -> None:
+    # Unlike near_rhyme_key, vowel identity is exact: again/thin and
+    # love/move stay separate so highlighting doesn't flood.
+    again = ["AH0", "G", "EH1", "N"]
+    thin = ["TH", "IH1", "N"]
+    assert inner_near_rhyme_key(again) != inner_near_rhyme_key(thin)
+    love = ["L", "AH1", "V"]
+    move = ["M", "UW1", "V"]
+    assert inner_near_rhyme_key(love) != inner_near_rhyme_key(move)
+
+
+def test_inner_near_does_not_group_open_syllable_back_vowels() -> None:
+    # "you": Y UW1  "so": S OW1 — the vowel-class key merged these into one
+    # open-syllable mega-bucket; the inner key keeps them apart.
+    assert inner_near_rhyme_key(["Y", "UW1"]) != inner_near_rhyme_key(["S", "OW1"])
+
+
+def test_inner_near_requires_stressed_anchor() -> None:
+    # "the": DH AH0 — no stressed vowel anywhere, so no slant key at all.
+    assert inner_near_rhyme_key(["DH", "AH0"]) is None
+    assert inner_near_rhyme_key([]) is None
+    assert inner_near_rhyme_key(["K", "T"]) is None

@@ -174,6 +174,50 @@ def test_unknown_word_heuristic_tail_can_match() -> None:
     assert {o.normalized for o in perfect[0].occurrences} == {"zeb", "set"}
 
 
+def test_function_words_do_not_seed_near_groups() -> None:
+    # "them" (DH EH1 M) and "ten" (T EH1 N) share the inner near key
+    # (EH + nasal coda), but "them" is a function word -> no near group.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "them": ("DH", "EH1", "M"),
+            "ten": ("T", "EH1", "N"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups([_line(["them", "ten"])], phon, "en")
+    assert groups == []
+    # Sanity: the same sounds on content words DO form a near group.
+    def phon_content(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "hem": ("HH", "EH1", "M"),
+            "ten": ("T", "EH1", "N"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups([_line(["hem", "ten"])], phon_content, "en")
+    assert [g.rhyme_type for g in groups] == ["near"]
+
+
+def test_all_function_word_perfect_group_is_suppressed() -> None:
+    # "you"/"do" rhyme perfectly but highlighting them is noise; adding a
+    # content word ("true") anchors the group and lets them ride along.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "you": ("Y", "UW1"),
+            "do": ("D", "UW1"),
+            "true": ("T", "R", "UW1"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    assert find_inner_rhyme_groups([_line(["you", "do"])], phon, "en") == []
+    groups = find_inner_rhyme_groups([_line(["you", "do", "true"])], phon, "en")
+    assert len(groups) == 1
+    assert {o.normalized for o in groups[0].occurrences} == {"you", "do", "true"}
+
+
 def test_deterministic_ids() -> None:
     line = _line(["cat", "sat", "mat"])
     g1 = find_inner_rhyme_groups([line], _phonemes_for, "en")

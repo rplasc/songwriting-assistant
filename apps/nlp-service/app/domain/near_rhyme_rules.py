@@ -88,3 +88,33 @@ def near_rhyme_key(phonemes: Sequence[str]) -> str | None:
     return "_".join(parts)
 
 
+def inner_near_rhyme_key(phonemes: Sequence[str]) -> str | None:
+    """Stricter near key for in-editor inner-rhyme highlighting.
+
+    ``near_rhyme_key`` trades precision for recall (vowel neighborhoods,
+    unstressed anchors) because the suggestion path re-scores its candidates
+    afterwards. The inner-rhyme detector has no scoring pass — bucket
+    membership *is* the highlight group — so this key:
+
+      - requires a stressed anchor vowel (slant rhyme hinges on stressed
+        syllables; schwa-only function words never anchor a group)
+      - keeps the exact vowel, so "you"/"so"/"world" no longer share a
+        vowel-class mega-bucket
+
+    Only the coda stays fuzzy (manner-of-articulation classes), preserving
+    classic slant pairs like cat/cad and mind/time.
+    """
+    start = _stressed_or_last_vowel(phonemes)
+    if start < 0 or phonemes[start][-1] not in ("1", "2"):
+        return None
+    parts: list[str] = [_vowel_base(phonemes[start])]
+    coda = phonemes[start + 1 :]
+    if coda:
+        first = coda[0]
+        if _is_vowel(first):
+            parts.append(_vowel_base(first))
+        else:
+            parts.append(_MANNER_CLASS.get(first, first))
+    return "_".join(parts)
+
+

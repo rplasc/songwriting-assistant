@@ -5,7 +5,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { InnerRhymeGroup } from "@/features/analysis/analysis-types";
 import { describeLines, type LineDescriptor } from "./line-descriptors";
 
-export const RHYME_GROUP_CLASS_COUNT = 5;
+export const RHYME_GROUP_CLASS_COUNT = 8;
 
 export interface InnerRhymePayload {
   groups: InnerRhymeGroup[];

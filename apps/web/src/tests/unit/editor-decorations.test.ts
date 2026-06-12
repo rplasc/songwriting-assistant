@@ -155,8 +155,8 @@ describe("computeInnerRhymeRanges", () => {
   });
 
   it("cycles underline classes across groups", () => {
-    const source = ["aa bb cc dd ee ff"];
-    const groups = ["aa", "bb", "cc", "dd", "ee", "ff"].map((word, i) => ({
+    const source = ["aa bb cc dd ee ff gg hh ii"];
+    const groups = ["aa", "bb", "cc", "dd", "ee", "ff", "gg", "hh", "ii"].map((word, i) => ({
       id: `g${i}`,
       rhymeType: "perfect" as const,
       confidence: "high" as const,
@@ -182,6 +182,9 @@ describe("computeInnerRhymeRanges", () => {
       "rhyme-g2",
       "rhyme-g3",
       "rhyme-g4",
+      "rhyme-g5",
+      "rhyme-g6",
+      "rhyme-g7",
       "rhyme-g0",
     ]);
   });

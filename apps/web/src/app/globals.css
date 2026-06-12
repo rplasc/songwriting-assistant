@@ -27,12 +27,15 @@
   /* Notebook rule — softer than --border; sits under every lyric line. */
   --notebook-line: light-dark(#e9e4d8, #2b2922);
 
-  /* Rhyme-group underline inks. Cycled g0..g4; must read on parchment. */
+  /* Rhyme-group underline inks. Cycled g0..g7; must read on parchment. */
   --rhyme-1: light-dark(#b3582f, #d98a5f);   /* rust */
   --rhyme-2: light-dark(#3f6796, #7da3cc);   /* slate blue */
   --rhyme-3: light-dark(#5f7a3a, #a3bd7e);   /* sage */
   --rhyme-4: light-dark(#8b4f86, #c08bbb);   /* plum */
   --rhyme-5: light-dark(#a16207, #d49a3e);   /* ochre */
+  --rhyme-6: light-dark(#2f7d74, #6cb8ad);   /* teal */
+  --rhyme-7: light-dark(#a13d52, #d27f91);   /* burgundy */
+  --rhyme-8: light-dark(#5c5aa8, #9d9bd6);   /* periwinkle */
 }
 
 /* Manual theme override — pins color-scheme so the light-dark() tokens above
@@ -169,12 +172,18 @@ body {
 .rhyme-style-underline .tiptap .rhyme-g2 { --rhyme-ink: var(--rhyme-3); }
 .rhyme-style-underline .tiptap .rhyme-g3 { --rhyme-ink: var(--rhyme-4); }
 .rhyme-style-underline .tiptap .rhyme-g4 { --rhyme-ink: var(--rhyme-5); }
+.rhyme-style-underline .tiptap .rhyme-g5 { --rhyme-ink: var(--rhyme-6); }
+.rhyme-style-underline .tiptap .rhyme-g6 { --rhyme-ink: var(--rhyme-7); }
+.rhyme-style-underline .tiptap .rhyme-g7 { --rhyme-ink: var(--rhyme-8); }
 
 .rhyme-style-marker .tiptap .rhyme-g0 { --rhyme-ink: var(--rhyme-1); }
 .rhyme-style-marker .tiptap .rhyme-g1 { --rhyme-ink: var(--rhyme-2); }
 .rhyme-style-marker .tiptap .rhyme-g2 { --rhyme-ink: var(--rhyme-3); }
 .rhyme-style-marker .tiptap .rhyme-g3 { --rhyme-ink: var(--rhyme-4); }
 .rhyme-style-marker .tiptap .rhyme-g4 { --rhyme-ink: var(--rhyme-5); }
+.rhyme-style-marker .tiptap .rhyme-g5 { --rhyme-ink: var(--rhyme-6); }
+.rhyme-style-marker .tiptap .rhyme-g6 { --rhyme-ink: var(--rhyme-7); }
+.rhyme-style-marker .tiptap .rhyme-g7 { --rhyme-ink: var(--rhyme-8); }
 
 /* Underline style — a fine colored rule under the rhyming word. */
 .rhyme-style-underline .tiptap [class*="rhyme-g"] {
@@ -186,7 +195,7 @@ body {
    ink is mixed toward transparent so text stays readable on either theme; a
    little inline bleed (offset by negative margin) reads like a real marker. */
 .rhyme-style-marker .tiptap [class*="rhyme-g"] {
-  background-color: color-mix(in srgb, var(--rhyme-ink) 30%, transparent);
+  background-color: color-mix(in srgb, var(--rhyme-ink) 38%, transparent);
   border-radius: 0.18em;
   padding-inline: 0.12em;
   margin-inline: -0.12em;

@@ -130,6 +130,26 @@ export function useDraftAnalysis(
     }
   }, []);
 
+  const resetAnalysis = useCallback(() => {
+    if (inFlightRef.current) {
+      inFlightRef.current.abort();
+      inFlightRef.current = null;
+    }
+    setStatus("idle");
+    setAnalysis(null);
+    setAnalyzedContent(null);
+    setError(null);
+    setLastAnalyzedKey(null);
+    autoFiredForDraftRef.current = null;
+  }, []);
+
+  const previousDraftIdRef = useRef(draftId);
+  useEffect(() => {
+    if (previousDraftIdRef.current === draftId) return;
+    previousDraftIdRef.current = draftId;
+    resetAnalysis();
+  }, [draftId, resetAnalysis]);
+
   // Auto-fire once per draft when it opens with enough content.
   useEffect(() => {
     if (!draftId) {
@@ -141,6 +161,10 @@ export function useDraftAnalysis(
     autoFiredForDraftRef.current = draftId;
     void run({});
   }, [draftId, content, run]);
+
+  useEffect(() => {
+    if (!hasEnoughContent(content)) resetAnalysis();
+  }, [content, resetAnalysis]);
 
   // Cancel in-flight requests when the draft id changes or on unmount.
   useEffect(() => {

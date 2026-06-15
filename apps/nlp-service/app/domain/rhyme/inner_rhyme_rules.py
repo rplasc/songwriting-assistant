@@ -218,9 +218,11 @@ def _build_groups(
         # plain repetition (handled by repetition_rules) isn't mislabeled rhyme.
         if len(occ) < 2 or len({o.normalized for o in occ}) < 2:
             continue
-        # A group needs a content-word anchor: "you"/"do" is a perfect match
-        # phonetically but highlighting it reads as noise.
-        if all(o.normalized in function_words for o in occ):
+        # Function words may form a group when the sound match is *exact*
+        # (perfect tier): "your"/"for" is a real rhyme worth highlighting. A
+        # near/slant match between function words ("them"/"then") is noise, so
+        # all-function-word groups are still suppressed in the near tier.
+        if rhyme_type == "near" and all(o.normalized in function_words for o in occ):
             continue
         ordered = sorted(occ, key=lambda o: (o.line_index, o.word_index))
         groups.append(

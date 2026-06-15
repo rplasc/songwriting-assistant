@@ -94,11 +94,20 @@ def test_inner_near_collapses_voicing_pair() -> None:
     assert inner_near_rhyme_key(["K", "AE1", "T"]) == inner_near_rhyme_key(["K", "AE1", "D"])
 
 
-def test_inner_near_keeps_coda_cluster_extension() -> None:
-    # mind/time keep matching: same exact vowel, nasal-led codas.
+def test_inner_near_keeps_same_length_cluster_codas() -> None:
+    # mind/find keep matching: same exact vowel, nasal-led cluster codas.
+    mind = ["M", "AY1", "N", "D"]
+    find = ["F", "AY1", "N", "D"]
+    assert inner_near_rhyme_key(mind) == inner_near_rhyme_key(find)
+
+
+def test_inner_near_separates_cluster_and_single_coda() -> None:
+    # mind (N D cluster) no longer slant-merges with time (M, single coda):
+    # the coda-length tag narrows "add/drop a trailing consonant" merges that
+    # over-grouped the highlight tier.
     mind = ["M", "AY1", "N", "D"]
     time = ["T", "AY1", "M"]
-    assert inner_near_rhyme_key(mind) == inner_near_rhyme_key(time)
+    assert inner_near_rhyme_key(mind) != inner_near_rhyme_key(time)
 
 
 def test_inner_near_does_not_group_vowel_neighbors() -> None:
@@ -112,10 +121,12 @@ def test_inner_near_does_not_group_vowel_neighbors() -> None:
     assert inner_near_rhyme_key(love) != inner_near_rhyme_key(move)
 
 
-def test_inner_near_does_not_group_open_syllable_back_vowels() -> None:
-    # "you": Y UW1  "so": S OW1 — the vowel-class key merged these into one
-    # open-syllable mega-bucket; the inner key keeps them apart.
-    assert inner_near_rhyme_key(["Y", "UW1"]) != inner_near_rhyme_key(["S", "OW1"])
+def test_inner_near_drops_open_syllables() -> None:
+    # "you": Y UW1  "so": S OW1 — open syllables carry no coda to slant-match
+    # on, so the inner key drops them entirely (no mega-bucket). True
+    # open-syllable rhymes are still caught by the perfect tier.
+    assert inner_near_rhyme_key(["Y", "UW1"]) is None
+    assert inner_near_rhyme_key(["S", "OW1"]) is None
 
 
 def test_inner_near_requires_stressed_anchor() -> None:

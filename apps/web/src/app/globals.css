@@ -27,15 +27,17 @@
   /* Notebook rule — softer than --border; sits under every lyric line. */
   --notebook-line: light-dark(#e9e4d8, #2b2922);
 
-  /* Rhyme-group underline inks. Cycled g0..g7; must read on parchment. */
-  --rhyme-1: light-dark(#b3582f, #d98a5f);   /* rust */
-  --rhyme-2: light-dark(#3f6796, #7da3cc);   /* slate blue */
-  --rhyme-3: light-dark(#5f7a3a, #a3bd7e);   /* sage */
-  --rhyme-4: light-dark(#8b4f86, #c08bbb);   /* plum */
-  --rhyme-5: light-dark(#a16207, #d49a3e);   /* ochre */
-  --rhyme-6: light-dark(#2f7d74, #6cb8ad);   /* teal */
-  --rhyme-7: light-dark(#a13d52, #d27f91);   /* burgundy */
-  --rhyme-8: light-dark(#5c5aa8, #9d9bd6);   /* periwinkle */
+  /* Rhyme-group inks. One stable color per sound (slots g0..g7). Vibrant
+     purple/green/pink-led palette; dark values run bright so the marker style's
+     38% wash reads on the dark surface. */
+  --rhyme-1: light-dark(#7c3aed, #a78bfa);   /* purple */
+  --rhyme-2: light-dark(#059669, #34d399);   /* green */
+  --rhyme-3: light-dark(#db2777, #f472b6);   /* pink */
+  --rhyme-4: light-dark(#2563eb, #60a5fa);   /* blue */
+  --rhyme-5: light-dark(#ea580c, #fb923c);   /* orange */
+  --rhyme-6: light-dark(#0891b2, #22d3ee);   /* cyan */
+  --rhyme-7: light-dark(#b8890b, #facc15);   /* gold */
+  --rhyme-8: light-dark(#c026d3, #e879f9);   /* magenta */
 }
 
 /* Manual theme override — pins color-scheme so the light-dark() tokens above

@@ -23,6 +23,24 @@ export interface RhymeUnderlineRange {
 export const innerRhymeKey = new PluginKey<DecorationSet>("innerRhymes");
 
 /**
+ * Map a rhyme group's phonetic key to one of the RHYME_GROUP_CLASS_COUNT color
+ * slots. Hashing the key (rather than the group's position) keeps a given sound
+ * the same color regardless of how many groups precede it or how the document is
+ * edited — the same sound always reads as the same color. With more distinct
+ * co-visible sounds than slots, two sounds can share a color; that's an accepted
+ * ceiling, matching a fixed palette. FNV-1a over the key chars, folded into the
+ * slot count. Exported for unit tests.
+ */
+export function rhymeColorSlot(rhymeKey: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < rhymeKey.length; i++) {
+    h ^= rhymeKey.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0) % RHYME_GROUP_CLASS_COUNT;
+}
+
+/**
  * Map analysis occurrences (1-based line index, char offsets into the
  * STRIPPED line text) to ProseMirror ranges. An occurrence is skipped when
  * its line has changed since analysis or its offsets no longer land on the
@@ -35,8 +53,8 @@ export function computeInnerRhymeRanges(
 ): RhymeUnderlineRange[] {
   const byLine = new Map(lines.map((l) => [l.line, l]));
   const ranges: RhymeUnderlineRange[] = [];
-  payload.groups.forEach((group, groupIndex) => {
-    const className = `rhyme-g${groupIndex % RHYME_GROUP_CLASS_COUNT}`;
+  payload.groups.forEach((group) => {
+    const className = `rhyme-g${rhymeColorSlot(group.rhymeKey)}`;
     for (const occ of group.occurrences) {
       const descriptor = byLine.get(occ.lineIndex);
       const source = payload.sourceLines[occ.lineIndex - 1];

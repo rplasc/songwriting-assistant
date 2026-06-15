@@ -100,21 +100,32 @@ def inner_near_rhyme_key(phonemes: Sequence[str]) -> str | None:
         syllables; schwa-only function words never anchor a group)
       - keeps the exact vowel, so "you"/"so"/"world" no longer share a
         vowel-class mega-bucket
+      - requires a coda: open syllables ("you" UW1, "so" OW1) carry no
+        consonant to slant-match on, and pooling every open syllable with the
+        same vowel produces mega-buckets of false positives (true open-syllable
+        rhymes are still caught by the perfect tier)
+      - tags the coda length (single consonant vs cluster) so a bare ending
+        doesn't merge with a cluster ending — "cat"/"cad" stay together but
+        "time" no longer slant-merges with "mind"
 
-    Only the coda stays fuzzy (manner-of-articulation classes), preserving
-    classic slant pairs like cat/cad and mind/time.
+    The coda manner stays fuzzy (manner-of-articulation classes), preserving
+    classic same-length slant pairs like cat/cad and mind/find.
     """
     start = _stressed_or_last_vowel(phonemes)
     if start < 0 or phonemes[start][-1] not in ("1", "2"):
         return None
-    parts: list[str] = [_vowel_base(phonemes[start])]
     coda = phonemes[start + 1 :]
-    if coda:
-        first = coda[0]
-        if _is_vowel(first):
-            parts.append(_vowel_base(first))
-        else:
-            parts.append(_MANNER_CLASS.get(first, first))
+    if not coda:
+        return None
+    parts: list[str] = [_vowel_base(phonemes[start])]
+    first = coda[0]
+    if _is_vowel(first):
+        parts.append(_vowel_base(first))
+    else:
+        parts.append(_MANNER_CLASS.get(first, first))
+    # Cluster vs single-consonant coda: narrows "add/drop a trailing consonant"
+    # merges that over-group the highlight tier.
+    parts.append("c" if len(coda) > 1 else "s")
     return "_".join(parts)
 
 

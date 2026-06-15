@@ -200,22 +200,27 @@ def test_function_words_do_not_seed_near_groups() -> None:
     assert [g.rhyme_type for g in groups] == ["near"]
 
 
-def test_all_function_word_perfect_group_is_suppressed() -> None:
-    # "you"/"do" rhyme perfectly but highlighting them is noise; adding a
-    # content word ("true") anchors the group and lets them ride along.
+def test_all_function_word_perfect_group_is_highlighted() -> None:
+    # Function words form a group on an *exact* (perfect) match: "your"/"for"
+    # is a real rhyme worth highlighting even with no content-word anchor.
     def phon(token: Token) -> list[tuple[str, ...]]:
         table = {
+            "your": ("Y", "AO1", "R"),
+            "for": ("F", "AO1", "R"),
             "you": ("Y", "UW1"),
             "do": ("D", "UW1"),
-            "true": ("T", "R", "UW1"),
         }
         phonemes = table.get(token.normalized)
         return [phonemes] if phonemes is not None else []
 
-    assert find_inner_rhyme_groups([_line(["you", "do"])], phon, "en") == []
-    groups = find_inner_rhyme_groups([_line(["you", "do", "true"])], phon, "en")
-    assert len(groups) == 1
-    assert {o.normalized for o in groups[0].occurrences} == {"you", "do", "true"}
+    groups = find_inner_rhyme_groups([_line(["your", "for"])], phon, "en")
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert {o.normalized for o in perfect[0].occurrences} == {"your", "for"}
+
+    # "you"/"do" likewise form a perfect group now.
+    groups = find_inner_rhyme_groups([_line(["you", "do"])], phon, "en")
+    assert [g.rhyme_type for g in groups] == ["perfect"]
 
 
 def test_deterministic_ids() -> None:

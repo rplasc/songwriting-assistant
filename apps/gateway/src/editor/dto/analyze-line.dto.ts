@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -53,6 +54,15 @@ export class AnalyzeLineDto {
   @IsOptional()
   @IsIn(SUPPORTED_LANGUAGES)
   language?: Language;
+
+  /**
+   * Omit the upstream rhymes lookup for this request. Used when the advanced
+   * rhyme explorer is already covering rhymes for the same line, so the live
+   * analysis socket doesn't pay for a redundant /rhymes round trip.
+   */
+  @IsOptional()
+  @IsBoolean()
+  skip_rhymes?: boolean;
 }
 
 export class ExploreRhymesDto {

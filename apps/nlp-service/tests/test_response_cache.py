@@ -2,6 +2,8 @@ import asyncio
 
 import pytest
 
+from app.api.routes import analysis as analysis_route
+from app.api.routes import rhymes as rhymes_route
 from app.schemas.draft_analysis import DraftAnalysisRequest
 from app.services.response_cache import ResponseCache
 
@@ -114,6 +116,65 @@ def test_analyze_draft_cache_hit_skips_service(cached_client, monkeypatch):
     r2 = tc.post("/v1/analyze-draft", json=_DRAFT_PAYLOAD)
     assert r2.status_code == 200
     assert calls["n"] == 1, "service should NOT be invoked on cache hit"
+    assert r2.json() == r1.json()
+
+
+@pytest.fixture
+def cached_rhyme_client(client):
+    fake = _FakeClient()
+    prior = client.app.state.rhyme_response_cache
+    client.app.state.rhyme_response_cache = ResponseCache(client=fake, ttl_seconds=60)
+    try:
+        yield client, fake
+    finally:
+        client.app.state.rhyme_response_cache = prior
+
+
+def test_rhymes_cache_hit_skips_compute(cached_rhyme_client, monkeypatch):
+    tc, fake = cached_rhyme_client
+
+    real_compute = rhymes_route._compute_rhymes
+    calls = {"n": 0}
+
+    def counting_compute(payload, ctx):
+        calls["n"] += 1
+        return real_compute(payload, ctx)
+
+    monkeypatch.setattr(rhymes_route, "_compute_rhymes", counting_compute)
+
+    r1 = tc.post("/v1/rhymes", json={"word": "fire", "limit": 5})
+    assert r1.status_code == 200
+    assert calls["n"] == 1
+    assert fake.set_calls == 1
+    assert len(fake.store) == 1
+
+    r2 = tc.post("/v1/rhymes", json={"word": "fire", "limit": 5})
+    assert r2.status_code == 200
+    assert calls["n"] == 1, "second request should be served from cache"
+    assert r2.json() == r1.json()
+
+
+def test_analyze_line_cache_hit_skips_compute(cached_rhyme_client, monkeypatch):
+    tc, fake = cached_rhyme_client
+
+    real_compute = analysis_route._compute_analyze_line
+    calls = {"n": 0}
+
+    def counting_compute(payload, ctx):
+        calls["n"] += 1
+        return real_compute(payload, ctx)
+
+    monkeypatch.setattr(analysis_route, "_compute_analyze_line", counting_compute)
+
+    payload = {"language": "en", "line": "I hear your shadow in the hall"}
+    r1 = tc.post("/v1/analyze-line", json=payload)
+    assert r1.status_code == 200
+    assert calls["n"] == 1
+    assert fake.set_calls == 1
+
+    r2 = tc.post("/v1/analyze-line", json=payload)
+    assert r2.status_code == 200
+    assert calls["n"] == 1, "second request should be served from cache"
     assert r2.json() == r1.json()
 
 

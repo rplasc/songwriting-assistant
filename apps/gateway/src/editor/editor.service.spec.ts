@@ -154,6 +154,30 @@ describe('EditorService', () => {
     expect(out.rhymes.target_word).toBe('world');
   });
 
+  it('skips the rhymes lookup entirely when skipRhymes is set', async () => {
+    const { service, getRhymes, analyzeLine } = setup({
+      pronunciationFound: true,
+    });
+    const out = await service.analyze('hello world', {
+      targetWord: 'hello',
+      skipRhymes: true,
+    });
+    expect(analyzeLine).toHaveBeenCalledWith({
+      line: 'hello world',
+      language: 'en',
+    });
+    expect(getRhymes).not.toHaveBeenCalled();
+    expect(out.rhymes.items).toEqual([]);
+    expect(out.rhymes.target_word).toBe('hello');
+  });
+
+  it('falls back to the last word for target_word when skipRhymes is set without a caret word', async () => {
+    const { service, getRhymes } = setup({ pronunciationFound: true });
+    const out = await service.analyze('hello world', { skipRhymes: true });
+    expect(getRhymes).not.toHaveBeenCalled();
+    expect(out.rhymes.target_word).toBe('world');
+  });
+
   describe('exploreRhymes', () => {
     function setupExplore(
       upstream?: Partial<{

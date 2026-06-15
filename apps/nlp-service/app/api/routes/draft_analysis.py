@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.logging import get_logger, timed
@@ -54,7 +55,7 @@ async def post_analyze_draft(
                 return DraftAnalysisResponse.model_validate(cached)
 
         try:
-            response = service.analyze(payload, ctx)
+            response = await run_in_threadpool(service.analyze, payload, ctx)
         except Exception:
             logger.exception(
                 "analyze_draft.failed",

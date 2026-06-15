@@ -24,7 +24,10 @@ from app.domain.draft_analysis.section_parser import (
     ParsedSection,
     parse_sections,
 )
-from app.domain.heuristic_g2p import heuristic_phoneme_tails
+from app.domain.heuristic_g2p import (
+    MAX_HEURISTIC_TAIL_VARIANTS,
+    heuristic_phoneme_tails,
+)
 from app.domain.languages.spanish.g2p import g2p as spanish_g2p
 from app.domain.languages.spanish.rhyme_rules import consonant_rhyme_key
 from app.domain.response_contracts.capability_reason_mapper import (
@@ -69,8 +72,11 @@ _HOOK_LABELS: frozenset[str] = frozenset({"chorus", "hook", "refrain"})
 _OVERUSE_HIGH = 5
 
 
-# Per-request cache of rhyme keys, keyed on the last token's identifying word.
-RhymeCache = dict[str, str | None]
+# Per-request cache of rhyme-key sets, keyed on the last token's identifying
+# word. A line can resolve to more than one key (heteronyms, multiple
+# heuristic tails) so a matching last word in another line counts if *any*
+# key is shared.
+RhymeCache = dict[str, frozenset[str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,7 +231,7 @@ class DraftAnalysisService:
             "analyze_draft.inner_rhymes",
             lines=len(inner_rhyme_lines),
         ):
-            phoneme_cache: dict[str, tuple[str, ...] | None] = {}
+            phoneme_cache: dict[str, list[tuple[str, ...]]] = {}
             inner_rhymes = find_inner_rhyme_groups(
                 inner_rhyme_lines,
                 phonemes_for_context(context, phoneme_cache),
@@ -369,50 +375,67 @@ class DraftAnalysisService:
         ctx: LanguageContext,
         tokens: list[Token],
         cache: RhymeCache,
-    ) -> str | None:
+    ) -> frozenset[str]:
         if not tokens:
-            return None
+            return frozenset()
         last = tokens[-1]
         if ctx.engine.code == "en":
             cache_key = f"en:{last.text}"
             if cache_key in cache:
                 return cache[cache_key]
-            key = _english_rhyme_key(ctx, last.text, last.normalized)
-            cache[cache_key] = key
-            return key
+            keys = _english_rhyme_key(ctx, last.text, last.normalized)
+            cache[cache_key] = keys
+            return keys
         if ctx.engine.code == "es":
             cache_key = f"es:{last.normalized}"
             if cache_key in cache:
                 return cache[cache_key]
-            key = _spanish_rhyme_key(last.normalized)
-            cache[cache_key] = key
-            return key
-        return None
+            keys = _spanish_rhyme_key(last.normalized)
+            cache[cache_key] = keys
+            return keys
+        return frozenset()
 
 
 def _english_rhyme_key(
     ctx: LanguageContext, text: str, normalized: str
-) -> str | None:
+) -> frozenset[str]:
+    """All rhyme keys for the line's last word, across every dictionary
+    pronunciation (heteronyms) or, when none exist, the top heuristic tails.
+
+    A line's last word matches another line's via ``assign_scheme`` if *any*
+    key in this set is shared, so heteronyms like "read"/"live"/"wind" don't
+    get stuck on whichever pronunciation CMUdict happens to list first.
+    """
+    keys: set[str] = set()
     _, prons = ctx.pronunciation_service.lookup(text)
-    if prons and prons[0].phonemes:
-        key = rhyme_key(prons[0].phonemes)
+    seen: set[tuple[str, ...]] = set()
+    for pron in prons:
+        if not pron.phonemes:
+            continue
+        phonemes = tuple(pron.phonemes)
+        if phonemes in seen:
+            continue
+        seen.add(phonemes)
+        key = rhyme_key(phonemes)
         if key is not None:
-            return key
-    if not normalized:
-        return None
-    tails = heuristic_phoneme_tails(normalized)
-    if not tails:
-        return None
-    return rhyme_key(tails[0])
+            keys.add(key)
+    if keys or not normalized:
+        return frozenset(keys)
+    for tail in heuristic_phoneme_tails(normalized)[:MAX_HEURISTIC_TAIL_VARIANTS]:
+        key = rhyme_key(tail)
+        if key is not None:
+            keys.add(key)
+    return frozenset(keys)
 
 
-def _spanish_rhyme_key(normalized: str | None) -> str | None:
+def _spanish_rhyme_key(normalized: str | None) -> frozenset[str]:
     if not normalized:
-        return None
+        return frozenset()
     pron = spanish_g2p(normalized)
     if not pron.phonemes:
-        return None
-    return consonant_rhyme_key(pron.phonemes)
+        return frozenset()
+    key = consonant_rhyme_key(pron.phonemes)
+    return frozenset((key,)) if key is not None else frozenset()
 
 
 def _repetition_insights(

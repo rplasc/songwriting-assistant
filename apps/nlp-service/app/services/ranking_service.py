@@ -115,7 +115,7 @@ def score_entries(
         score = base + _FREQ_WEIGHT * _frequency_component(e.frequency)
         if query_syllables is not None and e.syllables == query_syllables:
             score += _SYLLABLE_BONUS
-        if query_stress is not None and engine.stress_signature(word) == query_stress:
+        if query_stress is not None and e.stress_class == query_stress:
             score += _STRESS_BONUS
         if query_multisyllabic_len and e.multisyllabic_tail_phonemes:
             shared = min(query_multisyllabic_len, e.multisyllabic_tail_phonemes)

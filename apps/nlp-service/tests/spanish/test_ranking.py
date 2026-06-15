@@ -8,7 +8,12 @@ _engine = SpanishEngine()
 
 
 def _entry(word: str, syllables: int = 2, frequency: float = 1e-4) -> RhymeEntry:
-    return RhymeEntry(word=word, syllables=syllables, frequency=frequency)
+    return RhymeEntry(
+        word=word,
+        syllables=syllables,
+        frequency=frequency,
+        stress_class=_engine.stress_signature(word),
+    )
 
 
 def test_conjugation_ranked_below_unrelated_rhyme() -> None:

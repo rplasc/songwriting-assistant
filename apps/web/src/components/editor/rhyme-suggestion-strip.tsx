@@ -16,7 +16,6 @@ interface RhymeSuggestionStripProps {
   onRequestModeChange: (mode: ClientRhymeMode) => void;
   onInsertWord: (word: string) => void;
   onOpenExplorer: () => void;
-  explorerOpen: boolean;
 }
 
 const RHYME_DEGREE: Record<string, string> = {
@@ -84,7 +83,6 @@ export function RhymeSuggestionStrip({
   onRequestModeChange,
   onInsertWord,
   onOpenExplorer,
-  explorerOpen,
 }: RhymeSuggestionStripProps) {
   const isLoading = status === "loading";
   const target = result?.targetWord ?? null;
@@ -125,7 +123,7 @@ export function RhymeSuggestionStrip({
             </span>
           )}
         </p>
-        {target && !explorerOpen ? (
+        {target ? (
           <button
             type="button"
             onClick={onOpenExplorer}

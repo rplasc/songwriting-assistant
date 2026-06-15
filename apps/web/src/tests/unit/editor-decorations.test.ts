@@ -6,6 +6,8 @@ import {
   collectDirtyRanges,
   computeInnerRhymeRanges,
   overlapsDirty,
+  rhymeColorSlot,
+  RHYME_GROUP_CLASS_COUNT,
 } from "@/features/editor/tiptap/inner-rhyme-extension";
 import {
   describeLines,
@@ -125,7 +127,9 @@ describe("computeInnerRhymeRanges", () => {
       sourceLines: source,
     });
     // paragraph text starts at pos 1
-    expect(ranges).toEqual([{ from: 19, to: 23, className: "rhyme-g0" }]);
+    expect(ranges).toEqual([
+      { from: 19, to: 23, className: `rhyme-g${rhymeColorSlot("EY")}` },
+    ]);
   });
 
   it("re-adds leading whitespace present in the editor line", () => {
@@ -134,7 +138,9 @@ describe("computeInnerRhymeRanges", () => {
       groups: [group([{ lineIndex: 1, charStart: 18, charEnd: 22, text: "days" }])],
       sourceLines: ["Counting down the days,"],
     });
-    expect(ranges).toEqual([{ from: 21, to: 25, className: "rhyme-g0" }]);
+    expect(ranges).toEqual([
+      { from: 21, to: 25, className: `rhyme-g${rhymeColorSlot("EY")}` },
+    ]);
   });
 
   it("skips occurrences whose line changed since analysis", () => {
@@ -154,13 +160,13 @@ describe("computeInnerRhymeRanges", () => {
     expect(ranges).toEqual([]);
   });
 
-  it("cycles underline classes across groups", () => {
-    const source = ["aa bb cc dd ee ff"];
-    const groups = ["aa", "bb", "cc", "dd", "ee", "ff"].map((word, i) => ({
+  it("assigns a class from the rhyme key, stable across group order", () => {
+    const source = ["aa bb"];
+    const occ = (word: string, i: number) => ({
       id: `g${i}`,
       rhymeType: "perfect" as const,
       confidence: "high" as const,
-      rhymeKey: word,
+      rhymeKey: `KEY_${word}`,
       occurrences: [
         {
           lineIndex: 1,
@@ -171,19 +177,34 @@ describe("computeInnerRhymeRanges", () => {
           normalized: word,
         },
       ],
-    }));
-    const ranges = computeInnerRhymeRanges(descriptorsFor(source), {
-      groups,
+    });
+    const forward = computeInnerRhymeRanges(descriptorsFor(source), {
+      groups: [occ("aa", 0), occ("bb", 1)],
       sourceLines: source,
     });
-    expect(ranges.map((r) => r.className)).toEqual([
-      "rhyme-g0",
-      "rhyme-g1",
-      "rhyme-g2",
-      "rhyme-g3",
-      "rhyme-g4",
-      "rhyme-g0",
-    ]);
+    // Same key -> same class regardless of position in the group list.
+    expect(forward[0].className).toBe(`rhyme-g${rhymeColorSlot("KEY_aa")}`);
+    expect(forward[1].className).toBe(`rhyme-g${rhymeColorSlot("KEY_bb")}`);
+    // Reordering the words on the line must not change either word's color.
+    const swappedSource = ["bb aa"];
+    const swapped = computeInnerRhymeRanges(descriptorsFor(swappedSource), {
+      groups: [occ("bb", 0), occ("aa", 1)],
+      sourceLines: swappedSource,
+    });
+    expect(swapped[0].className).toBe(`rhyme-g${rhymeColorSlot("KEY_bb")}`);
+    expect(swapped[1].className).toBe(`rhyme-g${rhymeColorSlot("KEY_aa")}`);
+  });
+});
+
+describe("rhymeColorSlot", () => {
+  it("is deterministic and within the palette range", () => {
+    for (const key of ["EY", "AO1_R", "IY1_T", "AH0_L", "", "UW1"]) {
+      const slot = rhymeColorSlot(key);
+      expect(slot).toBe(rhymeColorSlot(key));
+      expect(slot).toBeGreaterThanOrEqual(0);
+      expect(slot).toBeLessThan(RHYME_GROUP_CLASS_COUNT);
+      expect(Number.isInteger(slot)).toBe(true);
+    }
   });
 });
 

@@ -58,6 +58,15 @@ class ResponseCache:
     def enabled(self) -> bool:
         return self._client is not None
 
+    def with_ttl(self, ttl_seconds: int) -> "ResponseCache":
+        """Return a cache sharing this instance's connection with a different TTL.
+
+        Lets multiple endpoints share one Redis connection while using
+        different expiry policies (e.g. short-TTL `/rhymes` vs. long-TTL
+        `/analyze-draft`). Only one of the resulting instances needs closing.
+        """
+        return ResponseCache(client=self._client, ttl_seconds=ttl_seconds)
+
     @staticmethod
     def make_key(namespace: str, payload: BaseModel) -> str:
         """Content-addressed key: sha256 of canonical JSON-dumped payload."""

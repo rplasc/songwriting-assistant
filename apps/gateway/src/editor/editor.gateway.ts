@@ -48,6 +48,7 @@ export class EditorGateway {
         targetWord: dto.target_word,
         rhymeMode: dto.rhyme_mode,
         language: dto.language,
+        skipRhymes: dto.skip_rhymes,
       });
       client.emit('editor.analysis', result);
     } catch (err) {

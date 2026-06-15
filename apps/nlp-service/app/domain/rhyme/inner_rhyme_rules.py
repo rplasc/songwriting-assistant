@@ -15,25 +15,32 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable, Sequence
 
-from app.domain.heuristic_g2p import heuristic_phoneme_tails
+from app.domain.heuristic_g2p import (
+    MAX_HEURISTIC_TAIL_VARIANTS,
+    heuristic_phoneme_tails,
+)
 from app.domain.languages.spanish.g2p import g2p as spanish_g2p
 from app.domain.languages.spanish.rhyme_rules import (
     assonant_rhyme_key,
     consonant_rhyme_key,
 )
-from app.domain.near_rhyme_rules import near_rhyme_key
+from app.domain.near_rhyme_rules import inner_near_rhyme_key
 from app.domain.rhyme_rules import rhyme_key
 from app.models.token import Token
 from app.schemas.responses import InnerRhymeGroup, RhymeOccurrence
 
-# Returns the ARPABET-style phonemes for a token, or None when unknown.
-PhonemesFor = Callable[[Token], "Sequence[str] | None"]
+# Returns every plausible ARPABET-style pronunciation for a token (dictionary
+# pronunciations, or the top heuristic tails for unknown words), or an empty
+# sequence when nothing usable was found. A word with multiple variants can
+# match a rhyme group through any one of them.
+PhonemesFor = Callable[[Token], "Sequence[tuple[str, ...]]"]
 
-# Per language: (perfect-key fn, near-key fn). English uses the perfect tail and
-# the manner-of-articulation slant key; Spanish uses consonant (perfect analog)
-# and assonant (vowel-only) keys.
+# Per language: (perfect-key fn, near-key fn). English uses the perfect tail
+# and the strict inner slant key (NOT the suggestion path's near_rhyme_key,
+# whose recall-oriented vowel classes flood lyric highlighting); Spanish uses
+# consonant (perfect analog) and assonant (vowel-only) keys.
 _KEY_FNS: dict[str, tuple[Callable, Callable]] = {
-    "en": (rhyme_key, near_rhyme_key),
+    "en": (rhyme_key, inner_near_rhyme_key),
     "es": (consonant_rhyme_key, assonant_rhyme_key),
 }
 
@@ -41,48 +48,83 @@ _KEY_FNS: dict[str, tuple[Callable, Callable]] = {
 # noise that produces unhelpful highlight groups.
 _MIN_WORD_LEN = 2
 
+# Unstressed-in-connected-speech function words. They may still join a perfect
+# group anchored by a content word ("me" alongside "see"/"free"), but they
+# never seed near groups, and a group made of nothing but function words is
+# suppressed — a slant match between "them" and "then" is noise, not craft.
+_FUNCTION_WORDS: dict[str, frozenset[str]] = {
+    "en": frozenset({
+        "am", "an", "and", "are", "as", "at", "be", "been", "but", "by",
+        "can", "could", "did", "do", "does", "for", "from", "had", "has",
+        "have", "he", "her", "him", "his", "how", "if", "in", "is", "it",
+        "its", "may", "me", "might", "must", "my", "no", "nor", "not", "of",
+        "off", "on", "or", "our", "shall", "she", "should", "so", "than",
+        "that", "the", "their", "them", "then", "these", "they", "this",
+        "those", "to", "too", "us", "was", "we", "were", "what", "when",
+        "who", "why", "will", "with", "would", "you", "your",
+        "ain't", "can't", "don't", "didn't", "isn't", "it's", "i'd", "i'll",
+        "i'm", "i've", "that's", "they're", "wasn't", "we're", "won't",
+        "you're",
+    }),
+    "es": frozenset({
+        "al", "como", "con", "de", "del", "el", "en", "es", "esa", "ese",
+        "esta", "este", "la", "las", "le", "les", "lo", "los", "me", "mi",
+        "mis", "nos", "para", "pero", "por", "que", "se", "si", "son", "su",
+        "sus", "te", "tu", "tus", "un", "una", "unas", "unos", "ya",
+    }),
+}
 
-def english_phonemes_for(pronunciation_service, cache: dict[str, tuple[str, ...] | None]) -> PhonemesFor:
-    """Build a token -> phonemes lookup for English, dictionary first then
-    heuristic. Mirrors ``_english_rhyme_key`` in the draft service."""
 
-    def _lookup(token: Token) -> tuple[str, ...] | None:
+def english_phonemes_for(pronunciation_service, cache: dict[str, list[tuple[str, ...]]]) -> PhonemesFor:
+    """Build a token -> phoneme-variants lookup for English, dictionary first
+    then heuristic. Mirrors ``_english_rhyme_key`` in the draft service.
+
+    Returns every dictionary pronunciation for the word (heteronyms like
+    "read" carry more than one), or — when the dictionary has none — the top
+    ``MAX_HEURISTIC_TAIL_VARIANTS`` heuristic tails.
+    """
+
+    def _lookup(token: Token) -> list[tuple[str, ...]]:
         norm = token.normalized
         if norm in cache:
             return cache[norm]
-        phonemes: tuple[str, ...] | None = None
+        variants: list[tuple[str, ...]] = []
+        seen: set[tuple[str, ...]] = set()
         _, prons = pronunciation_service.lookup(token.text)
-        if prons and prons[0].phonemes:
-            phonemes = tuple(prons[0].phonemes)
-        elif norm:
+        for pron in prons:
+            if pron.phonemes:
+                phonemes = tuple(pron.phonemes)
+                if phonemes not in seen:
+                    seen.add(phonemes)
+                    variants.append(phonemes)
+        if not variants and norm:
             tails = heuristic_phoneme_tails(norm)
-            if tails:
-                phonemes = tuple(tails[0])
-        cache[norm] = phonemes
-        return phonemes
+            variants = [tuple(t) for t in tails[:MAX_HEURISTIC_TAIL_VARIANTS]]
+        cache[norm] = variants
+        return variants
 
     return _lookup
 
 
-def spanish_phonemes_for(cache: dict[str, tuple[str, ...] | None]) -> PhonemesFor:
-    """Build a token -> phonemes lookup for Spanish via rule-based G2P."""
+def spanish_phonemes_for(cache: dict[str, list[tuple[str, ...]]]) -> PhonemesFor:
+    """Build a token -> phoneme-variants lookup for Spanish via rule-based G2P."""
 
-    def _lookup(token: Token) -> tuple[str, ...] | None:
+    def _lookup(token: Token) -> list[tuple[str, ...]]:
         norm = token.normalized
         if norm in cache:
             return cache[norm]
-        phonemes: tuple[str, ...] | None = None
+        variants: list[tuple[str, ...]] = []
         if norm:
             pron = spanish_g2p(norm)
             if pron.phonemes:
-                phonemes = tuple(pron.phonemes)
-        cache[norm] = phonemes
-        return phonemes
+                variants.append(tuple(pron.phonemes))
+        cache[norm] = variants
+        return variants
 
     return _lookup
 
 
-def phonemes_for_context(ctx, cache: dict[str, tuple[str, ...] | None]) -> PhonemesFor:
+def phonemes_for_context(ctx, cache: dict[str, list[tuple[str, ...]]]) -> PhonemesFor:
     """Pick the right phoneme lookup for a LanguageContext's engine.
 
     Kept duck-typed (``ctx.engine.code`` + ``ctx.pronunciation_service``) so the
@@ -112,18 +154,75 @@ def _group_id(language: str, rhyme_type: str, key: str, occ: Sequence[RhymeOccur
     return f"irh_{digest}"
 
 
+def _merge_multi_key_buckets(
+    buckets: dict[str, list[RhymeOccurrence]],
+) -> dict[str, list[RhymeOccurrence]]:
+    """Merge key buckets that share an occurrence into one.
+
+    A word with multiple pronunciations or heuristic tails can land in more
+    than one key bucket (e.g. the heteronym "read" matches both an IY-tail
+    key and an EH-tail key). Buckets that share at least one occurrence
+    describe the same rhyme family from that word's point of view, so they're
+    unioned together — letting a word join any bucket where some variant
+    matches, with the merge transitively pulling in the other words on each
+    side too.
+    """
+    if not buckets:
+        return {}
+
+    parent: dict[str, str] = {key: key for key in buckets}
+
+    def find(key: str) -> str:
+        while parent[key] != key:
+            key = parent[key]
+        return key
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    occ_to_keys: dict[tuple[int, int], list[str]] = {}
+    for key, occs in buckets.items():
+        for occ in occs:
+            occ_to_keys.setdefault((occ.line_index, occ.word_index), []).append(key)
+    for keys in occ_to_keys.values():
+        for k in keys[1:]:
+            union(keys[0], k)
+
+    merged: dict[str, list[RhymeOccurrence]] = {}
+    seen: dict[str, set[tuple[int, int]]] = {}
+    for key, occs in buckets.items():
+        canonical = min(k for k in buckets if find(k) == find(key))
+        bucket = merged.setdefault(canonical, [])
+        seen_set = seen.setdefault(canonical, set())
+        for occ in occs:
+            pos = (occ.line_index, occ.word_index)
+            if pos not in seen_set:
+                seen_set.add(pos)
+                bucket.append(occ)
+    return merged
+
+
 def _build_groups(
     buckets: dict[str, list[RhymeOccurrence]],
     *,
     language: str,
     rhyme_type: str,
     confidence: str,
+    function_words: frozenset[str],
 ) -> list[InnerRhymeGroup]:
     groups: list[InnerRhymeGroup] = []
     for key, occ in buckets.items():
         # Need at least two rhyming words, and at least two *distinct* words so
         # plain repetition (handled by repetition_rules) isn't mislabeled rhyme.
         if len(occ) < 2 or len({o.normalized for o in occ}) < 2:
+            continue
+        # Function words may form a group when the sound match is *exact*
+        # (perfect tier): "your"/"for" is a real rhyme worth highlighting. A
+        # near/slant match between function words ("them"/"then") is noise, so
+        # all-function-word groups are still suppressed in the near tier.
+        if rhyme_type == "near" and all(o.normalized in function_words for o in occ):
             continue
         ordered = sorted(occ, key=lambda o: (o.line_index, o.word_index))
         groups.append(
@@ -150,30 +249,40 @@ def find_inner_rhyme_groups(
     endpoint). Perfect rhymes take precedence; remaining words are matched on the
     coarser near/slant key.
     """
-    perfect_fn, near_fn = _KEY_FNS.get(language, (rhyme_key, near_rhyme_key))
+    perfect_fn, near_fn = _KEY_FNS.get(language, (rhyme_key, inner_near_rhyme_key))
+    function_words = _FUNCTION_WORDS.get(language, frozenset())
 
-    perfect_buckets: dict[str, list[RhymeOccurrence]] = {}
-    # Each near candidate keeps its occurrence + near key so we can bucket the
-    # ones that survive perfect-grouping.
-    near_candidates: list[tuple[str, RhymeOccurrence]] = []
+    perfect_buckets_raw: dict[str, list[RhymeOccurrence]] = {}
+    # Each near candidate keeps its occurrence + near-key set so we can bucket
+    # the ones that survive perfect-grouping.
+    near_candidates: list[tuple[set[str], RhymeOccurrence]] = []
 
     for line_index, tokens in lines:
         for token in tokens:
             if len(token.normalized) < _MIN_WORD_LEN:
                 continue
-            phonemes = phonemes_for(token)
-            if not phonemes:
+            variants = phonemes_for(token)
+            if not variants:
                 continue
             occ = _occurrence(line_index, token)
-            perfect_key = perfect_fn(phonemes)
-            if perfect_key is not None:
-                perfect_buckets.setdefault(perfect_key, []).append(occ)
-            near_key = near_fn(phonemes)
-            if near_key is not None:
-                near_candidates.append((near_key, occ))
+            perfect_keys = {k for v in variants if (k := perfect_fn(v)) is not None}
+            for key in perfect_keys:
+                perfect_buckets_raw.setdefault(key, []).append(occ)
+            # Function words only count when the sound match is exact — they
+            # never seed slant groups.
+            if token.normalized in function_words:
+                continue
+            near_keys = {k for v in variants if (k := near_fn(v)) is not None}
+            if near_keys:
+                near_candidates.append((near_keys, occ))
 
+    perfect_buckets = _merge_multi_key_buckets(perfect_buckets_raw)
     perfect_groups = _build_groups(
-        perfect_buckets, language=language, rhyme_type="perfect", confidence="high"
+        perfect_buckets,
+        language=language,
+        rhyme_type="perfect",
+        confidence="high",
+        function_words=function_words,
     )
 
     # Positions already claimed by a perfect group are excluded from near groups.
@@ -182,14 +291,20 @@ def find_inner_rhyme_groups(
         for group in perfect_groups
         for o in group.occurrences
     }
-    near_buckets: dict[str, list[RhymeOccurrence]] = {}
-    for near_key, occ in near_candidates:
+    near_buckets_raw: dict[str, list[RhymeOccurrence]] = {}
+    for near_keys, occ in near_candidates:
         if (occ.line_index, occ.word_index) in claimed:
             continue
-        near_buckets.setdefault(near_key, []).append(occ)
+        for key in near_keys:
+            near_buckets_raw.setdefault(key, []).append(occ)
 
+    near_buckets = _merge_multi_key_buckets(near_buckets_raw)
     near_groups = _build_groups(
-        near_buckets, language=language, rhyme_type="near", confidence="medium"
+        near_buckets,
+        language=language,
+        rhyme_type="near",
+        confidence="medium",
+        function_words=function_words,
     )
 
     groups = perfect_groups + near_groups

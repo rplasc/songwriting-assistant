@@ -12,8 +12,8 @@ class PronunciationService:
         self._repository = repository
         self._engine = engine
 
-    def lookup(self, word: str) -> tuple[str | None, list[Pronunciation]]:
+    def lookup(self, word: str) -> tuple[str | None, tuple[Pronunciation, ...]]:
         normalized = self._engine.normalize_word(word)
         if normalized is None:
-            return None, []
+            return None, ()
         return normalized, self._repository.lookup(normalized)

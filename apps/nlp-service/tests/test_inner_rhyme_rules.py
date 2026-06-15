@@ -37,8 +37,9 @@ _PHONEMES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _phonemes_for(token: Token):
-    return _PHONEMES.get(token.normalized)
+def _phonemes_for(token: Token) -> list[tuple[str, ...]]:
+    phonemes = _PHONEMES.get(token.normalized)
+    return [phonemes] if phonemes is not None else []
 
 
 def test_same_line_perfect_group() -> None:
@@ -112,8 +113,10 @@ def test_pure_repetition_is_not_a_rhyme_group() -> None:
 
 
 def test_word_without_phonemes_is_skipped() -> None:
-    def sparse(token: Token):
-        return _PHONEMES.get(token.normalized) if token.normalized != "mat" else None
+    def sparse(token: Token) -> list[tuple[str, ...]]:
+        if token.normalized == "mat":
+            return []
+        return _phonemes_for(token)
 
     groups = find_inner_rhyme_groups(
         [_line(["cat", "sat", "mat"])],
@@ -126,11 +129,98 @@ def test_word_without_phonemes_is_skipped() -> None:
 
 
 def test_single_letter_words_skipped() -> None:
-    def phon(token: Token):
-        return {"a": ("AH0",), "i": ("AY1",)}.get(token.normalized)
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        phonemes = {"a": ("AH0",), "i": ("AY1",)}.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
 
     groups = find_inner_rhyme_groups([_line(["a", "i", "a"])], phon, "en")
     assert groups == []
+
+
+def test_heteronym_joins_either_pronunciation_group() -> None:
+    # "read" can be R IY1 D (present) or R EH1 D (past). It should be able to
+    # join a "reed"-style group OR a "red"-style group via either variant.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table: dict[str, list[tuple[str, ...]]] = {
+            "read": [("R", "IY1", "D"), ("R", "EH1", "D")],
+            "feed": [("F", "IY1", "D")],
+            "fed": [("F", "EH1", "D")],
+        }
+        return table.get(token.normalized, [])
+
+    groups = find_inner_rhyme_groups(
+        [_line(["read", "feed", "fed"])], phon, "en"
+    )
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    # Both the IY1_D and EH1_D buckets get merged because "read" sits in both,
+    # producing one group with all three words.
+    assert len(perfect) == 1
+    assert {o.normalized for o in perfect[0].occurrences} == {"read", "feed", "fed"}
+
+
+def test_unknown_word_heuristic_tail_can_match() -> None:
+    # An unknown word's second heuristic tail (EH1_T) matches "set", even
+    # though its first tail (IY1_T) doesn't match anything.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        if token.normalized == "zeb":
+            return [("Z", "IY1", "T"), ("Z", "EH1", "T")]
+        if token.normalized == "set":
+            return [("S", "EH1", "T")]
+        return []
+
+    groups = find_inner_rhyme_groups([_line(["zeb", "set"])], phon, "en")
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert {o.normalized for o in perfect[0].occurrences} == {"zeb", "set"}
+
+
+def test_function_words_do_not_seed_near_groups() -> None:
+    # "them" (DH EH1 M) and "ten" (T EH1 N) share the inner near key
+    # (EH + nasal coda), but "them" is a function word -> no near group.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "them": ("DH", "EH1", "M"),
+            "ten": ("T", "EH1", "N"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups([_line(["them", "ten"])], phon, "en")
+    assert groups == []
+    # Sanity: the same sounds on content words DO form a near group.
+    def phon_content(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "hem": ("HH", "EH1", "M"),
+            "ten": ("T", "EH1", "N"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups([_line(["hem", "ten"])], phon_content, "en")
+    assert [g.rhyme_type for g in groups] == ["near"]
+
+
+def test_all_function_word_perfect_group_is_highlighted() -> None:
+    # Function words form a group on an *exact* (perfect) match: "your"/"for"
+    # is a real rhyme worth highlighting even with no content-word anchor.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "your": ("Y", "AO1", "R"),
+            "for": ("F", "AO1", "R"),
+            "you": ("Y", "UW1"),
+            "do": ("D", "UW1"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups([_line(["your", "for"])], phon, "en")
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert {o.normalized for o in perfect[0].occurrences} == {"your", "for"}
+
+    # "you"/"do" likewise form a perfect group now.
+    groups = find_inner_rhyme_groups([_line(["you", "do"])], phon, "en")
+    assert [g.rhyme_type for g in groups] == ["perfect"]
 
 
 def test_deterministic_ids() -> None:

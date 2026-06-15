@@ -56,4 +56,15 @@ describe('AnalyzeLineDto', () => {
     });
     expect(errors).toContain('maxLength');
   });
+
+  it('accepts an optional skip_rhymes flag', async () => {
+    expect(
+      await validateDto({ line: 'hello', skip_rhymes: true }),
+    ).toEqual([]);
+  });
+
+  it('rejects a non-boolean skip_rhymes', async () => {
+    const errors = await validateDto({ line: 'hello', skip_rhymes: 'yes' });
+    expect(errors).toContain('isBoolean');
+  });
 });

@@ -120,11 +120,14 @@ export function LyricEditorShell() {
     setSyllableCounts,
   } = usePreferences();
 
+  // While the advanced explorer is open it already fetches rhymes for this
+  // line's caret word, so skip the redundant upstream /rhymes call here.
   const { result, status } = useEditorAnalysis(
     activeLine,
     activeWord,
     rhymeMode,
     language,
+    explorerOpen,
   );
 
   const {
@@ -452,16 +455,17 @@ export function LyricEditorShell() {
                 onClose={() => setExplorerOpen(false)}
               />
             )}
-            <RhymeSuggestionStrip
-              status={status}
-              result={result}
-              rhymeMode={rhymeMode}
-              language={language}
-              onRequestModeChange={handleRhymeModeChange}
-              onInsertWord={handleInsertWord}
-              onOpenExplorer={() => setExplorerOpen(true)}
-              explorerOpen={explorerOpen}
-            />
+            {!explorerOpen && (
+              <RhymeSuggestionStrip
+                status={status}
+                result={result}
+                rhymeMode={rhymeMode}
+                language={language}
+                onRequestModeChange={handleRhymeModeChange}
+                onInsertWord={handleInsertWord}
+                onOpenExplorer={() => setExplorerOpen(true)}
+              />
+            )}
             <EditorStatusStrip
               railOpen={railOpen}
               rhymeGroupCount={analysis?.innerRhymes.length ?? 0}

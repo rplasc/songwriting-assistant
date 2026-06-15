@@ -127,6 +127,9 @@ async def lifespan(app: FastAPI):
     else:
         response_cache = ResponseCache.disabled()
     app.state.response_cache = response_cache
+    app.state.rhyme_response_cache = response_cache.with_ttl(
+        settings.cache_ttl_seconds_rhymes
+    )
 
     logger.info(
         "startup.ready",

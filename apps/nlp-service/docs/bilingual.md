@@ -39,11 +39,12 @@ class LanguageEngine(ABC):
 
     # Ranking hooks — concrete methods with safe defaults so subclasses opt in:
     def is_same_stem_inflection(query, candidate) -> bool  # default: False
+    def inflection_forms(query) -> frozenset[str]          # default: empty set
     def shares_stem(query, candidate, min_stem=4) -> bool  # default: prefix-overlap
     def stress_signature(word) -> str | None               # default: None (disabled)
 ```
 
-`is_same_stem_inflection` and `shares_stem` are called per candidate inside `score_entries`. Returning True applies the inflection (−0.20) or same-stem (−0.10) penalty. English overrides `is_same_stem_inflection` with the original English suffix logic. Spanish overrides both with Spanish morphology (verb paradigms, gender/number pairs) and `stress_signature` (aguda / llana / esdrújula), adding a +0.03 bonus when query and candidate share stress class.
+`inflection_forms` is built once per query inside `score_entries` and checked per candidate via O(1) membership; `shares_stem` is checked per candidate as a fallback. Membership in `inflection_forms` applies the −0.20 inflection penalty, `shares_stem` applies the weaker −0.10 same-stem penalty. English overrides `is_same_stem_inflection` and `inflection_forms` with the original English suffix logic (the two share the same suffix set so they can't drift). Spanish overrides both with Spanish morphology (verb paradigms, gender/number pairs) and `stress_signature` (aguda / llana / esdrújula), adding a +0.03 bonus when query and candidate share stress class.
 
 If you find yourself adding `if engine.code == "es":` somewhere in shared code, the engine interface has gaped. Add a method to the interface instead.
 

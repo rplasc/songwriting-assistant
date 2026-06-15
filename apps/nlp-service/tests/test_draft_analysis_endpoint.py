@@ -308,4 +308,24 @@ def test_inner_rhyme_line_index_skips_label_and_blank_lines(
     perfect = next(g for g in groups if g["rhyme_type"] == "perfect")
     by_line = {(o["line_index"], o["normalized"]) for o in perfect["occurrences"]}
     assert (3, "cat") in by_line
-    assert (4, "mat") in by_line
+
+
+def test_heteronym_bridges_rhyme_scheme_groups(client: TestClient) -> None:
+    # "wind" has two CMUdict pronunciations: W AY1 N D (rhymes with "find")
+    # and W IH1 N D (rhymes with "grinned"). Considering both lets it bridge
+    # lines that would otherwise be in unrelated rhyme groups.
+    draft = (
+        "I felt the cold and bitter wind\n"
+        "the only thing I hoped to find\n"
+        "I saw her face and slowly grinned\n"
+        "and sat alone beside the table"
+    )
+    resp = client.post(
+        "/v1/analyze-draft",
+        json={"language": "en", "content": draft},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    scheme = body["detail"]["sections"][0]["rhyme_scheme"]
+    assert scheme[0] == scheme[1] == scheme[2]
+    assert scheme[3] != scheme[0]

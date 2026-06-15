@@ -35,7 +35,6 @@ function renderStrip(props: Partial<Parameters<typeof RhymeSuggestionStrip>[0]> 
       onRequestModeChange={noop}
       onInsertWord={noop}
       onOpenExplorer={noop}
-      explorerOpen={false}
       {...props}
     />,
   );
@@ -73,21 +72,8 @@ describe("RhymeSuggestionStrip", () => {
     expect(screen.getByText(/finish a word to see rhymes/i)).toBeInTheDocument();
   });
 
-  it("offers the explorer only while it's closed", () => {
-    const { rerender } = renderStrip();
+  it("offers the explorer when a target word is present", () => {
+    renderStrip();
     expect(screen.getByRole("button", { name: /explore deeper/i })).toBeInTheDocument();
-    rerender(
-      <RhymeSuggestionStrip
-        status="ready"
-        result={makeResult()}
-        rhymeMode="perfect"
-        language="en"
-        onRequestModeChange={noop}
-        onInsertWord={noop}
-        onOpenExplorer={noop}
-        explorerOpen={true}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: /explore deeper/i })).toBeNull();
   });
 });

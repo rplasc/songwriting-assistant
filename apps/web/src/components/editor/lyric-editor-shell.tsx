@@ -39,6 +39,7 @@ import { useDraftCompare } from "@/features/draft-compare/use-draft-compare";
 import { NotebookHeader } from "./notebook-header";
 import { NotebookLayout } from "./notebook-layout";
 import { LyricEditor } from "./lyric-editor";
+import { FocusModeView } from "./focus-mode-view";
 import { AdvancedRhymeExplorer } from "./advanced-rhyme-explorer";
 import { MarginRail } from "./margin-rail";
 import { RhymeSuggestionStrip } from "./rhyme-suggestion-strip";
@@ -58,6 +59,23 @@ export function LyricEditorShell() {
   const { editor, activeLine, activeWord, activeLineNumber, content } =
     useLyricEditor();
   const [explorerOpen, setExplorerOpen] = useState(false);
+
+  // Distraction-free writing view. Ephemeral (resets on reload) — entering is
+  // always an intentional act. The analysis hooks below run regardless of what
+  // we render, so rhyme highlighting stays live in focus.
+  const [focusMode, setFocusMode] = useState(false);
+  const enterFocus = useCallback(() => {
+    setExplorerOpen(false);
+    setFocusMode(true);
+  }, []);
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFocusMode(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [focusMode]);
 
   // Rail visibility — read the persisted preference after mount to avoid a
   // server/client hydration mismatch, then persist on change.
@@ -362,6 +380,24 @@ export function LyricEditorShell() {
     void saveNow();
   }, [saveNow]);
 
+  // Focus mode *replaces* the normal tree rather than overlaying it: TipTap's
+  // EditorContent can't be mounted twice against one editor instance (the
+  // second mount bails, and its later unmount tears the live DOM out of the
+  // first). Rendering exactly one editor at a time keeps the single persistent
+  // instance attached. The analysis hooks above run either way.
+  if (focusMode) {
+    return (
+      <FocusModeView
+        editor={editor}
+        rhymeHighlightStyle={rhymeHighlightStyle}
+        rhymeHighlights={rhymeHighlights}
+        onRhymeHighlightsChange={setRhymeHighlights}
+        language={language}
+        onExit={() => setFocusMode(false)}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <NotebookHeader
@@ -395,6 +431,7 @@ export function LyricEditorShell() {
         onRhymeHighlightStyleChange={setRhymeHighlightStyle}
         syllableCounts={syllableCounts}
         onSyllableCountsChange={setSyllableCounts}
+        onEnterFocus={enterFocus}
       />
       {(saveStatus === "conflict" ||
         saveStatus === "error" ||

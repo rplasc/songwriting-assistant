@@ -286,4 +286,52 @@ describe("useDraftSaving", () => {
       expect(body.title).toBe("My Chosen Name");
     }
   });
+
+  it("restores the draft named by the localStorage pointer on mount", async () => {
+    window.localStorage.setItem("sa.drafts.current", "draft-42");
+    const now = new Date().toISOString();
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/v1/drafts/draft-42") && method === "GET") {
+        return new Response(
+          JSON.stringify({
+            data: {
+              id: "draft-42",
+              title: "Saved Song",
+              content: "<p>Counting stars until the dawn</p>",
+              language: "en",
+              version: 3,
+              created_at: now,
+              updated_at: now,
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      throw new Error(`Unhandled request: ${method} ${url}`);
+    }) as unknown as typeof fetch;
+
+    const editor = createFakeEditor();
+    const { result } = renderHook(() =>
+      useDraftSaving(editor as unknown as Editor, { language: "en" }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("saved"));
+    expect(result.current.currentDraftId).toBe("draft-42");
+    expect(editor.commands.setContent).toHaveBeenCalled();
+  });
+
+  it("does not clobber typed content with a mount-time restore", () => {
+    window.localStorage.setItem("sa.drafts.current", "draft-42");
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const editor = createFakeEditor();
+    editor.text = "already typing";
+    renderHook(() => useDraftSaving(editor as unknown as Editor, { language: "en" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(editor.commands.setContent).not.toHaveBeenCalled();
+  });
 });

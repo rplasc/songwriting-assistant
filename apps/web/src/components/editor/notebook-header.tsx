@@ -8,6 +8,7 @@ import type {
   RhymeHighlightStyle,
   ThemePreference,
 } from "@/features/settings/preferences";
+import { cn } from "@/lib/utils";
 import { DraftPicker } from "./draft-picker";
 import { LanguageSelector } from "./language-selector";
 import { RhymeModeToggle } from "./rhyme-mode-toggle";
@@ -17,6 +18,11 @@ import { SettingsMenu } from "./settings-menu";
 const SUBTITLE: Record<Language, string> = {
   en: "A lyric notebook. Write to see rhymes, get feedback, and keep track of your drafts.",
   es: "Un cuaderno de letras. Escribe para ver rimas, recibir comentarios y hacer un seguimiento de tus borradores.",
+};
+
+const FOCUS_LABEL: Record<Language, string> = {
+  en: "Focus mode",
+  es: "Modo enfoque",
 };
 
 const TITLE_PLACEHOLDER: Record<Language, string> = {
@@ -54,6 +60,7 @@ interface NotebookHeaderProps {
   onRhymeHighlightStyleChange: (style: RhymeHighlightStyle) => void;
   syllableCounts: boolean;
   onSyllableCountsChange: (on: boolean) => void;
+  onEnterFocus: () => void;
 }
 
 export function NotebookHeader({
@@ -79,6 +86,7 @@ export function NotebookHeader({
   onRhymeHighlightStyleChange,
   syllableCounts,
   onSyllableCountsChange,
+  onEnterFocus,
 }: NotebookHeaderProps) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
@@ -105,6 +113,20 @@ export function NotebookHeader({
           onNew={onNewDraft}
           onDelete={onDeleteDraft}
         />
+        <button
+          type="button"
+          aria-label={FOCUS_LABEL[language]}
+          title={FOCUS_LABEL[language]}
+          onClick={onEnterFocus}
+          className={cn(
+            "inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground",
+            "transition-colors duration-150 ease-out",
+            "hover:border-accent/50 hover:bg-accent-muted/50 hover:text-accent",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:border-accent/50",
+          )}
+        >
+          <FocusIcon />
+        </button>
         <SettingsMenu
           language={language}
           theme={theme}
@@ -118,6 +140,25 @@ export function NotebookHeader({
         />
       </div>
     </header>
+  );
+}
+
+function FocusIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 5.5V3a1 1 0 0 1 1-1h2.5M14 5.5V3a1 1 0 0 0-1-1h-2.5M2 10.5V13a1 1 0 0 0 1 1h2.5M14 10.5V13a1 1 0 0 1-1 1h-2.5" />
+      <circle cx="8" cy="8" r="1.5" />
+    </svg>
   );
 }
 

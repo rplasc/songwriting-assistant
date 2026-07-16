@@ -230,7 +230,9 @@ describe("useDraftAnalysis", () => {
   });
 
   it("manual refresh asks the server for a non-cached analysis", async () => {
-    const fetchMock = vi.fn(async () => makeAnalysisResponse());
+    const fetchMock = vi.fn<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async () => makeAnalysisResponse());
     global.fetch = fetchMock as unknown as typeof fetch;
     const { result } = renderHook(() =>
       useDraftAnalysis({
@@ -250,7 +252,9 @@ describe("useDraftAnalysis", () => {
   });
 
   it("analyzeNow runs immediately without busting the server cache", async () => {
-    const fetchMock = vi.fn(async () => makeAnalysisResponse());
+    const fetchMock = vi.fn<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async () => makeAnalysisResponse());
     global.fetch = fetchMock as unknown as typeof fetch;
     // No draftId and short content: analyzeNow must bypass the min-content
     // gate (a paste can land in a brand-new unsaved draft).

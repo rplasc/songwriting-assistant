@@ -340,6 +340,19 @@ export function useDraftSaving(
     [editor, updateCurrentId, updateCurrentLanguage],
   );
 
+  // Restore the draft the localStorage pointer names once the editor exists.
+  // Runs once; skipped when the editor already has content (e.g. the pointer
+  // went stale mid-session) so a load never clobbers what the user is typing.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (!editor || restoredRef.current) return;
+    restoredRef.current = true;
+    const id = currentIdRef.current;
+    if (id && editor.state.doc.textContent.trim().length === 0) {
+      void loadDraft(id);
+    }
+  }, [editor, loadDraft]);
+
   const deleteDraft = useCallback(
     async (id: string) => {
       const isCurrent = currentIdRef.current === id;

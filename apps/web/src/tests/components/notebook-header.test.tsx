@@ -29,6 +29,7 @@ function setup(displayTitle: string, editableTitle: string) {
       onRhymeHighlightStyleChange={vi.fn()}
       syllableCounts={true}
       onSyllableCountsChange={vi.fn()}
+      onEnterFocus={vi.fn()}
     />,
   );
   return { onTitleChange };

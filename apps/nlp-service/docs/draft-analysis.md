@@ -19,7 +19,8 @@ of explicitly labelled sections. It returns a `DraftAnalysisResponse` containing
   positions, rendered by the editor as rhyme highlights. Groups are pruned for
   scheme clarity (function words only at line endings, anchor rules favoring
   line-final and multisyllabic words, a cadence pass for rhythmically matching
-  line endings). See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md).
+  multisyllabic deliveries and compound line endings, end-refrain detection).
+  See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md).
 
 ---
 
@@ -455,8 +456,8 @@ per-section loop means it can reuse the already-tokenized, already-positioned
   qualifies). Unlike the semantic features in §6, there is no opt-in flag or
   capability gate. See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md)
   for the full grouping algorithm — including the scheme-clarity pruning
-  (function words only at line endings, anchor rules, line-ending cadence
-  pass) — plus confidence mapping and ID scheme.
+  (function words only at line endings, anchor rules, multisyllabic cadence
+  pass, end-refrain detection) — plus confidence mapping and ID scheme.
 
 ---
 

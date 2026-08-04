@@ -367,15 +367,124 @@ def test_cadence_connects_multisyllabic_line_endings() -> None:
     assert {o.normalized for o in g.occurrences} == {"sandwiches", "allowances"}
 
 
-def test_cadence_only_applies_at_line_end() -> None:
-    # The cadence key is deliberately loose; mid-line it would flood the
-    # highlight, so the same words earlier in their lines produce nothing.
+def test_cadence_matches_multisyllabic_words_midline() -> None:
+    # Cadence candidacy is position-independent: the 3-beat minimum already
+    # limits it to long deliveries, so "sandwiches" mid-line still joins the
+    # family ("syrup sandwiches and crime allowances" puts it mid-line).
     groups = find_inner_rhyme_groups(
         [_line(["sandwiches", "dog"], 1), _line(["allowances", "feet"], 2)],
         _cadence_phonemes_for,
         "en",
     )
+    assert len(groups) == 1
+    assert {o.normalized for o in groups[0].occurrences} == {
+        "sandwiches",
+        "allowances",
+    }
+
+
+def test_compound_line_ending_spans_rhyme_as_units() -> None:
+    # "countin' this" / "downin' this": the trailing function word joins its
+    # stress anchor so the compound endings rhyme as units — all four words
+    # land in one cadence group.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "countin'": ("K", "AW1", "N", "T", "IH0", "N"),
+            "downin'": ("D", "AW1", "N", "IH0", "N"),
+            "this": ("DH", "IH1", "S"),
+            "i'm": ("AY1", "M"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups(
+        [_line(["i'm", "countin'", "this"], 1), _line(["i'm", "downin'", "this"], 2)],
+        phon,
+        "en",
+    )
+    assert len(groups) == 1
+    g = groups[0]
+    assert g.rhyme_type == "near"
+    assert [(o.line_index, o.normalized) for o in g.occurrences] == [
+        (1, "countin'"),
+        (1, "this"),
+        (2, "downin'"),
+        (2, "this"),
+    ]
+
+
+def test_end_refrain_repetition_is_highlighted() -> None:
+    # The same content word ending several lines ("…funk" / "…funk") is the
+    # bars' structural anchor — highlighted despite being a repetition.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "funk": ("F", "AH1", "NG", "K"),
+            "cat": ("K", "AE1", "T"),
+            "dog": ("D", "AO1", "G"),
+            "you": ("Y", "UW1"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups(
+        [_line(["cat", "funk"], 1), _line(["dog", "funk"], 2)],
+        phon,
+        "en",
+    )
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert [o.normalized for o in perfect[0].occurrences] == ["funk", "funk"]
+
+    # A repeated line-final *function* word is not a refrain worth showing.
+    groups = find_inner_rhyme_groups(
+        [_line(["cat", "you"], 1), _line(["dog", "you"], 2)],
+        phon,
+        "en",
+    )
     assert groups == []
+
+
+def test_dense_chain_requires_distinct_words() -> None:
+    # sit/quit/quit: three occurrences but only two distinct mid-line
+    # monosyllables — repeats padding the count don't make a chain.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "sit": ("S", "IH1", "T"),
+            "quit": ("K", "W", "IH1", "T"),
+            "dog": ("D", "AO1", "G"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups(
+        [_line(["sit", "quit", "quit", "dog"])], phon, "en"
+    )
+    assert groups == []
+
+
+def test_near_key_anchors_on_primary_stress_for_compounds() -> None:
+    # "paystub" (P EY1 S T AH2 B) must slant-match the long-A family
+    # ("waist"/"taste"), not anchor on its secondary "-stub".
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "taste": ("T", "EY1", "S", "T"),
+            "waist": ("W", "EY1", "S", "T"),
+            "paystub": ("P", "EY1", "S", "T", "AH2", "B"),
+            "dog": ("D", "AO1", "G"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups(
+        [_line(["taste", "dog", "waist", "paystub"])], phon, "en"
+    )
+    near = [g for g in groups if g.rhyme_type == "near"]
+    assert len(near) == 1
+    assert {o.normalized for o in near[0].occurrences} == {
+        "taste",
+        "waist",
+        "paystub",
+    }
 
 
 def test_function_heavy_draft_highlights_only_the_scheme() -> None:

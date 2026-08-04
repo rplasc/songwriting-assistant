@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     # Trade-off: ~2-5% longer startup time.
     spanish_corpus_size: int = 150_000
 
-    # Phase 5.5 M3: gate the /v1/evaluation/regression-report endpoint.
     # When False the route returns 404 so external clients can't depend
     # on it. The CLI keeps working regardless.
     expose_evaluation_endpoint: bool = True
@@ -28,7 +27,7 @@ class Settings(BaseSettings):
     cache_enabled: bool = False
     cache_redis_url: str = "redis://localhost:6379/0"
     cache_ttl_seconds: int = 3600
-    cache_key_prefix: str = "nlp:v3"
+    cache_key_prefix: str = "nlp:v4"
 
     # Shorter TTL for /v1/rhymes and /v1/analyze-line. These fire on every
     # keystroke (debounced) across a huge, open-ended key space (every word x

@@ -86,37 +86,49 @@ scheme in color. Three deliberate filters implement the
 2. **Perfect pass.** Every token's phonemes are run through the language's
    perfect-rhyme key (`rhyme_key` for English, `consonant_rhyme_key` for
    Spanish) and bucketed by key.
-   a `_FUNCTION_WORDS` token ("my", "to", "the", …) enters a bucket only
+   A `_FUNCTION_WORDS` token ("my", "to", "the", …) enters a bucket only
    when it is line-final. A line *ending* on "you"/"do" is a real end-rhyme;
    mid-line function-word matches are cognitive noise.
-3. **Near pass.** Remaining tokens are run through the strict inner slant
-   key (`inner_near_rhyme_key` for English, `assonant_rhyme_key` for
-   Spanish). Any occurrence whose `(line_index, word_index)` was already
-   claimed by a perfect group is **excluded**: a word doesn't appear in both
-   a perfect and a near group. Function words never enter this pass.
-4. **Cadence pass (English only).** line-final words still unclaimed
-   after both passes are bucketed by
+3. **Cadence pass (English only).** Words not claimed by a perfect group are
+   bucketed by
    [`ending_cadence_key`](../app/domain/rhyme/ending_cadence_rules.py) —
-   syllable count from the last stress, reduced final rime, coda manner
-   classes — which connects multisyllabic endings that rhyme *rhythmically*
-   even when their phonemes differ ("sandwiches"/"allowances"). The key is
-   deliberately loose, which is safe only because membership is restricted
-   to line endings; these groups are emitted as `rhyme_type="near"`.
+   syllable count from the last *primary* stress, reduced final rime, manner
+   class of the closing consonant — which connects multisyllabic deliveries
+   that rhyme *rhythmically* even when their phonemes differ
+   ("sandwiches"/"allowances"/"analysts"/"counterfeits" all key `3_x_fric`).
+   Candidacy is position-independent: the key's 3-beat minimum means only
+   long deliveries qualify, so mid-line "sandwiches" still joins. Each line
+   also contributes a **compound ending span** — trailing function words
+   joined (destressed) onto the content word carrying the final stress — so
+   "countin' *this*" / "downin' *this*" rhyme as units, every word in the
+   span highlighted together. This pass runs *before* the near tier so a
+   delivery family isn't split by one member being claimed into an unrelated
+   slant group first. Groups are emitted as `rhyme_type="near"`.
+4. **Near pass.** Remaining tokens are run through the strict inner slant
+   key (`inner_near_rhyme_key` for English — anchored on the last *primary*
+   stress so compounds like "paystub" match the "waist" family —
+   `assonant_rhyme_key` for Spanish). Any occurrence already claimed by a
+   perfect or cadence group is **excluded**: a word appears in at most one
+   group. Function words never enter this pass.
 5. **Group filter.** A bucket only becomes a group if it has **≥ 2
    occurrences and ≥ 2 distinct normalized words**. This keeps plain word
    repetition (already covered by `repetition_rules`) from being reported as
-   a rhyme. All-function-word buckets are additionally suppressed in the
-   near tier ("them"/"then" is noise, not craft).
-6. **Anchor pruning.** a group survives only if it contains at least
+   a rhyme — with one exception: an **end-refrain**, the same content word
+   ending two or more lines ("…funk" / "…funk"), is the structural anchor of
+   its bars and is kept as a perfect group. All-function-word buckets are
+   additionally suppressed in the near tier ("them"/"then" is noise, not
+   craft), and a repeated line-final *function* word is not a refrain.
+6. **Anchor pruning.** A group survives only if it contains at least
    one line-final occurrence **or** one occurrence with
    `_ANCHOR_MIN_SYLLABLES` (2) or more syllables. Perfect groups may
    alternatively survive as a dense chain of
-   `_DENSE_GROUP_MIN_OCCURRENCES` (3) or more occurrences — a mid-line
-   cat/sat/mat run is deliberate craft. Near groups get no dense escape
+   `_DENSE_GROUP_MIN_DISTINCT_WORDS` (3) or more *distinct* words — a
+   mid-line cat/sat/mat run is deliberate craft, while sit/quit/quit
+   (repeats padding the count) is not. Near groups get no dense escape
    hatch: scattered mid-line monosyllable slant matches are the dominant
    highlight noise.
 7. **Confidence.** Perfect groups get `rhyme_type="perfect"` /
-   `confidence="high"`; near and cadence groups get `rhyme_type="near"` /
+   `confidence="high"`; cadence and near groups get `rhyme_type="near"` /
    `confidence="medium"`, the same high/medium convention documented in
    [`confidence-and-evidence.md`](./confidence-and-evidence.md). The web
    client renders `near` groups de-emphasized (fainter marker wash, dashed
@@ -130,7 +142,12 @@ scheme in color. Three deliberate filters implement the
   highlights flicker between analyses; the deterministic anchor rules don't.
 - *CMU stress digits for function-word detection.* CMU marks "my"/"to" with
   primary stress, so the lexical `_FUNCTION_WORDS` list is more reliable than
-  phonetics here.
+  phonetics here. (For the same reason, function words joined into a compound
+  span are destressed before keying.)
+- *Restricting the cadence pass to line-final words.* First tried; it missed
+  mid-line members of a delivery family ("syrup **sandwiches** and crime
+  allowances") and could not represent compound units at all. The 3-beat
+  minimum replaced position as the noise guard.
 
 ---
 
@@ -162,8 +179,8 @@ Redis response cache and for any future client-side diffing.
 `/v1/analyze-draft` responses may be served from the Redis response cache
 (see [`service-overview.md` §11](./service-overview.md#11-redis-response-cache-for-draft-endpoints)).
 Adding `inner_rhymes` to `DraftAnalysisResponse` bumped
-`NLP_CACHE_KEY_PREFIX` from `nlp:v1` to `nlp:v2`, and the scheme-clarity
-tuning bumped it again to `nlp:v3`
+`NLP_CACHE_KEY_PREFIX` from `nlp:v1` to `nlp:v2`; the scheme-clarity tuning
+bumped it to `nlp:v3`, and the cadence/refrain revision to `nlp:v4`
 ([`app/core/config.py`](../app/core/config.py)) so previously cached
 responses are never served stale.
 

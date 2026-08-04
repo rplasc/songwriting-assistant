@@ -72,26 +72,65 @@ re-tokenizing.
 
 ## Grouping algorithm
 
-1. **Perfect pass.** Every token's phonemes are run through the language's
+The detector is tuned for **scheme clarity over raw recall**: early testing
+against dense rap lyrics showed that pure bucketing highlighted nearly every
+word (function words, incidental vowel matches) and drowned the primary
+scheme in color. Three deliberate filters implement the
+"weight end-of-line delivery over mid-sentence functional matches" principle.
+
+1. **Token filter.** Tokens with `normalized` shorter than 2 characters
+   (`_MIN_WORD_LEN`) or with no resolvable phonemes are skipped entirely.
+   The last surviving token of each line is marked **line-final**, and each
+   token's syllable count (max vowel count across pronunciation variants) is
+   recorded — both feed the anchor rules below.
+2. **Perfect pass.** Every token's phonemes are run through the language's
    perfect-rhyme key (`rhyme_key` for English, `consonant_rhyme_key` for
    Spanish) and bucketed by key.
-2. **Near pass.** The same tokens are also run through the near/slant key
-   (`near_rhyme_key` for English, `assonant_rhyme_key` for Spanish). Any
-   occurrence whose `(line_index, word_index)` was already claimed by a
-   perfect group is **excluded**: a word doesn't appear in both a perfect
-   and a near group.
-3. **Group filter.** A bucket only becomes a group if it has **≥ 2
+   a `_FUNCTION_WORDS` token ("my", "to", "the", …) enters a bucket only
+   when it is line-final. A line *ending* on "you"/"do" is a real end-rhyme;
+   mid-line function-word matches are cognitive noise.
+3. **Near pass.** Remaining tokens are run through the strict inner slant
+   key (`inner_near_rhyme_key` for English, `assonant_rhyme_key` for
+   Spanish). Any occurrence whose `(line_index, word_index)` was already
+   claimed by a perfect group is **excluded**: a word doesn't appear in both
+   a perfect and a near group. Function words never enter this pass.
+4. **Cadence pass (English only).** line-final words still unclaimed
+   after both passes are bucketed by
+   [`ending_cadence_key`](../app/domain/rhyme/ending_cadence_rules.py) —
+   syllable count from the last stress, reduced final rime, coda manner
+   classes — which connects multisyllabic endings that rhyme *rhythmically*
+   even when their phonemes differ ("sandwiches"/"allowances"). The key is
+   deliberately loose, which is safe only because membership is restricted
+   to line endings; these groups are emitted as `rhyme_type="near"`.
+5. **Group filter.** A bucket only becomes a group if it has **≥ 2
    occurrences and ≥ 2 distinct normalized words**. This keeps plain word
    repetition (already covered by `repetition_rules`) from being reported as
-   a rhyme.
-4. **Confidence.** Perfect groups get `rhyme_type="perfect"` /
-   `confidence="high"`; near groups get `rhyme_type="near"` /
+   a rhyme. All-function-word buckets are additionally suppressed in the
+   near tier ("them"/"then" is noise, not craft).
+6. **Anchor pruning.** a group survives only if it contains at least
+   one line-final occurrence **or** one occurrence with
+   `_ANCHOR_MIN_SYLLABLES` (2) or more syllables. Perfect groups may
+   alternatively survive as a dense chain of
+   `_DENSE_GROUP_MIN_OCCURRENCES` (3) or more occurrences — a mid-line
+   cat/sat/mat run is deliberate craft. Near groups get no dense escape
+   hatch: scattered mid-line monosyllable slant matches are the dominant
+   highlight noise.
+7. **Confidence.** Perfect groups get `rhyme_type="perfect"` /
+   `confidence="high"`; near and cadence groups get `rhyme_type="near"` /
    `confidence="medium"`, the same high/medium convention documented in
-   [`confidence-and-evidence.md`](./confidence-and-evidence.md).
-5. **Filtering noise.** Tokens with `normalized` shorter than 2 characters
-   (`_MIN_WORD_LEN`) or with no resolvable phonemes are skipped entirely.
-6. **Ordering.** Groups are sorted by their first occurrence
+   [`confidence-and-evidence.md`](./confidence-and-evidence.md). The web
+   client renders `near` groups de-emphasized (fainter marker wash, dashed
+   underline) so the perfect scheme visually dominates.
+8. **Ordering.** Groups are sorted by their first occurrence
    (`line_index`, `word_index`), perfect groups before near groups on ties.
+
+**Rejected alternatives**, recorded so they aren't re-proposed:
+
+- *A hard top-N group cap.* Ranking reshuffles as the user types, which makes
+  highlights flicker between analyses; the deterministic anchor rules don't.
+- *CMU stress digits for function-word detection.* CMU marks "my"/"to" with
+  primary stress, so the lexical `_FUNCTION_WORDS` list is more reliable than
+  phonetics here.
 
 ---
 
@@ -123,23 +162,29 @@ Redis response cache and for any future client-side diffing.
 `/v1/analyze-draft` responses may be served from the Redis response cache
 (see [`service-overview.md` §11](./service-overview.md#11-redis-response-cache-for-draft-endpoints)).
 Adding `inner_rhymes` to `DraftAnalysisResponse` bumped
-`NLP_CACHE_KEY_PREFIX` from `nlp:v1` to `nlp:v2`
+`NLP_CACHE_KEY_PREFIX` from `nlp:v1` to `nlp:v2`, and the scheme-clarity
+tuning bumped it again to `nlp:v3`
 ([`app/core/config.py`](../app/core/config.py)) so previously cached
-responses (which lack the field) are never served stale.
+responses are never served stale.
 
 ---
 
 ## What this does not do
 
-- **No UI highlighting yet.** The gateway and web client pass `inner_rhymes`
-  through to `AnalysisResult.innerRhymes` / `DraftAnalysis.innerRhymes`
-  unchanged, but no component renders them yet; that is a follow-up.
 - **No cross-language groups.** Each request is analyzed in one language;
   there is no attempt to rhyme an English word against a Spanish one.
 - **Doesn't replace end-rhyme scheme.** `sections[].rhyme_scheme` is computed
   independently from the last word of each line, as before. A line's last
   word can appear in both its section's rhyme scheme **and** an
   `inner_rhymes` group.
-- **No alliteration or consonance-only matching.** Only the perfect and
-  near/slant keys already used elsewhere are reused; no new phonetic
+- **No alliteration or consonance-only matching.** Only the perfect,
+  near/slant, and line-ending cadence keys are used; no general phonetic
   similarity metric was introduced.
+- **No multi-word ending spans.** `ending_span_rules` and
+  `multisyllabic_rules` remain wired into the `/v1/rhymes` suggestion path
+  only; matching multi-word line endings ("taste bloods" / "paystub") as
+  highlight groups is future work.
+
+(The gateway and web client render `inner_rhymes` as in-editor highlights:
+color slot hashed from `rhyme_key`, `near` groups de-emphasized. See
+`apps/web/src/features/editor/tiptap/inner-rhyme-extension.ts`.)

@@ -5,6 +5,22 @@ at the last word of each line. This module looks at *every* word and groups the
 ones that rhyme with each other — interior or ending, same line or across lines
 — so the UI can highlight rhyming words wherever they fall.
 
+Highlighting is tuned for scheme clarity, not raw recall (feedback: raw
+bucketing highlighted nearly every word and drowned the primary scheme):
+
+- Function words enter groups only when they end their line.
+- Every group must be *anchored* — contain a line-final or multisyllabic
+  occurrence — or, for the perfect tier only, be a dense chain of
+  ``_DENSE_GROUP_MIN_OCCURRENCES``+ occurrences. Scattered mid-line
+  monosyllable matches are pruned as noise.
+- A cadence pass connects multisyllabic line endings whose delivery matches
+  even when their phonemes don't ("sandwiches"/"allowances").
+
+Deliberately rejected: a hard top-N group cap (rank reshuffles while typing
+cause highlight flicker; deterministic rules don't) and CMU stress digits for
+function-word detection (CMU marks "my"/"to" stressed — the lexical list is
+more reliable).
+
 The detector is fed positioned tokens plus a ``phonemes_for`` callable, keeping
 it decoupled from ``LanguageContext``. Two convenience builders construct that
 callable for English and Spanish, caching by normalized word per request.
@@ -25,6 +41,7 @@ from app.domain.languages.spanish.rhyme_rules import (
     consonant_rhyme_key,
 )
 from app.domain.near_rhyme_rules import inner_near_rhyme_key
+from app.domain.rhyme.ending_cadence_rules import ending_cadence_key, vowel_count
 from app.domain.rhyme_rules import rhyme_key
 from app.models.token import Token
 from app.schemas.responses import InnerRhymeGroup, RhymeOccurrence
@@ -44,14 +61,32 @@ _KEY_FNS: dict[str, tuple[Callable, Callable]] = {
     "es": (consonant_rhyme_key, assonant_rhyme_key),
 }
 
+# Per language: the cadence key for the line-ending pass (R4). English only —
+# Spanish's assonant key already matches vowel tails, so a looser cadence pass
+# would only add noise there.
+_CADENCE_KEY_FNS: dict[str, Callable] = {
+    "en": ending_cadence_key,
+}
+
 # Words shorter than this are skipped — single letters ("a", "i") are phonetic
 # noise that produces unhelpful highlight groups.
 _MIN_WORD_LEN = 2
 
-# Unstressed-in-connected-speech function words. They may still join a perfect
-# group anchored by a content word ("me" alongside "see"/"free"), but they
-# never seed near groups, and a group made of nothing but function words is
-# suppressed — a slant match between "them" and "then" is noise, not craft.
+# Anchor pruning: a group survives only when at least one occurrence is
+# line-final or has this many syllables — the "phonetic delivery weighting"
+# that keeps the primary scheme visible. Perfect groups may alternatively
+# survive as a dense chain (cat/sat/mat mid-line is deliberate craft); near
+# groups get no such escape hatch because scattered mid-line monosyllable
+# slant matches are the dominant highlight noise.
+_ANCHOR_MIN_SYLLABLES = 2
+_DENSE_GROUP_MIN_OCCURRENCES = 3
+
+# Unstressed-in-connected-speech function words. They enter highlight groups
+# only when they end their line — a line ending on "you"/"do" is a real
+# end-rhyme, but mid-line "my"/"to"/"the" matches are cognitive noise that
+# drowns the scheme. They never seed near groups, and an all-function-word
+# near group is suppressed — a slant match between "them" and "then" is
+# noise, not craft.
 _FUNCTION_WORDS: dict[str, frozenset[str]] = {
     "en": frozenset({
         "am", "an", "and", "are", "as", "at", "be", "been", "but", "by",
@@ -204,6 +239,26 @@ def _merge_multi_key_buckets(
     return merged
 
 
+# Per-occurrence metadata recorded during the token walk, keyed by
+# (line_index, word_index): (is_line_final, max syllables across variants).
+_OccMeta = dict[tuple[int, int], tuple[bool, int]]
+
+
+def _is_anchored(
+    occ: Sequence[RhymeOccurrence],
+    meta: _OccMeta,
+    *,
+    allow_dense: bool,
+) -> bool:
+    """Anchor pruning (R3): the group must contain a line-final or
+    multisyllabic occurrence, or (perfect tier only) be a dense chain."""
+    for o in occ:
+        is_line_final, syllables = meta.get((o.line_index, o.word_index), (False, 0))
+        if is_line_final or syllables >= _ANCHOR_MIN_SYLLABLES:
+            return True
+    return allow_dense and len(occ) >= _DENSE_GROUP_MIN_OCCURRENCES
+
+
 def _build_groups(
     buckets: dict[str, list[RhymeOccurrence]],
     *,
@@ -211,6 +266,7 @@ def _build_groups(
     rhyme_type: str,
     confidence: str,
     function_words: frozenset[str],
+    meta: _OccMeta,
 ) -> list[InnerRhymeGroup]:
     groups: list[InnerRhymeGroup] = []
     for key, occ in buckets.items():
@@ -218,11 +274,13 @@ def _build_groups(
         # plain repetition (handled by repetition_rules) isn't mislabeled rhyme.
         if len(occ) < 2 or len({o.normalized for o in occ}) < 2:
             continue
-        # Function words may form a group when the sound match is *exact*
-        # (perfect tier): "your"/"for" is a real rhyme worth highlighting. A
+        # Function words reach the perfect tier only when line-final, so
+        # an all-function-word perfect group is a legitimate end-rhyme. A
         # near/slant match between function words ("them"/"then") is noise, so
         # all-function-word groups are still suppressed in the near tier.
         if rhyme_type == "near" and all(o.normalized in function_words for o in occ):
+            continue
+        if not _is_anchored(occ, meta, allow_dense=rhyme_type == "perfect"):
             continue
         ordered = sorted(occ, key=lambda o: (o.line_index, o.word_index))
         groups.append(
@@ -246,35 +304,55 @@ def find_inner_rhyme_groups(
 
     ``lines`` is a sequence of ``(line_index, tokens)``; ``line_index`` is echoed
     onto each occurrence (1-based global for drafts, 0 for the single-line
-    endpoint). Perfect rhymes take precedence; remaining words are matched on the
-    coarser near/slant key.
+    endpoint). Perfect rhymes take precedence; remaining words are matched on
+    the coarser near/slant key; line-final words still unclaimed get a cadence
+    pass. Groups that fail anchor pruning (R3) are dropped.
     """
     perfect_fn, near_fn = _KEY_FNS.get(language, (rhyme_key, inner_near_rhyme_key))
+    cadence_fn = _CADENCE_KEY_FNS.get(language)
     function_words = _FUNCTION_WORDS.get(language, frozenset())
 
     perfect_buckets_raw: dict[str, list[RhymeOccurrence]] = {}
-    # Each near candidate keeps its occurrence + near-key set so we can bucket
-    # the ones that survive perfect-grouping.
+    # Near/cadence candidates keep their occurrence + key set so we can bucket
+    # the ones that survive the earlier tiers.
     near_candidates: list[tuple[set[str], RhymeOccurrence]] = []
+    cadence_candidates: list[tuple[set[str], RhymeOccurrence]] = []
+    meta: _OccMeta = {}
 
     for line_index, tokens in lines:
+        entries: list[tuple[Token, Sequence[tuple[str, ...]]]] = []
         for token in tokens:
             if len(token.normalized) < _MIN_WORD_LEN:
                 continue
             variants = phonemes_for(token)
             if not variants:
                 continue
+            entries.append((token, variants))
+        for pos, (token, variants) in enumerate(entries):
+            is_line_final = pos == len(entries) - 1
             occ = _occurrence(line_index, token)
-            perfect_keys = {k for v in variants if (k := perfect_fn(v)) is not None}
-            for key in perfect_keys:
-                perfect_buckets_raw.setdefault(key, []).append(occ)
+            meta[(occ.line_index, occ.word_index)] = (
+                is_line_final,
+                max(vowel_count(v) for v in variants),
+            )
+            is_function = token.normalized in function_words
+            # Function words highlight only at line end — mid-line
+            # "my"/"to"/"the" matches drown the scheme.
+            if not is_function or is_line_final:
+                perfect_keys = {k for v in variants if (k := perfect_fn(v)) is not None}
+                for key in perfect_keys:
+                    perfect_buckets_raw.setdefault(key, []).append(occ)
             # Function words only count when the sound match is exact — they
-            # never seed slant groups.
-            if token.normalized in function_words:
+            # never seed slant or cadence groups.
+            if is_function:
                 continue
             near_keys = {k for v in variants if (k := near_fn(v)) is not None}
             if near_keys:
                 near_candidates.append((near_keys, occ))
+            if is_line_final and cadence_fn is not None:
+                cadence_keys = {k for v in variants if (k := cadence_fn(v)) is not None}
+                if cadence_keys:
+                    cadence_candidates.append((cadence_keys, occ))
 
     perfect_buckets = _merge_multi_key_buckets(perfect_buckets_raw)
     perfect_groups = _build_groups(
@@ -283,6 +361,7 @@ def find_inner_rhyme_groups(
         rhyme_type="perfect",
         confidence="high",
         function_words=function_words,
+        meta=meta,
     )
 
     # Positions already claimed by a perfect group are excluded from near groups.
@@ -305,9 +384,36 @@ def find_inner_rhyme_groups(
         rhyme_type="near",
         confidence="medium",
         function_words=function_words,
+        meta=meta,
     )
 
-    groups = perfect_groups + near_groups
+    # Cadence pass: line-final words still unclaimed after both tiers are
+    # matched on delivery shape ("sandwiches"/"allowances"). Emitted as near/
+    # medium — no schema ripple, and the client de-emphasizes them the same
+    # way. Looseness is safe because membership is line-final-only.
+    claimed.update(
+        (o.line_index, o.word_index)
+        for group in near_groups
+        for o in group.occurrences
+    )
+    cadence_buckets_raw: dict[str, list[RhymeOccurrence]] = {}
+    for cadence_keys, occ in cadence_candidates:
+        if (occ.line_index, occ.word_index) in claimed:
+            continue
+        for key in cadence_keys:
+            cadence_buckets_raw.setdefault(key, []).append(occ)
+
+    cadence_buckets = _merge_multi_key_buckets(cadence_buckets_raw)
+    cadence_groups = _build_groups(
+        cadence_buckets,
+        language=language,
+        rhyme_type="near",
+        confidence="medium",
+        function_words=function_words,
+        meta=meta,
+    )
+
+    groups = perfect_groups + near_groups + cadence_groups
     # Stable ordering: by first occurrence, perfect before near on ties.
     groups.sort(
         key=lambda g: (

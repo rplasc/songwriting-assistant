@@ -160,6 +160,28 @@ describe("computeInnerRhymeRanges", () => {
     expect(ranges).toEqual([]);
   });
 
+  it("appends the rhyme-near modifier for near groups only", () => {
+    const source = ["Counting down the days,"];
+    const nearGroup = {
+      ...group([{ lineIndex: 1, charStart: 18, charEnd: 22, text: "days" }]),
+      rhymeType: "near" as const,
+      confidence: "medium" as const,
+    };
+    const ranges = computeInnerRhymeRanges(descriptorsFor(source), {
+      groups: [nearGroup],
+      sourceLines: source,
+    });
+    expect(ranges).toEqual([
+      { from: 19, to: 23, className: `rhyme-g${rhymeColorSlot("EY")} rhyme-near` },
+    ]);
+    // Perfect groups keep the bare color class.
+    const perfect = computeInnerRhymeRanges(descriptorsFor(source), {
+      groups: [group([{ lineIndex: 1, charStart: 18, charEnd: 22, text: "days" }])],
+      sourceLines: source,
+    });
+    expect(perfect[0].className).toBe(`rhyme-g${rhymeColorSlot("EY")}`);
+  });
+
   it("assigns a class from the rhyme key, stable across group order", () => {
     const source = ["aa bb"];
     const occ = (word: string, i: number) => ({

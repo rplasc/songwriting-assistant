@@ -229,8 +229,8 @@ typically under 2 ms.
 
 Cache keys use `orjson.OPT_SORT_KEYS` serialisation so equivalent payloads with
 different field ordering hash identically. Bumping `NLP_CACHE_KEY_PREFIX` (e.g.
-`nlp:v1` → `nlp:v2`) invalidates all entries globally when analysis logic
-changes.
+`nlp:v2` → `nlp:v3`, done for the inner-rhyme scheme-clarity tuning)
+invalidates all entries globally when analysis logic changes.
 
 **Tradeoffs:**
 

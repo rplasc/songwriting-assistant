@@ -73,9 +73,10 @@ def test_cross_line_perfect_group() -> None:
 
 
 def test_near_group_when_not_perfect() -> None:
-    # cat (…AE1 T) and cad (…AE1 D) are not perfect but are near rhymes.
+    # cat (…AE1 T) and cad (…AE1 D) are not perfect but are near rhymes; the
+    # line-final "cad" anchors the group.
     groups = find_inner_rhyme_groups(
-        [_line(["cat", "cad", "dog"])],
+        [_line(["cat", "dog", "cad"])],
         _phonemes_for,
         "en",
     )
@@ -200,26 +201,48 @@ def test_function_words_do_not_seed_near_groups() -> None:
     assert [g.rhyme_type for g in groups] == ["near"]
 
 
-def test_all_function_word_perfect_group_is_highlighted() -> None:
-    # Function words form a group on an *exact* (perfect) match: "your"/"for"
-    # is a real rhyme worth highlighting even with no content-word anchor.
-    def phon(token: Token) -> list[tuple[str, ...]]:
-        table = {
-            "your": ("Y", "AO1", "R"),
-            "for": ("F", "AO1", "R"),
-            "you": ("Y", "UW1"),
-            "do": ("D", "UW1"),
-        }
-        phonemes = table.get(token.normalized)
-        return [phonemes] if phonemes is not None else []
+def _function_word_phonemes(token: Token) -> list[tuple[str, ...]]:
+    table = {
+        "your": ("Y", "AO1", "R"),
+        "for": ("F", "AO1", "R"),
+        "you": ("Y", "UW1"),
+        "do": ("D", "UW1"),
+        "dog": ("D", "AO1", "G"),
+        "cat": ("K", "AE1", "T"),
+    }
+    phonemes = table.get(token.normalized)
+    return [phonemes] if phonemes is not None else []
 
-    groups = find_inner_rhyme_groups([_line(["your", "for"])], phon, "en")
+
+def test_function_words_highlight_only_at_line_end() -> None:
+    # Mid-line function-word matches ("your" earlier in the line) are exactly
+    # the color-fatigue noise the highlighter must suppress — even on an exact
+    # sound match.
+    groups = find_inner_rhyme_groups(
+        [_line(["your", "for"])], _function_word_phonemes, "en"
+    )
+    assert groups == []
+
+    groups = find_inner_rhyme_groups(
+        [_line(["you", "do"])], _function_word_phonemes, "en"
+    )
+    assert groups == []
+
+    # But lines *ending* on function words carry a real end-rhyme.
+    groups = find_inner_rhyme_groups(
+        [_line(["dog", "your"], 1), _line(["cat", "for"], 2)],
+        _function_word_phonemes,
+        "en",
+    )
     perfect = [g for g in groups if g.rhyme_type == "perfect"]
     assert len(perfect) == 1
     assert {o.normalized for o in perfect[0].occurrences} == {"your", "for"}
 
-    # "you"/"do" likewise form a perfect group now.
-    groups = find_inner_rhyme_groups([_line(["you", "do"])], phon, "en")
+    groups = find_inner_rhyme_groups(
+        [_line(["dog", "you"], 1), _line(["cat", "do"], 2)],
+        _function_word_phonemes,
+        "en",
+    )
     assert [g.rhyme_type for g in groups] == ["perfect"]
 
 
@@ -229,3 +252,164 @@ def test_deterministic_ids() -> None:
     g2 = find_inner_rhyme_groups([line], _phonemes_for, "en")
     assert [g.id for g in g1] == [g.id for g in g2]
     assert all(g.id.startswith("irh_") for g in g1)
+
+
+def test_midline_pair_without_anchor_is_pruned() -> None:
+    # feet/heat is a perfect pair, but both sit mid-line as unstressed-position
+    # monosyllables with no third member -> incidental, not the scheme.
+    groups = find_inner_rhyme_groups(
+        [_line(["feet", "heat", "dog"])],
+        _phonemes_for,
+        "en",
+    )
+    assert groups == []
+
+
+def test_line_final_occurrence_anchors_group() -> None:
+    # The same pair survives once one member lands on the line ending.
+    groups = find_inner_rhyme_groups(
+        [_line(["feet", "dog", "heat"])],
+        _phonemes_for,
+        "en",
+    )
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert {o.normalized for o in perfect[0].occurrences} == {"feet", "heat"}
+
+
+def test_dense_midline_chain_survives() -> None:
+    # Three or more perfect occurrences mid-line are deliberate craft, not
+    # coincidence, even without a line-final or multisyllabic anchor.
+    groups = find_inner_rhyme_groups(
+        [_line(["cat", "sat", "mat", "dog"])],
+        _phonemes_for,
+        "en",
+    )
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert {o.normalized for o in perfect[0].occurrences} == {"cat", "sat", "mat"}
+
+
+def test_multisyllabic_occurrence_anchors_group() -> None:
+    # A multisyllabic member anchors a mid-line pair: the stress landing on a
+    # longer word reads as intentional.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "delay": ("D", "IH0", "L", "EY1"),
+            "play": ("P", "L", "EY1"),
+            "dog": ("D", "AO1", "G"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups([_line(["delay", "play", "dog"])], phon, "en")
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert {o.normalized for o in perfect[0].occurrences} == {"delay", "play"}
+
+
+def test_midline_near_pair_is_pruned_without_dense_escape() -> None:
+    # Near groups get no dense-chain escape hatch: mid-line monosyllable slant
+    # matches are the dominant highlight noise. (Same words as
+    # test_near_group_when_not_perfect, but with the anchor position lost.)
+    groups = find_inner_rhyme_groups(
+        [_line(["cat", "cad", "dog"])],
+        _phonemes_for,
+        "en",
+    )
+    assert groups == []
+
+
+def test_multisyllabic_occurrence_anchors_near_group() -> None:
+    # "attack" and "cat" share the inner near key (AE1 + stop coda); the
+    # two-syllable "attack" anchors the group even mid-line.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "attack": ("AH0", "T", "AE1", "K"),
+            "cat": ("K", "AE1", "T"),
+            "dog": ("D", "AO1", "G"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups([_line(["cat", "attack", "dog"])], phon, "en")
+    near = [g for g in groups if g.rhyme_type == "near"]
+    assert len(near) == 1
+    assert {o.normalized for o in near[0].occurrences} == {"cat", "attack"}
+
+
+_CADENCE_PHONEMES: dict[str, tuple[str, ...]] = {
+    "sandwiches": ("S", "AE1", "N", "W", "IH0", "CH", "AH0", "Z"),
+    "allowances": ("AH0", "L", "AW1", "AH0", "N", "S", "AH0", "Z"),
+    "crime": ("K", "R", "AY1", "M"),
+    "dog": ("D", "AO1", "G"),
+    "feet": ("F", "IY1", "T"),
+}
+
+
+def _cadence_phonemes_for(token: Token) -> list[tuple[str, ...]]:
+    phonemes = _CADENCE_PHONEMES.get(token.normalized)
+    return [phonemes] if phonemes is not None else []
+
+
+def test_cadence_connects_multisyllabic_line_endings() -> None:
+    # "sandwiches"/"allowances" share no perfect tail and no near key, but the
+    # line endings carry the same cadence -> one de-emphasized (near) group.
+    groups = find_inner_rhyme_groups(
+        [_line(["crime", "sandwiches"], 1), _line(["dog", "allowances"], 2)],
+        _cadence_phonemes_for,
+        "en",
+    )
+    assert len(groups) == 1
+    g = groups[0]
+    assert g.rhyme_type == "near"
+    assert g.confidence == "medium"
+    assert {o.normalized for o in g.occurrences} == {"sandwiches", "allowances"}
+
+
+def test_cadence_only_applies_at_line_end() -> None:
+    # The cadence key is deliberately loose; mid-line it would flood the
+    # highlight, so the same words earlier in their lines produce nothing.
+    groups = find_inner_rhyme_groups(
+        [_line(["sandwiches", "dog"], 1), _line(["allowances", "feet"], 2)],
+        _cadence_phonemes_for,
+        "en",
+    )
+    assert groups == []
+
+
+def test_function_heavy_draft_highlights_only_the_scheme() -> None:
+    # Regression for feedback.md: a draft dense with mid-line function words
+    # (the HUMBLE. failure mode) must highlight only the end-rhyme scheme —
+    # no group may contain a mid-line function word.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "my": ("M", "AY1"),
+            "by": ("B", "AY1"),
+            "to": ("T", "UW1"),
+            "the": ("DH", "AH0"),
+            "we": ("W", "IY1"),
+            "give": ("G", "IH1", "V"),
+            "dog": ("D", "AO1", "G"),
+            "sat": ("S", "AE1", "T"),
+            "feet": ("F", "IY1", "T"),
+            "heat": ("HH", "IY1", "T"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups(
+        [
+            _line(["my", "dog", "sat", "by", "my", "feet"], 1),
+            _line(["to", "the", "dog", "we", "give", "heat"], 2),
+        ],
+        phon,
+        "en",
+    )
+    # Only the feet/heat end-rhyme survives; the mid-line "my"/"by" perfect
+    # match and every other function-word match are suppressed.
+    assert len(groups) == 1
+    assert {o.normalized for o in groups[0].occurrences} == {"feet", "heat"}
+    function_words = {"my", "by", "to", "the", "we"}
+    for g in groups:
+        assert not {o.normalized for o in g.occurrences} & function_words

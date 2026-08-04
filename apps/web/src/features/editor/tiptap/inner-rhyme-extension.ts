@@ -54,7 +54,10 @@ export function computeInnerRhymeRanges(
   const byLine = new Map(lines.map((l) => [l.line, l]));
   const ranges: RhymeUnderlineRange[] = [];
   payload.groups.forEach((group) => {
-    const className = `rhyme-g${rhymeColorSlot(group.rhymeKey)}`;
+    // Near/cadence groups render de-emphasized (fainter marker, dashed
+    // underline) so the perfect end-rhyme scheme visually dominates.
+    const nearModifier = group.rhymeType === "near" ? " rhyme-near" : "";
+    const className = `rhyme-g${rhymeColorSlot(group.rhymeKey)}${nearModifier}`;
     for (const occ of group.occurrences) {
       const descriptor = byLine.get(occ.lineIndex);
       const source = payload.sourceLines[occ.lineIndex - 1];

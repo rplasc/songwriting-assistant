@@ -26,7 +26,7 @@ Browser (Next.js)  →  Gateway (NestJS)  →  NLP Service (FastAPI)
 
 - **Live syllable count** — total for the active line, broken down per word, with italicized estimates for words missing from the dictionary
 - **Rhyme suggestions** — perfect/near for English, consonant/assonant for Spanish, ranked by frequency and labeled
-- **Inner-rhyme grouping** — every pair of words that rhyme (perfect or near), anywhere in a line or across the draft, is grouped with word-level positions in the API response — groundwork for in-editor highlighting
+- **Inner-rhyme highlighting** — rhyming words are grouped with word-level positions and rendered as in-editor highlights, tuned for scheme clarity: function words highlight only at line endings, groups must be anchored by a line-final or multisyllabic word (or a dense perfect chain), a cadence pass connects multisyllabic line endings that rhyme rhythmically ("sandwiches"/"allowances"), and near/cadence matches render de-emphasized so the primary scheme stands out
 - **Rhyme-mode toggle** — switch between strict and loose matching from the editor header
 - **Draft analysis** — on-demand structural review of the full draft: rhyme scheme, cadence patterns, and repetition signals per section
 - **Draft compare** — delta analysis between two versions of a draft, surfacing changes in motifs, repetition, section structure, and consistency
@@ -55,7 +55,6 @@ Browser (Next.js)  →  Gateway (NestJS)  →  NLP Service (FastAPI)
 ## Planned
 
 - Mixed-language intelligence — line-by-line language detection for code-switched lyrics
-- Inner-rhyme highlighting — render the `inner_rhymes` groups already returned by the API as in-editor highlights for rhyming words anywhere in the draft
 - Rhyme scheme tracking — highlight end-words by rhyme family across the full lyric sheet
 - Meter and stress patterns — visualize where stresses fall against a chosen meter
 - Multi-document project management — organize drafts by song and section

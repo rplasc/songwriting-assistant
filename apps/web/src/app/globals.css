@@ -205,6 +205,17 @@ body {
   -webkit-box-decoration-break: clone;
 }
 
+/* Near/cadence groups are de-emphasized — fainter wash, dashed rule — so the
+   perfect scheme visually dominates. Placed after the base blocks so the
+   modifier wins the same-specificity contest. */
+.rhyme-style-marker .tiptap .rhyme-near {
+  background-color: color-mix(in srgb, var(--rhyme-ink) 18%, transparent);
+}
+
+.rhyme-style-underline .tiptap .rhyme-near {
+  text-decoration-style: dashed;
+}
+
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--muted-foreground);

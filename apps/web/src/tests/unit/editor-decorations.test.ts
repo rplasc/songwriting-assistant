@@ -3,6 +3,7 @@ import { Schema, type Node as PMNode } from "@tiptap/pm/model";
 import { buildLineMetricsDecorations } from "@/features/editor/tiptap/line-metrics-extension";
 import { buildSectionLabelDecorations } from "@/features/editor/tiptap/section-label-extension";
 import {
+  assignColorSlots,
   collectDirtyRanges,
   computeInnerRhymeRanges,
   overlapsDirty,
@@ -200,21 +201,93 @@ describe("computeInnerRhymeRanges", () => {
         },
       ],
     });
+    const slots = assignColorSlots(["KEY_aa", "KEY_bb"]);
     const forward = computeInnerRhymeRanges(descriptorsFor(source), {
       groups: [occ("aa", 0), occ("bb", 1)],
       sourceLines: source,
     });
     // Same key -> same class regardless of position in the group list.
-    expect(forward[0].className).toBe(`rhyme-g${rhymeColorSlot("KEY_aa")}`);
-    expect(forward[1].className).toBe(`rhyme-g${rhymeColorSlot("KEY_bb")}`);
+    expect(forward[0].className).toBe(`rhyme-g${slots.get("KEY_aa")}`);
+    expect(forward[1].className).toBe(`rhyme-g${slots.get("KEY_bb")}`);
     // Reordering the words on the line must not change either word's color.
     const swappedSource = ["bb aa"];
     const swapped = computeInnerRhymeRanges(descriptorsFor(swappedSource), {
       groups: [occ("bb", 0), occ("aa", 1)],
       sourceLines: swappedSource,
     });
-    expect(swapped[0].className).toBe(`rhyme-g${rhymeColorSlot("KEY_bb")}`);
-    expect(swapped[1].className).toBe(`rhyme-g${rhymeColorSlot("KEY_aa")}`);
+    expect(swapped[0].className).toBe(`rhyme-g${slots.get("KEY_bb")}`);
+    expect(swapped[1].className).toBe(`rhyme-g${slots.get("KEY_aa")}`);
+  });
+
+  it("merges adjacent same-group words into one continuous range", () => {
+    // A compound phrase ("countin this") highlights as one block: the two
+    // word occurrences are adjacent, so their ranges fuse.
+    const source = ["now countin this"];
+    const compound = {
+      id: "g1",
+      rhymeType: "perfect" as const,
+      confidence: "high" as const,
+      rhymeKey: "AW1_N",
+      occurrences: [
+        {
+          lineIndex: 1,
+          wordIndex: 1,
+          charStart: 4,
+          charEnd: 11,
+          text: "countin",
+          normalized: "countin",
+        },
+        {
+          lineIndex: 1,
+          wordIndex: 2,
+          charStart: 12,
+          charEnd: 16,
+          text: "this",
+          normalized: "this",
+        },
+      ],
+    };
+    const ranges = computeInnerRhymeRanges(descriptorsFor(source), {
+      groups: [compound],
+      sourceLines: source,
+    });
+    expect(ranges).toHaveLength(1);
+    expect(ranges[0].from).toBe(5);
+    expect(ranges[0].to).toBe(17);
+  });
+
+  it("does not merge across content words or other groups", () => {
+    // Same group, but a word between the occurrences -> two ranges.
+    const source = ["cat dog cad"];
+    const spread = {
+      id: "g1",
+      rhymeType: "near" as const,
+      confidence: "medium" as const,
+      rhymeKey: "AE_stop_s",
+      occurrences: [
+        {
+          lineIndex: 1,
+          wordIndex: 0,
+          charStart: 0,
+          charEnd: 3,
+          text: "cat",
+          normalized: "cat",
+        },
+        {
+          lineIndex: 1,
+          wordIndex: 2,
+          charStart: 8,
+          charEnd: 11,
+          text: "cad",
+          normalized: "cad",
+        },
+      ],
+    };
+    const ranges = computeInnerRhymeRanges(descriptorsFor(source), {
+      groups: [spread],
+      sourceLines: source,
+    });
+    expect(ranges).toHaveLength(2);
   });
 });
 
@@ -227,6 +300,27 @@ describe("rhymeColorSlot", () => {
       expect(slot).toBeLessThan(RHYME_GROUP_CLASS_COUNT);
       expect(Number.isInteger(slot)).toBe(true);
     }
+  });
+});
+
+describe("assignColorSlots", () => {
+  it("gives co-visible keys distinct slots while capacity remains", () => {
+    const keys = Array.from({ length: RHYME_GROUP_CLASS_COUNT }, (_, i) => `K${i}`);
+    const slots = assignColorSlots(keys);
+    expect(new Set(slots.values()).size).toBe(keys.length);
+  });
+
+  it("is a pure function of the key set, not its order", () => {
+    const a = assignColorSlots(["KEY_aa", "KEY_bb", "KEY_cc"]);
+    const b = assignColorSlots(["KEY_cc", "KEY_aa", "KEY_bb", "KEY_aa"]);
+    expect(Array.from(a.entries()).sort()).toEqual(
+      Array.from(b.entries()).sort(),
+    );
+  });
+
+  it("keeps the hash slot when there is no collision", () => {
+    const slots = assignColorSlots(["EY"]);
+    expect(slots.get("EY")).toBe(rhymeColorSlot("EY"));
   });
 });
 

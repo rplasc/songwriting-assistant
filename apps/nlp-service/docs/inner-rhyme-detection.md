@@ -121,19 +121,27 @@ scheme in color. Three deliberate filters implement the
 6. **Anchor pruning.** A group survives only if it contains at least
    one line-final occurrence **or** one occurrence with
    `_ANCHOR_MIN_SYLLABLES` (2) or more syllables. Perfect groups may
-   alternatively survive as a dense chain of
+   alternatively survive as a **same-line** dense chain of
    `_DENSE_GROUP_MIN_DISTINCT_WORDS` (3) or more *distinct* words — a
-   mid-line cat/sat/mat run is deliberate craft, while sit/quit/quit
-   (repeats padding the count) is not. Near groups get no dense escape
-   hatch: scattered mid-line monosyllable slant matches are the dominant
-   highlight noise.
-7. **Confidence.** Perfect groups get `rhyme_type="perfect"` /
+   mid-line cat/sat/mat run inside one bar is deliberate craft, while the
+   same sounds scattered across distant lines, or repeats padding the count
+   (sit/quit/quit), are not. Near groups get no dense escape hatch:
+   scattered mid-line monosyllable slant matches are the dominant highlight
+   noise.
+7. **Function-tail extension.** After each tier, when two or more members of
+   a group are each followed by the **same run of function words to the end
+   of their lines** ("countin' *this*" / "downin' *this*"), those tail words
+   join the group (`_extend_function_tails`). The phrases rhyme as compound
+   units and the writer reads them as such; the web client then paints each
+   phrase as one continuous block. Tail words are marked claimed so later
+   tiers leave them alone.
+8. **Confidence.** Perfect groups get `rhyme_type="perfect"` /
    `confidence="high"`; cadence and near groups get `rhyme_type="near"` /
    `confidence="medium"`, the same high/medium convention documented in
    [`confidence-and-evidence.md`](./confidence-and-evidence.md). The web
    client renders `near` groups de-emphasized (fainter marker wash, dashed
    underline) so the perfect scheme visually dominates.
-8. **Ordering.** Groups are sorted by their first occurrence
+9. **Ordering.** Groups are sorted by their first occurrence
    (`line_index`, `word_index`), perfect groups before near groups on ties.
 
 **Rejected alternatives**, recorded so they aren't re-proposed:
@@ -157,10 +165,26 @@ scheme in color. Three deliberate filters implement the
 ([`app/domain/rhyme/inner_rhyme_rules.py`](../app/domain/rhyme/inner_rhyme_rules.py))
 mirror the per-line rhyme-key lookups already used for end-rhyme scheme
 (`_english_rhyme_key` / `_spanish_rhyme_key` in `draft_analysis_service.py`):
-dictionary pronunciation first, heuristic G2P fallback for English, rule-based
-G2P for Spanish. Both builders take a `dict[str, tuple[str, ...] | None]`
-cache keyed on the normalized word, so a draft that repeats a word many times
-only computes its phonemes once per request.
+dictionary pronunciation first, then — for English words the dictionary
+misses — three ordered fallbacks tuned for lyric vocabulary:
+
+1. **Dropped-g recovery** — "countin'" normalizes to "countin"; looking up
+   "counting" recovers the real pronunciation. This is what lets "-in'"
+   words carry full tails instead of one-syllable guesses.
+2. **Compound split** — an OOV word is split into two dictionary words
+   ("paystub" → "pay" + "stub"), concatenated with the right half's primary
+   stress demoted to secondary, matching how CMU marks real compounds.
+3. **Heuristic guesses**, wrapped in `HeuristicTailVariants`: one crude
+   full-word reading (`heuristic_full_reading` — initial-stress cluster
+   walk, e.g. "tetris" → `T EH1 T R IH0 S`) followed by the tail-only
+   candidates. The wrapper keeps guesses **out of the perfect tier**
+   entirely — fabricated stress readings previously let unknown words claim
+   exact rhymes with function words ("tetris"/"this") — while the slant and
+   cadence tiers still see them; a wrong slant guess is cheap and renders
+   de-emphasized.
+
+Both builders take a per-request cache keyed on the normalized word, so a
+draft that repeats a word many times only computes its phonemes once.
 
 ---
 
@@ -180,7 +204,8 @@ Redis response cache and for any future client-side diffing.
 (see [`service-overview.md` §11](./service-overview.md#11-redis-response-cache-for-draft-endpoints)).
 Adding `inner_rhymes` to `DraftAnalysisResponse` bumped
 `NLP_CACHE_KEY_PREFIX` from `nlp:v1` to `nlp:v2`; the scheme-clarity tuning
-bumped it to `nlp:v3`, and the cadence/refrain revision to `nlp:v4`
+bumped it to `nlp:v3`, the cadence/refrain revision to `nlp:v4`, and the
+OOV-lookup/function-tail-extension revision to `nlp:v5`
 ([`app/core/config.py`](../app/core/config.py)) so previously cached
 responses are never served stale.
 

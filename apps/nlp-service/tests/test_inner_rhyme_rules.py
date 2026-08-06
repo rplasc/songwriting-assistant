@@ -1,6 +1,10 @@
 """Unit tests for inner-rhyme detection over positioned tokens."""
 
-from app.domain.rhyme.inner_rhyme_rules import find_inner_rhyme_groups
+from app.domain.rhyme.inner_rhyme_rules import (
+    HeuristicTailVariants,
+    english_phonemes_for,
+    find_inner_rhyme_groups,
+)
 from app.models.token import Token
 
 
@@ -460,6 +464,158 @@ def test_dense_chain_requires_distinct_words() -> None:
         [_line(["sit", "quit", "quit", "dog"])], phon, "en"
     )
     assert groups == []
+
+
+def test_identical_function_tails_join_their_anchors_group() -> None:
+    # When members of a group are each followed by the same function word at
+    # line end ("delay this" / "play this"), the tails join the group so the
+    # phrases highlight as compound units.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "delay": ("D", "IH0", "L", "EY1"),
+            "play": ("P", "L", "EY1"),
+            "this": ("DH", "IH1", "S"),
+            "dog": ("D", "AO1", "G"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups(
+        [_line(["dog", "delay", "this"], 1), _line(["dog", "play", "this"], 2)],
+        phon,
+        "en",
+    )
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert [(o.line_index, o.normalized) for o in perfect[0].occurrences] == [
+        (1, "delay"),
+        (1, "this"),
+        (2, "play"),
+        (2, "this"),
+    ]
+
+
+def test_asymmetric_function_tails_do_not_extend() -> None:
+    # Only one member has the trailing function word -> no compound pattern,
+    # the group keeps its original occurrences.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "delay": ("D", "IH0", "L", "EY1"),
+            "play": ("P", "L", "EY1"),
+            "this": ("DH", "IH1", "S"),
+            "dog": ("D", "AO1", "G"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    groups = find_inner_rhyme_groups(
+        [_line(["dog", "delay", "this"], 1), _line(["dog", "play"], 2)],
+        phon,
+        "en",
+    )
+    perfect = [g for g in groups if g.rhyme_type == "perfect"]
+    assert len(perfect) == 1
+    assert {o.normalized for o in perfect[0].occurrences} == {"delay", "play"}
+
+
+def test_heuristic_tail_variants_never_perfect_match() -> None:
+    # Tail guesses carry fabricated stress readings; an unknown word must not
+    # claim a *perfect* rhyme with a function word through one ("tetris" /
+    # "this" was the real-world failure).
+    def phon_wrapped(token: Token) -> list[tuple[str, ...]]:
+        if token.normalized == "zorbis":
+            return HeuristicTailVariants([("IH0", "S"), ("IH1", "S")])
+        if token.normalized == "this":
+            return [("DH", "IH1", "S"), ("DH", "IH0", "S")]
+        if token.normalized in ("dog", "cat"):
+            return [_PHONEMES[token.normalized]]
+        return []
+
+    groups = find_inner_rhyme_groups(
+        [_line(["dog", "this"], 1), _line(["cat", "zorbis"], 2)],
+        phon_wrapped,
+        "en",
+    )
+    assert groups == []
+
+    # Control: the same variants as a plain list (a real multi-pronunciation
+    # word) do perfect-match.
+    def phon_plain(token: Token) -> list[tuple[str, ...]]:
+        if token.normalized == "zorbis":
+            return [("IH0", "S"), ("IH1", "S")]
+        return phon_wrapped(token)
+
+    groups = find_inner_rhyme_groups(
+        [_line(["dog", "this"], 1), _line(["cat", "zorbis"], 2)],
+        phon_plain,
+        "en",
+    )
+    assert [g.rhyme_type for g in groups] == ["perfect"]
+
+
+def test_dense_chain_must_sit_on_one_line() -> None:
+    # cat/sat/mat scattered mid-line across three lines is coincidence, not a
+    # deliberate run; only the anchored feet/heat end-rhyme survives.
+    groups = find_inner_rhyme_groups(
+        [
+            _line(["cat", "dog"], 1),
+            _line(["sat", "feet"], 2),
+            _line(["mat", "heat"], 3),
+        ],
+        _phonemes_for,
+        "en",
+    )
+    assert len(groups) == 1
+    assert {o.normalized for o in groups[0].occurrences} == {"feet", "heat"}
+
+
+class _FakePronunciationService:
+    def __init__(self, table: dict[str, list[tuple[str, ...]]]) -> None:
+        self._table = table
+
+    def lookup(self, word: str):
+        class _Pron:
+            def __init__(self, phonemes: tuple[str, ...]) -> None:
+                self.phonemes = list(phonemes)
+
+        prons = [_Pron(p) for p in self._table.get(word.lower(), [])]
+        return bool(prons), prons
+
+
+def _token(text: str, normalized: str) -> Token:
+    return Token(
+        text=text, normalized=normalized, index=0, char_start=0, char_end=len(text)
+    )
+
+
+def test_english_lookup_recovers_dropped_g() -> None:
+    svc = _FakePronunciationService(
+        {"counting": [("K", "AW1", "N", "T", "IH0", "NG")]}
+    )
+    lookup = english_phonemes_for(svc, {})
+    variants = lookup(_token("countin'", "countin"))
+    assert variants == [("K", "AW1", "N", "T", "IH0", "NG")]
+    assert not isinstance(variants, HeuristicTailVariants)
+
+
+def test_english_lookup_splits_oov_compounds() -> None:
+    svc = _FakePronunciationService(
+        {"pay": [("P", "EY1")], "stub": [("S", "T", "AH1", "B")]}
+    )
+    lookup = english_phonemes_for(svc, {})
+    variants = lookup(_token("paystub", "paystub"))
+    # Right half's primary stress demoted to secondary, as CMU compounds do.
+    assert variants == [("P", "EY1", "S", "T", "AH2", "B")]
+    assert not isinstance(variants, HeuristicTailVariants)
+
+
+def test_english_lookup_wraps_heuristic_guesses() -> None:
+    lookup = english_phonemes_for(_FakePronunciationService({}), {})
+    variants = lookup(_token("tetris", "tetris"))
+    assert isinstance(variants, HeuristicTailVariants)
+    # Full-word reading first (used for spans/syllables), tails after.
+    assert variants[0] == ("T", "EH1", "T", "R", "IH0", "S")
+    assert len(variants) > 1
 
 
 def test_near_key_anchors_on_primary_stress_for_compounds() -> None:

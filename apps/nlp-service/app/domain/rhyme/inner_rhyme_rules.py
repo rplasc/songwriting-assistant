@@ -21,6 +21,11 @@ bucketing highlighted nearly every word and drowned the primary scheme):
 - An end-refrain — the same content word ending two or more lines ("…funk" /
   "…funk") — is highlighted even though it repeats: at line endings the
   repetition is the structural anchor, not noise.
+- Identical trailing function words join their anchors' group ("countin'
+  *this*" / "downin' *this*"), so compound phrases highlight as units.
+- OOV lyric vocabulary is recovered before guessing: dropped-g forms look up
+  their "-ing" spelling, compounds split into dictionary halves, and the
+  remaining guesses never claim perfect rhymes (``HeuristicTailVariants``).
 
 Deliberately rejected: a hard top-N group cap (rank reshuffles while typing
 cause highlight flicker; deterministic rules don't) and CMU stress digits for
@@ -39,6 +44,7 @@ from collections.abc import Callable, Sequence
 
 from app.domain.heuristic_g2p import (
     MAX_HEURISTIC_TAIL_VARIANTS,
+    heuristic_full_reading,
     heuristic_phoneme_tails,
 )
 from app.domain.languages.spanish.g2p import g2p as spanish_g2p
@@ -127,31 +133,110 @@ _FUNCTION_WORDS: dict[str, frozenset[str]] = {
 }
 
 
+class HeuristicTailVariants(list):
+    """Marker for variants that are heuristic *tails*, not full pronunciations.
+
+    Tail guesses cover one syllable of fabricated stress readings ("tetris" →
+    IH0/IH1/IH2 + S), which is fine for slant matching but poison for the
+    perfect tier: a fabricated ``IH1 S`` tail is indistinguishable from a real
+    exact match and pairs unknown words with function words like "this". The
+    detector skips perfect bucketing for these variants; near/cadence tiers
+    still see them.
+    """
+
+
+def _demote_primary_stress(phonemes: tuple[str, ...]) -> tuple[str, ...]:
+    """Primary stress → secondary, matching how CMU marks compound second
+    halves ("paystub" → P EY1 S T AH2 B, not two primaries)."""
+    return tuple(
+        p[:-1] + "2" if p and p[-1] == "1" else p for p in phonemes
+    )
+
+
+def _has_stressed_vowel(phonemes: tuple[str, ...]) -> bool:
+    return any(p and p[-1] in ("1", "2") for p in phonemes)
+
+
+def _dictionary_variants(pronunciation_service, word: str) -> list[tuple[str, ...]]:
+    variants: list[tuple[str, ...]] = []
+    seen: set[tuple[str, ...]] = set()
+    _, prons = pronunciation_service.lookup(word)
+    for pron in prons:
+        if pron.phonemes:
+            phonemes = tuple(pron.phonemes)
+            if phonemes not in seen:
+                seen.add(phonemes)
+                variants.append(phonemes)
+    return variants
+
+
+def _compound_split_variants(
+    pronunciation_service, norm: str
+) -> list[tuple[str, ...]]:
+    """OOV compounds split into two dictionary words ("paystub" → pay + stub).
+
+    Longest left part wins; both parts need ≥ 3 letters and the left part must
+    carry a stressed vowel. The right half's primary stress is demoted to
+    secondary so the rhyme keys anchor on the left half, as CMU does for real
+    compounds.
+    """
+    if len(norm) < 6:
+        return []
+    for i in range(len(norm) - 3, 2, -1):
+        left = _dictionary_variants(pronunciation_service, norm[:i])
+        if not left or not _has_stressed_vowel(left[0]):
+            continue
+        right = _dictionary_variants(pronunciation_service, norm[i:])
+        if not right:
+            continue
+        return [left[0] + _demote_primary_stress(right[0])]
+    return []
+
+
 def english_phonemes_for(pronunciation_service, cache: dict[str, list[tuple[str, ...]]]) -> PhonemesFor:
     """Build a token -> phoneme-variants lookup for English, dictionary first
     then heuristic. Mirrors ``_english_rhyme_key`` in the draft service.
 
     Returns every dictionary pronunciation for the word (heteronyms like
-    "read" carry more than one), or — when the dictionary has none — the top
-    ``MAX_HEURISTIC_TAIL_VARIANTS`` heuristic tails.
+    "read" carry more than one). For words the dictionary misses, three
+    fallbacks run in order:
+
+    1. **Dropped-g recovery** — "countin'" normalizes to "countin"; looking up
+       "counting" recovers the full pronunciation, which is what lets "-in'"
+       words join real rhyme groups and compound spans.
+    2. **Compound split** — "paystub" → "pay" + "stub", concatenated with the
+       right half's stress demoted (see ``_compound_split_variants``).
+    3. **Heuristic tails**, wrapped in ``HeuristicTailVariants`` so the
+       detector keeps them out of the perfect tier.
     """
 
     def _lookup(token: Token) -> list[tuple[str, ...]]:
         norm = token.normalized
         if norm in cache:
             return cache[norm]
-        variants: list[tuple[str, ...]] = []
-        seen: set[tuple[str, ...]] = set()
-        _, prons = pronunciation_service.lookup(token.text)
-        for pron in prons:
-            if pron.phonemes:
-                phonemes = tuple(pron.phonemes)
-                if phonemes not in seen:
-                    seen.add(phonemes)
-                    variants.append(phonemes)
+        variants: list[tuple[str, ...]] = _dictionary_variants(
+            pronunciation_service, token.text
+        )
         if not variants and norm:
-            tails = heuristic_phoneme_tails(norm)
-            variants = [tuple(t) for t in tails[:MAX_HEURISTIC_TAIL_VARIANTS]]
+            if norm.endswith("in"):
+                variants = _dictionary_variants(pronunciation_service, norm + "g")
+            if not variants:
+                variants = _compound_split_variants(pronunciation_service, norm)
+            if not variants:
+                guesses: list[tuple[str, ...]] = []
+                # Full reading first: spans and syllable metadata use
+                # variants[0], and the full reading is the only guess with
+                # more than the final syllable.
+                full = heuristic_full_reading(norm)
+                if full is not None:
+                    guesses.append(full)
+                guesses.extend(
+                    tuple(t)
+                    for t in heuristic_phoneme_tails(norm)[
+                        :MAX_HEURISTIC_TAIL_VARIANTS
+                    ]
+                )
+                variants = HeuristicTailVariants(guesses)
         cache[norm] = variants
         return variants
 
@@ -268,7 +353,12 @@ def _is_anchored(
     allow_dense: bool,
 ) -> bool:
     """Anchor pruning: the group must contain a line-final or multisyllabic
-    occurrence, or (perfect tier only) be a dense chain of distinct words."""
+    occurrence, or (perfect tier only) be a *same-line* dense chain of
+    distinct words. The same-line requirement is what "dense" means — a
+    cat/sat/mat run inside one bar is deliberate craft, while the same three
+    sounds scattered across distant lines (sit … get/let … quit) are
+    coincidence, exactly the mid-line monosyllable noise the anchor rule
+    exists to prune."""
     for o in occ:
         is_line_final, syllables = meta.get((o.line_index, o.word_index), (False, 0))
         if is_line_final or syllables >= _ANCHOR_MIN_SYLLABLES:
@@ -276,6 +366,7 @@ def _is_anchored(
     return (
         allow_dense
         and len({o.normalized for o in occ}) >= _DENSE_GROUP_MIN_DISTINCT_WORDS
+        and len({o.line_index for o in occ}) == 1
     )
 
 
@@ -325,6 +416,72 @@ def _build_groups(
             )
         )
     return groups
+
+
+def _extend_function_tails(
+    groups: list[InnerRhymeGroup],
+    line_entries: dict[int, list[tuple[bool, RhymeOccurrence]]],
+    *,
+    language: str,
+    taken: set[tuple[int, int]],
+) -> list[InnerRhymeGroup]:
+    """Pull identical trailing function words into their anchors' group.
+
+    When two or more members of a group are each followed by the same run of
+    function words to the end of their lines — "countin' *this*" / "downin'
+    *this*" — the phrases rhyme as compound units, and the writer reads them
+    as such. The tail words join the group (and are marked ``taken`` so later
+    tiers leave them alone), letting the editor paint each phrase as one
+    continuous block. Groups without a repeated tail signature pass through
+    untouched.
+    """
+    out: list[InnerRhymeGroup] = []
+    for group in groups:
+        by_sig: dict[tuple[str, ...], list[list[RhymeOccurrence]]] = {}
+        for o in group.occurrences:
+            entries = line_entries.get(o.line_index, [])
+            idx = next(
+                (i for i, (_, e) in enumerate(entries) if e.word_index == o.word_index),
+                None,
+            )
+            if idx is None or idx == len(entries) - 1:
+                continue
+            trail = entries[idx + 1 :]
+            if len(trail) > _MAX_SPAN_TOKENS - 1:
+                continue
+            if not all(is_function for is_function, _ in trail):
+                continue
+            tail_occs = [e for _, e in trail]
+            if any((e.line_index, e.word_index) in taken for e in tail_occs):
+                continue
+            sig = tuple(e.normalized for e in tail_occs)
+            by_sig.setdefault(sig, []).append(tail_occs)
+        added: list[RhymeOccurrence] = []
+        for tails in by_sig.values():
+            if len(tails) >= 2:
+                for tail_occs in tails:
+                    added.extend(tail_occs)
+        if not added:
+            out.append(group)
+            continue
+        for e in added:
+            taken.add((e.line_index, e.word_index))
+        merged = {
+            (o.line_index, o.word_index): o for o in [*group.occurrences, *added]
+        }
+        ordered = sorted(
+            merged.values(), key=lambda o: (o.line_index, o.word_index)
+        )
+        out.append(
+            InnerRhymeGroup(
+                id=_group_id(language, group.rhyme_type, group.rhyme_key, ordered),
+                rhyme_type=group.rhyme_type,
+                confidence=group.confidence,
+                rhyme_key=group.rhyme_key,
+                occurrences=ordered,
+            )
+        )
+    return out
 
 
 def _ending_span(
@@ -385,6 +542,9 @@ def find_inner_rhyme_groups(
     near_candidates: list[tuple[set[str], RhymeOccurrence]] = []
     cadence_candidates: list[tuple[set[str], list[RhymeOccurrence]]] = []
     meta: _OccMeta = {}
+    # (is_function, occurrence) per line, in order — for function-tail
+    # extension after each tier.
+    line_entries: dict[int, list[tuple[bool, RhymeOccurrence]]] = {}
 
     for line_index, tokens in lines:
         entries: list[tuple[Token, Sequence[tuple[str, ...]], RhymeOccurrence]] = []
@@ -402,9 +562,14 @@ def find_inner_rhyme_groups(
                 max(vowel_count(v) for v in variants),
             )
             is_function = token.normalized in function_words
+            line_entries.setdefault(line_index, []).append((is_function, occ))
             # Function words highlight only at line end — mid-line
-            # "my"/"to"/"the" matches drown the scheme.
-            if not is_function or is_line_final:
+            # "my"/"to"/"the" matches drown the scheme. Heuristic tail
+            # guesses never claim a *perfect* match (see
+            # ``HeuristicTailVariants``); they stay slant-only.
+            if (not is_function or is_line_final) and not isinstance(
+                variants, HeuristicTailVariants
+            ):
                 perfect_keys = {k for v in variants if (k := perfect_fn(v)) is not None}
                 for key in perfect_keys:
                     perfect_buckets_raw.setdefault(key, []).append(occ)
@@ -454,6 +619,9 @@ def find_inner_rhyme_groups(
         for group in perfect_groups
         for o in group.occurrences
     }
+    perfect_groups = _extend_function_tails(
+        perfect_groups, line_entries, language=language, taken=claimed
+    )
     cadence_buckets_raw: dict[str, list[RhymeOccurrence]] = {}
     for cadence_keys, occs in cadence_candidates:
         if any((o.line_index, o.word_index) in claimed for o in occs):
@@ -478,6 +646,9 @@ def find_inner_rhyme_groups(
         for group in cadence_groups
         for o in group.occurrences
     )
+    cadence_groups = _extend_function_tails(
+        cadence_groups, line_entries, language=language, taken=claimed
+    )
     near_buckets_raw: dict[str, list[RhymeOccurrence]] = {}
     for near_keys, occ in near_candidates:
         if (occ.line_index, occ.word_index) in claimed:
@@ -493,6 +664,14 @@ def find_inner_rhyme_groups(
         confidence="medium",
         function_words=function_words,
         meta=meta,
+    )
+    claimed.update(
+        (o.line_index, o.word_index)
+        for group in near_groups
+        for o in group.occurrences
+    )
+    near_groups = _extend_function_tails(
+        near_groups, line_entries, language=language, taken=claimed
     )
 
     groups = perfect_groups + cadence_groups + near_groups
@@ -511,5 +690,6 @@ __all__ = [
     "find_inner_rhyme_groups",
     "english_phonemes_for",
     "spanish_phonemes_for",
+    "HeuristicTailVariants",
     "PhonemesFor",
 ]

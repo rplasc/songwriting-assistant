@@ -448,6 +448,28 @@ def test_end_refrain_repetition_is_highlighted() -> None:
     assert groups == []
 
 
+def test_verbatim_repeated_line_is_not_a_rhyme() -> None:
+    # A repeated chorus line would otherwise make each of its words rhyme with
+    # its own echo — one color per word, meaning nothing. This is the boundary
+    # of the refrain exemption above: same word, but the *lines* also match.
+    def phon(token: Token) -> list[tuple[str, ...]]:
+        table = {
+            "cat": ("K", "AE1", "T"),
+            "funk": ("F", "AH1", "NG", "K"),
+        }
+        phonemes = table.get(token.normalized)
+        return [phonemes] if phonemes is not None else []
+
+    assert (
+        find_inner_rhyme_groups(
+            [_line(["cat", "funk"], 1), _line(["cat", "funk"], 2)],
+            phon,
+            "en",
+        )
+        == []
+    )
+
+
 def test_dense_chain_requires_distinct_words() -> None:
     # sit/quit/quit: three occurrences but only two distinct mid-line
     # monosyllables — repeats padding the count don't make a chain.

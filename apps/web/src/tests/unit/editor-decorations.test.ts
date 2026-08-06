@@ -183,6 +183,32 @@ describe("computeInnerRhymeRanges", () => {
     expect(perfect[0].className).toBe(`rhyme-g${rhymeColorSlot("EY")}`);
   });
 
+  it("uses the assonant modifier for Spanish near groups", () => {
+    // Spanish's near tier is assonance — a primary rhyme type, not an
+    // approximation of one — so it gets the middle emphasis, not the faintest.
+    const source = ["Camino contra el viento"];
+    const nearGroup = {
+      ...group([{ lineIndex: 1, charStart: 17, charEnd: 23, text: "viento" }]),
+      rhymeType: "near" as const,
+      confidence: "medium" as const,
+    };
+    const ranges = computeInnerRhymeRanges(descriptorsFor(source), {
+      groups: [nearGroup],
+      sourceLines: source,
+      language: "es",
+    });
+    expect(ranges[0].className).toBe(
+      `rhyme-g${rhymeColorSlot("EY")} rhyme-assonant`,
+    );
+    // Spanish perfect (consonant) groups still keep the bare color class.
+    const perfect = computeInnerRhymeRanges(descriptorsFor(source), {
+      groups: [group([{ lineIndex: 1, charStart: 17, charEnd: 23, text: "viento" }])],
+      sourceLines: source,
+      language: "es",
+    });
+    expect(perfect[0].className).toBe(`rhyme-g${rhymeColorSlot("EY")}`);
+  });
+
   it("assigns a class from the rhyme key, stable across group order", () => {
     const source = ["aa bb"];
     const occ = (word: string, i: number) => ({

@@ -13,6 +13,9 @@ bucketing highlighted nearly every word and drowned the primary scheme):
   occurrence — or, for the perfect tier only, be a dense chain of
   ``_DENSE_GROUP_MIN_DISTINCT_WORDS``+ distinct words. Scattered mid-line
   monosyllable matches are pruned as noise.
+- A group must span two distinct *line texts*. A repeated chorus otherwise
+  makes every one of its words rhyme with its own echo, painting the whole
+  refrain in as many colors as it has words.
 - A cadence pass connects multisyllabic (3+ beat) deliveries whose rhythm
   matches even when their phonemes don't — single words anywhere in a line
   ("sandwiches"/"allowances") and compound line-ending spans ("countin'
@@ -27,14 +30,30 @@ bucketing highlighted nearly every word and drowned the primary scheme):
   their "-ing" spelling, compounds split into dictionary halves, and the
   remaining guesses never claim perfect rhymes (``HeuristicTailVariants``).
 
+Spanish needs a stricter hand than English, because its phonology makes the
+English thresholds vacuous:
+
+- Assonance (the near tier for Spanish) is scoped to **line endings only**.
+  With five vowels, any two two-syllable words share an assonant key about one
+  time in twenty-five, so mid-line assonance is closer to coincidence than
+  craft — and *rima asonante* is defined on line endings in Spanish verse
+  anyway.
+- The multisyllabic anchor threshold is higher (``_ANCHOR_MIN_SYLLABLES``):
+  almost every Spanish word clears two syllables, so at two the anchor rule
+  prunes nothing at all.
+- Syllables are counted by the engine's syllabifier rather than by counting
+  vowel phonemes, because Spanish G2P emits one vowel per vowel *letter* —
+  the diphthongs in "bien" and "dios" would otherwise read as two syllables.
+
 Deliberately rejected: a hard top-N group cap (rank reshuffles while typing
 cause highlight flicker; deterministic rules don't) and CMU stress digits for
 function-word detection (CMU marks "my"/"to" stressed — the lexical list is
 more reliable).
 
-The detector is fed positioned tokens plus a ``phonemes_for`` callable, keeping
-it decoupled from ``LanguageContext``. Two convenience builders construct that
-callable for English and Spanish, caching by normalized word per request.
+The detector is fed positioned tokens plus a ``phonemes_for`` callable (and
+optionally a ``syllables_for`` one), keeping it decoupled from
+``LanguageContext``. Convenience builders construct those callables for English
+and Spanish, caching by normalized word per request.
 """
 
 from __future__ import annotations
@@ -47,6 +66,7 @@ from app.domain.heuristic_g2p import (
     heuristic_full_reading,
     heuristic_phoneme_tails,
 )
+from app.domain.languages.spanish.function_words import SPANISH_FUNCTION_WORDS
 from app.domain.languages.spanish.g2p import g2p as spanish_g2p
 from app.domain.languages.spanish.rhyme_rules import (
     assonant_rhyme_key,
@@ -67,6 +87,11 @@ from app.schemas.responses import InnerRhymeGroup, RhymeOccurrence
 # sequence when nothing usable was found. A word with multiple variants can
 # match a rhyme group through any one of them.
 PhonemesFor = Callable[[Token], "Sequence[tuple[str, ...]]"]
+
+# Returns a token's syllable count, for languages where counting vowel
+# phonemes is wrong (see ``spanish_syllables_for``). Optional — omitting it
+# falls back to the vowel count across the token's phoneme variants.
+SyllablesFor = Callable[[Token], int]
 
 # Per language: (perfect-key fn, near-key fn). English uses the perfect tail
 # and the strict inner slant key (NOT the suggestion path's near_rhyme_key,
@@ -96,8 +121,22 @@ _MIN_WORD_LEN = 2
 # scattered mid-line pairs masquerade as chains). Near groups get no such
 # escape hatch because scattered mid-line monosyllable slant matches are the
 # dominant highlight noise.
-_ANCHOR_MIN_SYLLABLES = 2
+#
+# The syllable bar is per language. English monosyllables are common enough
+# that two syllables already marks a word as deliberate; Spanish words are
+# overwhelmingly two syllables or more, so at two the test admits everything
+# and prunes nothing. Three is where a Spanish mid-line match stops looking
+# like an accident of a five-vowel inventory.
+_ANCHOR_MIN_SYLLABLES: dict[str, int] = {"en": 2, "es": 3}
+_ANCHOR_MIN_SYLLABLES_DEFAULT = 2
 _DENSE_GROUP_MIN_DISTINCT_WORDS = 3
+
+# Languages whose near tier is restricted to line-final words. Spanish
+# assonance matches vowels only, and with five vowels two arbitrary two-syllable
+# words share a key roughly one time in twenty-five — mid-line, that is noise
+# rather than craft. Scoping it to line endings also matches how *rima asonante*
+# is defined in Spanish verse, where the ending is what carries the rhyme.
+_NEAR_TIER_LINE_FINAL_ONLY = frozenset({"es"})
 
 # Compound line-ending spans ("countin' this"): at most this many trailing
 # tokens are considered when joining unstressed function words onto the
@@ -124,12 +163,11 @@ _FUNCTION_WORDS: dict[str, frozenset[str]] = {
         "i'm", "i've", "that's", "they're", "wasn't", "we're", "won't",
         "you're",
     }),
-    "es": frozenset({
-        "al", "como", "con", "de", "del", "el", "en", "es", "esa", "ese",
-        "esta", "este", "la", "las", "le", "les", "lo", "los", "me", "mi",
-        "mis", "nos", "para", "pero", "por", "que", "se", "si", "son", "su",
-        "sus", "te", "tu", "tus", "un", "una", "unas", "unos", "ya",
-    }),
+    # The canonical list the rest of the Spanish engine uses, plus the two
+    # copulas. A hand-rolled copy used to live here and had drifted badly: it
+    # was missing "no", "hasta", "más", "tú", "sin", "ni" and every other
+    # accented entry, so those highlighted as content words.
+    "es": SPANISH_FUNCTION_WORDS | {"es", "son"},
 }
 
 
@@ -273,6 +311,35 @@ def phonemes_for_context(ctx, cache: dict[str, list[tuple[str, ...]]]) -> Phonem
     return english_phonemes_for(ctx.pronunciation_service, cache)
 
 
+def spanish_syllables_for(cache: dict[str, int]) -> SyllablesFor:
+    """Build a token -> syllable-count lookup for Spanish.
+
+    Spanish G2P emits one vowel phoneme per vowel *letter*, so counting vowels
+    in the phoneme string turns the diphthongs in "bien" and "dios" into two
+    syllables apiece and lets true monosyllables clear the multisyllabic anchor
+    bar. The rule-based syllabifier behind ``spanish_g2p`` is exact, so use it.
+    """
+
+    def _count(token: Token) -> int:
+        norm = token.normalized
+        if norm not in cache:
+            cache[norm] = max(spanish_g2p(norm).syllables, 1) if norm else 1
+        return cache[norm]
+
+    return _count
+
+
+def syllables_for_context(ctx) -> SyllablesFor | None:
+    """Pick the syllable counter for a LanguageContext's engine, or ``None``.
+
+    ``None`` means "count vowel phonemes", which is right for English: CMU
+    marks one vowel per syllable, so the phonemes already carry the count.
+    """
+    if getattr(ctx.engine, "code", "en") == "es":
+        return spanish_syllables_for({})
+    return None
+
+
 def _occurrence(line_index: int, token: Token) -> RhymeOccurrence:
     return RhymeOccurrence(
         line_index=line_index,
@@ -351,6 +418,7 @@ def _is_anchored(
     meta: _OccMeta,
     *,
     allow_dense: bool,
+    min_syllables: int,
 ) -> bool:
     """Anchor pruning: the group must contain a line-final or multisyllabic
     occurrence, or (perfect tier only) be a *same-line* dense chain of
@@ -361,7 +429,7 @@ def _is_anchored(
     exists to prune."""
     for o in occ:
         is_line_final, syllables = meta.get((o.line_index, o.word_index), (False, 0))
-        if is_line_final or syllables >= _ANCHOR_MIN_SYLLABLES:
+        if is_line_final or syllables >= min_syllables:
             return True
     return (
         allow_dense
@@ -378,10 +446,20 @@ def _build_groups(
     confidence: str,
     function_words: frozenset[str],
     meta: _OccMeta,
+    line_signatures: dict[int, str],
+    min_syllables: int,
 ) -> list[InnerRhymeGroup]:
     groups: list[InnerRhymeGroup] = []
     for key, occ in buckets.items():
         if len(occ) < 2:
+            continue
+        # A group has to say something two distinct *lines* agree on. Keying
+        # the footprint on the line's text rather than its number collapses a
+        # repeated chorus onto itself: without this, every word of a repeated
+        # refrain rhymes with its own echo, and a four-word hook paints four
+        # colors that mean nothing. Surviving groups keep all their
+        # occurrences, so a repeat still highlights the same way it first did.
+        if len({(line_signatures.get(o.line_index, ""), o.word_index) for o in occ}) < 2:
             continue
         # Need at least two *distinct* words so plain repetition (handled by
         # repetition_rules) isn't mislabeled rhyme — EXCEPT when the same
@@ -403,7 +481,12 @@ def _build_groups(
         # all-function-word groups are still suppressed in the near tier.
         if rhyme_type == "near" and all(o.normalized in function_words for o in occ):
             continue
-        if not _is_anchored(occ, meta, allow_dense=rhyme_type == "perfect"):
+        if not _is_anchored(
+            occ,
+            meta,
+            allow_dense=rhyme_type == "perfect",
+            min_syllables=min_syllables,
+        ):
             continue
         ordered = sorted(occ, key=lambda o: (o.line_index, o.word_index))
         groups.append(
@@ -522,6 +605,7 @@ def find_inner_rhyme_groups(
     lines: Sequence[tuple[int, Sequence[Token]]],
     phonemes_for: PhonemesFor,
     language: str,
+    syllables_for: SyllablesFor | None = None,
 ) -> list[InnerRhymeGroup]:
     """Group rhyming words across ``lines`` into highlight groups.
 
@@ -530,11 +614,17 @@ def find_inner_rhyme_groups(
     endpoint). Perfect rhymes take precedence; multisyllabic cadences (single
     words anywhere, plus compound line-ending spans like "countin' this") come
     next; remaining words are matched on the coarser near/slant key. Groups
-    that fail anchor pruning are dropped.
+    that fail anchor pruning, or that span only one distinct line text, are
+    dropped.
+
+    ``syllables_for`` overrides the default vowel-phoneme count for languages
+    where that count doesn't equal syllables (Spanish diphthongs).
     """
     perfect_fn, near_fn = _KEY_FNS.get(language, (rhyme_key, inner_near_rhyme_key))
     cadence_fn = _CADENCE_KEY_FNS.get(language)
     function_words = _FUNCTION_WORDS.get(language, frozenset())
+    min_syllables = _ANCHOR_MIN_SYLLABLES.get(language, _ANCHOR_MIN_SYLLABLES_DEFAULT)
+    near_needs_line_final = language in _NEAR_TIER_LINE_FINAL_ONLY
 
     perfect_buckets_raw: dict[str, list[RhymeOccurrence]] = {}
     # Near/cadence candidates keep their occurrences + key set so we can
@@ -545,8 +635,12 @@ def find_inner_rhyme_groups(
     # (is_function, occurrence) per line, in order — for function-tail
     # extension after each tier.
     line_entries: dict[int, list[tuple[bool, RhymeOccurrence]]] = {}
+    # Normalized text per line, so repeated lines can be recognized as each
+    # other in _build_groups.
+    line_signatures: dict[int, str] = {}
 
     for line_index, tokens in lines:
+        line_signatures[line_index] = " ".join(t.normalized for t in tokens)
         entries: list[tuple[Token, Sequence[tuple[str, ...]], RhymeOccurrence]] = []
         for token in tokens:
             if len(token.normalized) < _MIN_WORD_LEN:
@@ -559,7 +653,9 @@ def find_inner_rhyme_groups(
             is_line_final = pos == len(entries) - 1
             meta[(occ.line_index, occ.word_index)] = (
                 is_line_final,
-                max(vowel_count(v) for v in variants),
+                syllables_for(token)
+                if syllables_for is not None
+                else max(vowel_count(v) for v in variants),
             )
             is_function = token.normalized in function_words
             line_entries.setdefault(line_index, []).append((is_function, occ))
@@ -578,9 +674,12 @@ def find_inner_rhyme_groups(
             # in a compound span, below).
             if is_function:
                 continue
-            near_keys = {k for v in variants if (k := near_fn(v)) is not None}
-            if near_keys:
-                near_candidates.append((near_keys, occ))
+            # Spanish assonance only counts at line endings — see
+            # ``_NEAR_TIER_LINE_FINAL_ONLY``.
+            if not near_needs_line_final or is_line_final:
+                near_keys = {k for v in variants if (k := near_fn(v)) is not None}
+                if near_keys:
+                    near_candidates.append((near_keys, occ))
             # Cadence candidacy is position-independent: the key itself
             # requires a 3+ syllable tail, so only long multisyllabic
             # deliveries ("sandwiches" mid-line) qualify.
@@ -608,6 +707,8 @@ def find_inner_rhyme_groups(
         confidence="high",
         function_words=function_words,
         meta=meta,
+        line_signatures=line_signatures,
+        min_syllables=min_syllables,
     )
 
     # Positions already claimed by a perfect group are excluded from the
@@ -639,6 +740,8 @@ def find_inner_rhyme_groups(
         confidence="medium",
         function_words=function_words,
         meta=meta,
+        line_signatures=line_signatures,
+        min_syllables=min_syllables,
     )
 
     claimed.update(
@@ -664,6 +767,8 @@ def find_inner_rhyme_groups(
         confidence="medium",
         function_words=function_words,
         meta=meta,
+        line_signatures=line_signatures,
+        min_syllables=min_syllables,
     )
     claimed.update(
         (o.line_index, o.word_index)
@@ -690,6 +795,9 @@ __all__ = [
     "find_inner_rhyme_groups",
     "english_phonemes_for",
     "spanish_phonemes_for",
+    "spanish_syllables_for",
+    "syllables_for_context",
     "HeuristicTailVariants",
     "PhonemesFor",
+    "SyllablesFor",
 ]

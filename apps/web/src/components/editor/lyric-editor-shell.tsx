@@ -234,8 +234,9 @@ export function LyricEditorShell() {
     setInnerRhymes(editor, {
       groups: analysis.innerRhymes,
       sourceLines: analyzedContent.split("\n"),
+      language,
     });
-  }, [editor, analysis, analyzedContent, rhymeHighlights]);
+  }, [editor, analysis, analyzedContent, rhymeHighlights, language]);
 
   // Baseline is a stored revision hash; the gateway's SnapshotStore retains
   // the analysis payload behind that hash for the comparison call. Tag the

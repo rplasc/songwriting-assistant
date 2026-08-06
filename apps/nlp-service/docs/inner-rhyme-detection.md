@@ -81,14 +81,26 @@ scheme in color. Three deliberate filters implement the
 1. **Token filter.** Tokens with `normalized` shorter than 2 characters
    (`_MIN_WORD_LEN`) or with no resolvable phonemes are skipped entirely.
    The last surviving token of each line is marked **line-final**, and each
-   token's syllable count (max vowel count across pronunciation variants) is
-   recorded — both feed the anchor rules below.
+   token's syllable count is recorded — both feed the anchor rules below.
+   The count defaults to the max vowel count across pronunciation variants,
+   which is right for English because CMU marks one vowel per syllable. A
+   language may override it via `syllables_for`, and Spanish does: its G2P
+   emits one vowel phoneme per vowel *letter*, so counting vowels would make
+   the diphthongs in "bien" and "dios" read as two syllables. Spanish uses the
+   rule-based syllabifier instead (`spanish_syllables_for`). Each line's
+   normalized token sequence is also recorded as its **signature**, so
+   repeated lines can be recognized as each other in step 5.
 2. **Perfect pass.** Every token's phonemes are run through the language's
    perfect-rhyme key (`rhyme_key` for English, `consonant_rhyme_key` for
    Spanish) and bucketed by key.
    A `_FUNCTION_WORDS` token ("my", "to", "the", …) enters a bucket only
    when it is line-final. A line *ending* on "you"/"do" is a real end-rhyme;
-   mid-line function-word matches are cognitive noise.
+   mid-line function-word matches are cognitive noise. The Spanish half of
+   `_FUNCTION_WORDS` is the canonical
+   [`SPANISH_FUNCTION_WORDS`](../app/domain/languages/spanish/function_words.py)
+   the rest of the engine uses, plus the two copulas — a hand-rolled copy
+   used to live in the detector and had drifted, missing "no", "hasta",
+   "más", "tú" and every other accented entry.
 3. **Cadence pass (English only).** Words not claimed by a perfect group are
    bucketed by
    [`ending_cadence_key`](../app/domain/rhyme/ending_cadence_rules.py) —
@@ -110,6 +122,13 @@ scheme in color. Three deliberate filters implement the
    `assonant_rhyme_key` for Spanish). Any occurrence already claimed by a
    perfect or cadence group is **excluded**: a word appears in at most one
    group. Function words never enter this pass.
+   For languages in `_NEAR_TIER_LINE_FINAL_ONLY` — Spanish — only **line-final**
+   tokens are candidates. Spanish assonance matches vowels only, and with a
+   five-vowel inventory two arbitrary two-syllable words share an assonant key
+   roughly one time in twenty-five; mid-line, that is closer to coincidence
+   than craft, and it was painting most of the page. Scoping the tier to line
+   endings also matches how *rima asonante* is defined in Spanish verse, where
+   the ending is what carries the rhyme.
 5. **Group filter.** A bucket only becomes a group if it has **≥ 2
    occurrences and ≥ 2 distinct normalized words**. This keeps plain word
    repetition (already covered by `repetition_rules`) from being reported as
@@ -118,9 +137,21 @@ scheme in color. Three deliberate filters implement the
    its bars and is kept as a perfect group. All-function-word buckets are
    additionally suppressed in the near tier ("them"/"then" is noise, not
    craft), and a repeated line-final *function* word is not a refrain.
+   A group must additionally span **two distinct (line signature, word index)
+   pairs**. Keying that footprint on the line's *text* rather than its number
+   collapses a repeated chorus onto itself: without it, every word of a
+   repeated refrain rhymes with its own echo, and a four-word hook paints four
+   colors that mean nothing. It is the boundary of the end-refrain exemption
+   above — "…funk" ending two *different* lines still qualifies. Surviving
+   groups keep all their occurrences, so a repeated line highlights exactly
+   the way its first appearance does.
 6. **Anchor pruning.** A group survives only if it contains at least
    one line-final occurrence **or** one occurrence with
-   `_ANCHOR_MIN_SYLLABLES` (2) or more syllables. Perfect groups may
+   `_ANCHOR_MIN_SYLLABLES` or more syllables. That bar is per language —
+   2 for English, 3 for Spanish. English monosyllables are common enough that
+   two syllables already marks a word as deliberate, whereas Spanish words are
+   overwhelmingly two syllables or more, so at two the test admits everything
+   and prunes nothing. Perfect groups may
    alternatively survive as a **same-line** dense chain of
    `_DENSE_GROUP_MIN_DISTINCT_WORDS` (3) or more *distinct* words — a
    mid-line cat/sat/mat run inside one bar is deliberate craft, while the
@@ -140,7 +171,12 @@ scheme in color. Three deliberate filters implement the
    `confidence="medium"`, the same high/medium convention documented in
    [`confidence-and-evidence.md`](./confidence-and-evidence.md). The web
    client renders `near` groups de-emphasized (fainter marker wash, dashed
-   underline) so the perfect scheme visually dominates.
+   underline) so the perfect scheme visually dominates — except for Spanish,
+   where the client uses a middle setting (30% wash, dotted). Spanish's near
+   tier carries assonance, which is a primary rhyme type rather than an
+   approximation of one, and since a Spanish lyric often uses assonance as its
+   *only* scheme, the strongest signal on the page would otherwise be the
+   palest thing on it.
 9. **Ordering.** Groups are sorted by their first occurrence
    (`line_index`, `word_index`), perfect groups before near groups on ties.
 
@@ -155,7 +191,16 @@ scheme in color. Three deliberate filters implement the
 - *Restricting the cadence pass to line-final words.* First tried; it missed
   mid-line members of a delivery family ("syrup **sandwiches** and crime
   allowances") and could not represent compound units at all. The 3-beat
-  minimum replaced position as the noise guard.
+  minimum replaced position as the noise guard. Note this is the opposite of
+  the call made for Spanish assonance in step 4 — the English cadence key is
+  specific enough that position isn't needed as a guard, while a five-vowel
+  assonant key is not.
+- *Letting a line-final word join an assonant group whose other members were
+  already claimed by the consonant tier.* Consonant rhyme implies assonant
+  rhyme, so "pantano" genuinely assonates with a `-ado` family — but those
+  members belong to the stronger group, and a word left over cannot form a
+  group alone. It stays unhighlighted. Showing a real-but-incomplete scheme
+  beats claiming a perfect rhyme that isn't one.
 
 ---
 
@@ -204,8 +249,9 @@ Redis response cache and for any future client-side diffing.
 (see [`service-overview.md` §11](./service-overview.md#11-redis-response-cache-for-draft-endpoints)).
 Adding `inner_rhymes` to `DraftAnalysisResponse` bumped
 `NLP_CACHE_KEY_PREFIX` from `nlp:v1` to `nlp:v2`; the scheme-clarity tuning
-bumped it to `nlp:v3`, the cadence/refrain revision to `nlp:v4`, and the
-OOV-lookup/function-tail-extension revision to `nlp:v5`
+bumped it to `nlp:v3`, the cadence/refrain revision to `nlp:v4`, the
+OOV-lookup/function-tail-extension revision to `nlp:v5`, and the Spanish
+tuning to `nlp:v6`
 ([`app/core/config.py`](../app/core/config.py)) so previously cached
 responses are never served stale.
 

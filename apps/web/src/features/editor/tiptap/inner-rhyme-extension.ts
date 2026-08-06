@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/react";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { InnerRhymeGroup } from "@/features/analysis/analysis-types";
+import type { Language } from "@/features/language/language-types";
 import { describeLines, type LineDescriptor } from "./line-descriptors";
 
 export const RHYME_GROUP_CLASS_COUNT = 12;
@@ -12,6 +13,10 @@ export interface InnerRhymePayload {
   /** The analyzed draft content split on \n — occurrence offsets are only
    * valid against these lines, so each one is checked before decorating. */
   sourceLines: string[];
+  /** Decides how a "near" group is de-emphasized: English near/cadence
+   * matches are approximations of the perfect scheme, but Spanish's near tier
+   * carries assonance, which is a primary rhyme type in its own right. */
+  language?: Language;
 }
 
 export interface RhymeUnderlineRange {
@@ -79,11 +84,16 @@ export function computeInnerRhymeRanges(
   const byLine = new Map(lines.map((l) => [l.line, l]));
   const slotByKey = assignColorSlots(payload.groups.map((g) => g.rhymeKey));
   const ranges: RhymeUnderlineRange[] = [];
+  // Near/cadence groups render de-emphasized so the perfect end-rhyme scheme
+  // dominates. Spanish gets a middle setting instead of the faintest one: its
+  // near tier is assonance, and since assonance is often the *only* scheme a
+  // Spanish lyric uses, the strongest signal on the page would otherwise be
+  // the palest thing on it.
+  const nearModifier =
+    payload.language === "es" ? " rhyme-assonant" : " rhyme-near";
   payload.groups.forEach((group) => {
-    // Near/cadence groups render de-emphasized (fainter marker, dashed
-    // underline) so the perfect end-rhyme scheme visually dominates.
-    const nearModifier = group.rhymeType === "near" ? " rhyme-near" : "";
-    const className = `rhyme-g${slotByKey.get(group.rhymeKey)}${nearModifier}`;
+    const modifier = group.rhymeType === "near" ? nearModifier : "";
+    const className = `rhyme-g${slotByKey.get(group.rhymeKey)}${modifier}`;
     // Adjacent words of the same group merge into one continuous block, so a
     // compound phrase ("countin' this") reads as a single unit, not two
     // stacked pills.

@@ -228,6 +228,17 @@ body {
   text-decoration-style: dashed;
 }
 
+/* Spanish assonance sits between the two: it is a primary rhyme type, not an
+   approximation of one, so it stays clearly legible while still reading as
+   looser than an exact consonant rhyme. */
+.rhyme-style-marker .tiptap .rhyme-assonant {
+  background-color: color-mix(in srgb, var(--rhyme-ink) 30%, transparent);
+}
+
+.rhyme-style-underline .tiptap .rhyme-assonant {
+  text-decoration-style: dotted;
+}
+
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--muted-foreground);

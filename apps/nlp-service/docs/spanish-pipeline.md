@@ -73,6 +73,7 @@ These are the two rhyme categories Spanish songwriting tradition cares about. "P
 
 - The web client's unified "Perfect / Near" toggle maps to `consonant / assonant` for Spanish in the client. This is a UI convenience; FastAPI does not perform the translation and will reject `perfect` for a Spanish request.
 - There is no third "near consonant" tier. If that distinction matters for some songwriters, it would be a new slot, not a parameter tweak.
+- **Inner-rhyme highlighting scopes assonance to line endings.** The keys above are used unchanged for rhyme *suggestions*, where the writer asks about one specific word. Highlighting is different: it decides on the writer's behalf which of a page of words are worth marking, and there an assonant key is too coarse to use mid-line. With five vowels, two arbitrary two-syllable words share one about one time in twenty-five — testing showed mid-line assonance painting most of a draft. `_NEAR_TIER_LINE_FINAL_ONLY` in [`inner_rhyme_rules.py`](../app/domain/rhyme/inner_rhyme_rules.py) restricts the assonant tier to line-final words, which is also where *rima asonante* lives in Spanish verse. See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md).
 
 ---
 

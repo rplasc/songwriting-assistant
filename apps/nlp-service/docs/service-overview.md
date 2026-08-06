@@ -229,7 +229,7 @@ typically under 2 ms.
 
 Cache keys use `orjson.OPT_SORT_KEYS` serialisation so equivalent payloads with
 different field ordering hash identically. Bumping `NLP_CACHE_KEY_PREFIX` (e.g.
-`nlp:v4` → `nlp:v5`, done for the inner-rhyme OOV-lookup revision)
+`nlp:v5` → `nlp:v6`, done for the Spanish inner-rhyme tuning)
 invalidates all entries globally when analysis logic changes.
 
 **Tradeoffs:**

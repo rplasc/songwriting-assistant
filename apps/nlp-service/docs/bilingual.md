@@ -137,6 +137,15 @@ Each feature is reported in the `capabilities` object of every `POST /v1/analyze
 Capabilities that are not requested default to `"unsupported"` in the response regardless
 of language, so clients can check the value without knowing the request options.
 
+`inner_rhymes` is not in this table because it is not a declared capability — it ships on
+every response for both languages. It is worth knowing that it is not *symmetric* between
+them, though: the detector applies stricter rules to Spanish (assonance restricted to line
+endings, a higher multisyllabic anchor bar, exact syllable counts) because the English
+thresholds are vacuous under Spanish phonology, not because the feature is weaker there.
+The per-language behavior lives in code-keyed tables in
+[`inner_rhyme_rules.py`](../app/domain/rhyme/inner_rhyme_rules.py) rather than in branches
+on the engine code — see [`inner-rhyme-detection.md`](./inner-rhyme-detection.md).
+
 ---
 
 ## What this contract deliberately excludes

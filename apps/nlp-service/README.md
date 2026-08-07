@@ -72,7 +72,7 @@ The cache is **off by default** so local dev and CI don't require Redis.
 | `NLP_CACHE_ENABLED` | `false` | Set to `true` to activate |
 | `NLP_CACHE_REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL |
 | `NLP_CACHE_TTL_SECONDS` | `3600` | Entry lifetime in seconds (1 hour) |
-| `NLP_CACHE_KEY_PREFIX` | `nlp:v1` | Prefix for all cache keys; bump to invalidate |
+| `NLP_CACHE_KEY_PREFIX` | `nlp:v6` | Prefix for all cache keys; bump to invalidate |
 
 Cache keys are content-addressed (`sha256` of the canonical JSON payload), so
 any payload change automatically results in a cache miss. If Redis is

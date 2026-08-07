@@ -6,6 +6,7 @@ from app.core.logging import get_logger, timed
 from app.domain.rhyme.inner_rhyme_rules import (
     find_inner_rhyme_groups,
     phonemes_for_context,
+    syllables_for_context,
 )
 from app.schemas.requests import LineAnalysisRequest
 from app.schemas.responses import LastWord, LineAnalysisResponse, TokenAnalysis
@@ -70,6 +71,7 @@ def _compute_analyze_line(
         [(0, tokens)],
         phonemes_for_context(ctx, {}),
         payload.language,
+        syllables_for_context(ctx),
     )
 
     normalized_line = " ".join(t.normalized for t in tokens)

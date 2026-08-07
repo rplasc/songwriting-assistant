@@ -47,6 +47,7 @@ from app.domain.response_contracts.evidence_anchor_builder import (
 from app.domain.rhyme.inner_rhyme_rules import (
     find_inner_rhyme_groups,
     phonemes_for_context,
+    syllables_for_context,
 )
 from app.domain.rhyme_rules import rhyme_key
 from app.models.token import Token
@@ -236,6 +237,7 @@ class DraftAnalysisService:
                 inner_rhyme_lines,
                 phonemes_for_context(context, phoneme_cache),
                 request.language,
+                syllables_for_context(context),
             )
 
         return DraftAnalysisResponse(

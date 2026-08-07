@@ -1,4 +1,7 @@
-from app.domain.heuristic_g2p import heuristic_phoneme_tails
+from app.domain.heuristic_g2p import (
+    heuristic_full_reading,
+    heuristic_phoneme_tails,
+)
 
 
 def test_returns_empty_when_no_vowel() -> None:
@@ -114,3 +117,34 @@ def test_magic_e_soft_g_gives_jh_not_g() -> None:
     tails = heuristic_phoneme_tails("strage")
     assert any(t[-1] == "JH" for t in tails), "expected JH in tails"
     assert not any(t[-1] == "G" for t in tails), "unexpected G in tails"
+
+
+# --- heuristic_full_reading: crude whole-word reading for slant matching ---
+
+
+def test_full_reading_walks_all_clusters() -> None:
+    assert heuristic_full_reading("tetris") == ("T", "EH1", "T", "R", "IH0", "S")
+
+
+def test_full_reading_initial_stress_only() -> None:
+    reading = heuristic_full_reading("bandana")
+    assert reading is not None
+    stressed = [p for p in reading if p and p[-1] == "1"]
+    assert len(stressed) == 1
+
+
+def test_full_reading_leading_y_is_consonant() -> None:
+    reading = heuristic_full_reading("yolo")
+    assert reading is not None
+    assert reading[0] == "Y"
+
+
+def test_full_reading_silent_final_e() -> None:
+    reading = heuristic_full_reading("bloke")
+    assert reading is not None
+    assert not reading[-1][-1].isdigit()
+
+
+def test_full_reading_none_without_vowels() -> None:
+    assert heuristic_full_reading("qzqzqz") is None
+    assert heuristic_full_reading("") is None

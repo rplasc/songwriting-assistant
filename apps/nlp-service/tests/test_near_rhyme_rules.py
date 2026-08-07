@@ -134,3 +134,18 @@ def test_inner_near_requires_stressed_anchor() -> None:
     assert inner_near_rhyme_key(["DH", "AH0"]) is None
     assert inner_near_rhyme_key([]) is None
     assert inner_near_rhyme_key(["K", "T"]) is None
+
+
+def test_inner_near_anchors_on_primary_stress() -> None:
+    # "paystub": P EY1 S T AH2 B — the rhyme lands on the primary ("pay-"),
+    # not the secondary "-stub", so it slant-matches "waist" (W EY1 S T).
+    paystub = ["P", "EY1", "S", "T", "AH2", "B"]
+    waist = ["W", "EY1", "S", "T"]
+    assert inner_near_rhyme_key(paystub) == inner_near_rhyme_key(waist)
+
+
+def test_inner_near_falls_back_to_secondary_stress() -> None:
+    # A word with only secondary stress still anchors there.
+    assert inner_near_rhyme_key(["R", "AE2", "P"]) == inner_near_rhyme_key(
+        ["K", "AE1", "B"]
+    )

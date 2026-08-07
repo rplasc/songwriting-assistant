@@ -52,6 +52,26 @@ def _stressed_or_last_vowel(phonemes: Sequence[str]) -> int:
     return last_stressed if last_stressed >= 0 else last_vowel
 
 
+def _last_primary_or_secondary_vowel(phonemes: Sequence[str]) -> int:
+    """Last primary-stressed vowel, falling back to the last secondary.
+
+    Compounds like "paystub" (P EY1 S T AH2 B) end on a secondary-stressed
+    syllable, but the rhyme lands on the primary ("pay-"). Anchoring on the
+    last *primary* stress lets "waist" slant-match "paystub"; words with only
+    secondary stress still anchor there. Returns -1 when no stressed vowel
+    exists.
+    """
+    last_primary = -1
+    last_secondary = -1
+    for i, p in enumerate(phonemes):
+        if _is_vowel(p):
+            if p[-1] == "1":
+                last_primary = i
+            elif p[-1] == "2":
+                last_secondary = i
+    return last_primary if last_primary >= 0 else last_secondary
+
+
 def near_rhyme_key(phonemes: Sequence[str]) -> str | None:
     """A coarser key intended for slant/near rhymes.
 
@@ -97,7 +117,9 @@ def inner_near_rhyme_key(phonemes: Sequence[str]) -> str | None:
     membership *is* the highlight group — so this key:
 
       - requires a stressed anchor vowel (slant rhyme hinges on stressed
-        syllables; schwa-only function words never anchor a group)
+        syllables; schwa-only function words never anchor a group), preferring
+        the last *primary* stress so compounds like "paystub" anchor on the
+        rhyme-bearing syllable ("pay-"), not the secondary "-stub"
       - keeps the exact vowel, so "you"/"so"/"world" no longer share a
         vowel-class mega-bucket
       - requires a coda: open syllables ("you" UW1, "so" OW1) carry no
@@ -111,8 +133,8 @@ def inner_near_rhyme_key(phonemes: Sequence[str]) -> str | None:
     The coda manner stays fuzzy (manner-of-articulation classes), preserving
     classic same-length slant pairs like cat/cad and mind/find.
     """
-    start = _stressed_or_last_vowel(phonemes)
-    if start < 0 or phonemes[start][-1] not in ("1", "2"):
+    start = _last_primary_or_secondary_vowel(phonemes)
+    if start < 0:
         return None
     coda = phonemes[start + 1 :]
     if not coda:

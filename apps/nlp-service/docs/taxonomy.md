@@ -40,6 +40,13 @@ smaller vocabulary from both `RhymeCandidate.rhyme_type` (tiers, above) and
 `rhyme_family`. It reuses the same key functions (`rhyme_key`/`consonant_rhyme_key`
 for "perfect", `near_rhyme_key`/`assonant_rhyme_key` for "near") but describes
 *groups of words within the input*, not *candidate words from the corpus*.
+
+The two-value enum carries different weight per language, and consumers should
+not read `"near"` as "weaker match". For English it means slant or cadence — an
+approximation of the perfect scheme. For Spanish it means **assonance**, a
+primary rhyme type in its own right, restricted to line-final words and
+rendered as its own visual tier by the web client rather than de-emphasized
+alongside English slant matches.
 See [`inner-rhyme-detection.md`](./inner-rhyme-detection.md).
 
 ## 2. Phrase-ending extraction

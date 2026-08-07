@@ -265,4 +265,53 @@ def _dedupe(tails: list[tuple[str, ...]]) -> list[tuple[str, ...]]:
     return out
 
 
-__all__ = ["heuristic_phoneme_tails", "MAX_HEURISTIC_TAIL_VARIANTS"]
+_CLUSTER_RE = re.compile(r"[aeiouy]+|[^aeiouy]+")
+
+
+def heuristic_full_reading(word: str) -> tuple[str, ...] | None:
+    """One crude full-word ARPABET reading for an unknown word.
+
+    Walks the whole spelling as alternating vowel/consonant clusters, taking
+    each cluster's first candidate reading, with initial-syllable primary
+    stress (the English default) and a silent final 'e'. "tetris" →
+    ``T EH1 T R IH0 S`` — enough for the *slant* tiers to connect it with
+    "extras"/"petty", which the tail-only guesses above never could.
+
+    This is far too rough to assert perfect rhymes (callers must keep it out
+    of exact-match tiers), but a wrong slant guess is cheap: worst case an
+    unknown word lands in a nearby vowel family instead of staying invisible.
+    Returns ``None`` for vowel-less words.
+    """
+    if not word:
+        return None
+    w = word.lower().replace("'", "")
+    # Leading 'y' is consonantal ("yo", "yonder").
+    prefix: list[str] = []
+    if w.startswith("y") and len(w) > 1:
+        prefix = ["Y"]
+        w = w[1:]
+    parts = _CLUSTER_RE.findall(w)
+    out: list[str] = prefix.copy()
+    vowel_index = 0
+    for i, part in enumerate(parts):
+        if part[0] in "aeiouy":
+            if part == "e" and i == len(parts) - 1 and vowel_index > 0:
+                continue  # silent final 'e'
+            cands = _vowel_candidates(part)
+            if not cands:
+                return None
+            base = cands[0][:-1] if cands[0][-1].isdigit() else cands[0]
+            out.append(base + ("1" if vowel_index == 0 else "0"))
+            vowel_index += 1
+        else:
+            out.extend(_consonant_tail_phonemes(part))
+    if vowel_index == 0:
+        return None
+    return tuple(out)
+
+
+__all__ = [
+    "heuristic_phoneme_tails",
+    "heuristic_full_reading",
+    "MAX_HEURISTIC_TAIL_VARIANTS",
+]

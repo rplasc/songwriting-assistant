@@ -27,7 +27,7 @@
   /* Notebook rule — softer than --border; sits under every lyric line. */
   --notebook-line: light-dark(#e9e4d8, #2b2922);
 
-  /* Rhyme-group inks. One stable color per sound (slots g0..g7). Vibrant
+  /* Rhyme-group inks. One stable color per sound (slots g0..g11). Vibrant
      purple/green/pink-led palette; dark values run bright so the marker style's
      38% wash reads on the dark surface. */
   --rhyme-1: light-dark(#7c3aed, #a78bfa);   /* purple */
@@ -38,6 +38,10 @@
   --rhyme-6: light-dark(#0891b2, #22d3ee);   /* cyan */
   --rhyme-7: light-dark(#b8890b, #facc15);   /* gold */
   --rhyme-8: light-dark(#c026d3, #e879f9);   /* magenta */
+  --rhyme-9: light-dark(#0d9488, #2dd4bf);   /* teal */
+  --rhyme-10: light-dark(#65a30d, #a3e635);  /* lime */
+  --rhyme-11: light-dark(#dc2626, #f87171);  /* red */
+  --rhyme-12: light-dark(#4f46e5, #818cf8);  /* indigo */
 }
 
 /* Manual theme override — pins color-scheme so the light-dark() tokens above
@@ -177,6 +181,10 @@ body {
 .rhyme-style-underline .tiptap .rhyme-g5 { --rhyme-ink: var(--rhyme-6); }
 .rhyme-style-underline .tiptap .rhyme-g6 { --rhyme-ink: var(--rhyme-7); }
 .rhyme-style-underline .tiptap .rhyme-g7 { --rhyme-ink: var(--rhyme-8); }
+.rhyme-style-underline .tiptap .rhyme-g8 { --rhyme-ink: var(--rhyme-9); }
+.rhyme-style-underline .tiptap .rhyme-g9 { --rhyme-ink: var(--rhyme-10); }
+.rhyme-style-underline .tiptap .rhyme-g10 { --rhyme-ink: var(--rhyme-11); }
+.rhyme-style-underline .tiptap .rhyme-g11 { --rhyme-ink: var(--rhyme-12); }
 
 .rhyme-style-marker .tiptap .rhyme-g0 { --rhyme-ink: var(--rhyme-1); }
 .rhyme-style-marker .tiptap .rhyme-g1 { --rhyme-ink: var(--rhyme-2); }
@@ -186,6 +194,10 @@ body {
 .rhyme-style-marker .tiptap .rhyme-g5 { --rhyme-ink: var(--rhyme-6); }
 .rhyme-style-marker .tiptap .rhyme-g6 { --rhyme-ink: var(--rhyme-7); }
 .rhyme-style-marker .tiptap .rhyme-g7 { --rhyme-ink: var(--rhyme-8); }
+.rhyme-style-marker .tiptap .rhyme-g8 { --rhyme-ink: var(--rhyme-9); }
+.rhyme-style-marker .tiptap .rhyme-g9 { --rhyme-ink: var(--rhyme-10); }
+.rhyme-style-marker .tiptap .rhyme-g10 { --rhyme-ink: var(--rhyme-11); }
+.rhyme-style-marker .tiptap .rhyme-g11 { --rhyme-ink: var(--rhyme-12); }
 
 /* Underline style — a fine colored rule under the rhyming word. */
 .rhyme-style-underline .tiptap [class*="rhyme-g"] {
@@ -203,6 +215,28 @@ body {
   margin-inline: -0.12em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+
+/* Near/cadence groups are de-emphasized — fainter wash, dashed rule — so the
+   perfect scheme visually dominates. Placed after the base blocks so the
+   modifier wins the same-specificity contest. */
+.rhyme-style-marker .tiptap .rhyme-near {
+  background-color: color-mix(in srgb, var(--rhyme-ink) 18%, transparent);
+}
+
+.rhyme-style-underline .tiptap .rhyme-near {
+  text-decoration-style: dashed;
+}
+
+/* Spanish assonance sits between the two: it is a primary rhyme type, not an
+   approximation of one, so it stays clearly legible while still reading as
+   looser than an exact consonant rhyme. */
+.rhyme-style-marker .tiptap .rhyme-assonant {
+  background-color: color-mix(in srgb, var(--rhyme-ink) 30%, transparent);
+}
+
+.rhyme-style-underline .tiptap .rhyme-assonant {
+  text-decoration-style: dotted;
 }
 
 .tiptap p.is-editor-empty:first-child::before {
